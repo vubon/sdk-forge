@@ -1,138 +1,237 @@
 # SDK Forge
 
-A CLI tool written in Go that generates SDKs for multiple programming languages from OpenAPI schemas.
+A powerful CLI tool written in Go that generates production-ready SDKs for multiple programming languages from OpenAPI schemas.
 
 ## Status
 
-🚧 **Early Development** - Project structure and planning phase
+✅ **v0.2.0** - Go and Python SDK generation fully implemented and tested
 
-## Goals
+## Features
 
-Generate SDKs for:
-- Python
-- Go (Golang)
-- PHP
-- JavaScript/TypeScript
-- (More languages to come)
+- 🚀 **Multi-Language Support**: Generate SDKs for Go and Python (PHP, JavaScript/TypeScript coming soon)
+- 📦 **Template-Based Generation**: Clean, maintainable template system using `go:embed`
+- 🔧 **Language Version Configuration**: Specify target language versions (Go 1.24/1.25, Python 3.11-3.14)
+- 📌 **SDK Version Management**: Automatic version extraction from OpenAPI schema with CLI override
+- 🎨 **Code Formatting**: Automatic formatting for generated code (gofmt, black/autopep8)
+- 🔐 **Authentication Support**: Full support for all OpenAPI authentication methods
+- 📝 **Interactive Mode**: User-friendly prompts for missing parameters
+- ✅ **Comprehensive Testing**: Unit tests, integration tests, and high code coverage
+
+## Installation
+
+### From Source
+
+```bash
+# Clone the repository
+git clone https://github.com/vubon/sdk-forge.git
+cd sdk-forge
+
+# Build
+make build
+
+# Or install directly
+make install
+```
+
+### Manual Build
+
+```bash
+go build -o sdk-forge ./cmd/cli
+```
+
+## Quick Start
+
+```bash
+# Generate a Python SDK
+sdk-forge generate \
+  --schema examples/petstore.yaml \
+  --lang python \
+  --name my-api-sdk \
+  --output ./sdks
+
+# Generate a Go SDK
+sdk-forge generate \
+  --schema examples/petstore.yaml \
+  --lang go \
+  --name my-api-client \
+  --output ./sdks
+
+# Generate SDKs for all available languages
+sdk-forge generate \
+  --schema examples/petstore.yaml \
+  --lang all \
+  --name my-api-sdk \
+  --output ./sdks
+```
 
 ## Usage
 
-Generate SDKs one language at a time with your preferred HTTP library:
+### Basic Command
 
 ```bash
-# Show help information
-sdk-forge help
-# or
-sdk-forge --help
-# or
-sdk-forge -h
-
-# Generate Python SDK with default HTTP library (requests) - http-lib is optional
-sdk-forge generate \
-  --schema ./openapi.yaml \
-  --language python \
-  --name my-api-sdk \
-  --output ./sdks/python
-
-# Generate Python SDK with custom HTTP library (httpx)
-sdk-forge generate \
-  --schema ./openapi.yaml \
-  --language python \
-  --http-lib httpx \
-  --name my-api-sdk \
-  --output ./sdks/python
-
-# Generate Go SDK with default HTTP library (net/http) - http-lib is optional
-sdk-forge generate \
-  --schema https://api.example.com/openapi.json \
-  --lang go \
-  --name my-api-client \
-  --output ./sdks/go
-
-# Generate Go SDK with custom HTTP library (resty)
-sdk-forge generate \
-  --schema https://api.example.com/openapi.json \
-  --lang go \
-  --http-lib resty \
-  --name my-api-client \
-  --output ./sdks/go
+sdk-forge generate [flags]
 ```
 
-### Required Parameters
+### Required Flags
 
-- `--schema` (required): Path or URL to OpenAPI schema (YAML/JSON)
-- `--lang` or `--language` (required): Target language (`python`, `go`, `php`, `js`, `ts`)
-- `--name` (required): Name for the generated SDK
-- `--output` (required): Output directory for generated SDK
+- `--schema` / `-s`: Path or URL to OpenAPI schema (YAML/JSON)
+- `--lang` / `--language` / `-l`: Target language (`python`, `go`, `all`, or `php`/`js`/`ts` for future)
+- `--name` / `-n`: Name for the generated SDK
+- `--output` / `-o`: Output directory for generated SDK
 
-### Optional Parameters
+### Optional Flags
 
-- `--http-lib` (optional): HTTP library to use. If not provided, defaults are used:
-  - **Python**: `requests` (default)
-  - **Go**: `nethttp` (default - standard library)
-  - **PHP**: `guzzle` (default)
-  - **JavaScript/TypeScript**: `axios` (default)
+- `--http-lib`: HTTP library to use (defaults to language-specific default)
+- `--go-version`: Go version to use (e.g., `1.24`, `1.25`). Default: `1.24`
+- `--python-version`: Python version to use (e.g., `3.11`, `3.12`, `3.13`, `3.14`). Default: `3.11`
+- `--sdk-version`: SDK version (e.g., `1.0.0`). Priority: OpenAPI schema → CLI → Default `1.0.0`
+- `--ignore-minor-issues`: Ignore minor OpenAPI validation issues
+- `--force` / `-f`: Overwrite existing SDK directory
 
-### Supported HTTP Libraries
+### Interactive Mode
 
-- **Python**: `requests` (default), `httpx`, `aiohttp`, `urllib3`
-- **Go**: `nethttp` (default), `resty`, `gentleman`
-- **PHP**: `guzzle` (default), `curl`, `httpful`
-- **JavaScript/TypeScript**: `axios` (default), `fetch`, `node-fetch`, `ky`
+If required flags are missing, SDK Forge will prompt you interactively:
 
-### Authentication
+```bash
+sdk-forge generate -s examples/petstore.yaml
+# Will prompt for: language, name, output, and optional parameters
+```
 
-**SDK authentication is automatically generated based on OpenAPI schema definitions - STRICTLY:**
+### Examples
 
-- **Schema-only**: Authentication methods are extracted ONLY from OpenAPI `securitySchemes` and `security` requirements
-- **No assumptions**: The SDK will ONLY generate authentication methods that are explicitly defined in your OpenAPI schema
-- **Nothing extra**: If an authentication method is not in the schema, it will NOT be generated in the SDK
-- **Rule**: What's in the schema = What's in the SDK. Nothing more, nothing less.
+```bash
+# Generate Python SDK with specific versions
+sdk-forge generate \
+  --schema api.yaml \
+  --lang python \
+  --python-version 3.14 \
+  --sdk-version 2.0.0 \
+  --name my-sdk \
+  --output ./sdks
 
-**Supported schemes (if defined in schema):**
-- API Key (query/header/cookie)
-- HTTP Basic, HTTP Bearer, HTTP Digest
-- OAuth2 (all flows)
-- OpenID Connect
-- Mutual TLS (mTLS) - client certificates (OpenAPI 3.1+)
-- Custom authentication schemes
+# Generate Go SDK with Go 1.25
+sdk-forge generate \
+  --schema api.yaml \
+  --lang go \
+  --go-version 1.25 \
+  --name my-sdk \
+  --output ./sdks
 
-**Example:**
-If your OpenAPI schema defines API key and Bearer token authentication, the generated SDK will ONLY include those two methods. If OAuth2 is not in the schema, the SDK will NOT include OAuth2 methods.
+# Generate all languages at once
+sdk-forge generate \
+  --schema api.yaml \
+  --lang all \
+  --name my-sdk \
+  --output ./sdks
+```
+
+## Supported Languages
+
+### ✅ Python
+
+**Available Versions**: 3.11, 3.12, 3.13, 3.14 (Default: 3.11)
+
+**HTTP Libraries**: `requests` (default), `httpx`, `aiohttp`, `urllib3`
+
+**Generated Structure**:
+```
+my-api-sdk/
+├── README.md
+├── setup.py              # With SDK version and Python version requirements
+├── requirements.txt
+├── my_api_sdk/
+│   ├── __init__.py       # With __version__
+│   ├── client.py
+│   ├── models.py
+│   └── api/
+│       ├── __init__.py
+│       └── *.py         # API modules by tag
+└── examples/
+    └── basic_usage.py
+```
+
+### ✅ Go
+
+**Available Versions**: 1.24, 1.25 (Default: 1.24)
+
+**HTTP Libraries**: `nethttp` (default), `resty`, `gentleman`
+
+**Generated Structure**:
+```
+my-api-client/
+├── README.md
+├── go.mod                # With Go version
+├── version.go            # SDK version constant
+├── client.go
+├── models.go
+├── api/
+│   └── *.go              # API modules by tag
+└── examples/
+    └── basic_usage.go
+```
+
+### 🔜 Coming Soon
+
+- PHP
+- JavaScript/TypeScript
+
+## Version Management
+
+### SDK Version Priority
+
+1. **OpenAPI Schema** (`info.version` field)
+2. **Command Line** (`--sdk-version` flag)
+3. **Default** (`1.0.0`)
+
+### Language Version
+
+- **Go**: Configurable via `--go-version` (affects syntax, e.g., `any` vs `interface{}`)
+- **Python**: Configurable via `--python-version` (affects `python_requires` and classifiers)
+
+## Authentication
+
+SDK Forge automatically generates authentication methods based on your OpenAPI schema's `securitySchemes`:
+
+- ✅ API Key (query, header, cookie)
+- ✅ HTTP Basic, HTTP Bearer, HTTP Digest
+- ✅ OAuth2 (all flows: authorizationCode, clientCredentials, implicit, password)
+- ✅ OpenID Connect
+- ✅ mTLS (mutual TLS)
+
+**Important**: Only authentication methods defined in your OpenAPI schema are generated.
 
 ## Project Structure
 
 ```
-.
+sdk-forge/
 ├── cmd/
-│   └── cli/          # CLI entry point
+│   └── cli/              # CLI entry point
+│       ├── main.go
+│       └── commands/     # CLI commands
+│           ├── generate.go
+│           └── interactive.go
 ├── internal/
-│   ├── parser/       # OpenAPI schema parser
-│   ├── generator/    # Code generation logic
-│   ├── templates/    # Language-specific templates (HTTP-lib agnostic)
-│   │   ├── python/   # Uses {{.HttpLib}} variables
-│   │   ├── go/       # Uses {{.HttpLib}} variables
-│   │   ├── php/      # Uses {{.HttpLib}} variables
-│   │   └── js/       # Uses {{.HttpLib}} variables
-│   └── deps/         # Dependency file templates
+│   ├── generator/        # Code generation logic
+│   │   ├── go.go         # Go SDK generator
+│   │   ├── python.go     # Python SDK generator
+│   │   ├── templates.go  # Template loader (go:embed)
+│   │   ├── versions.go   # Language version management
+│   │   └── templates/     # Template files
+│   │       ├── go/
+│   │       └── python/
+│   ├── parser/           # OpenAPI schema parser
+│   └── validator/        # Validation logic
 ├── pkg/
-│   └── languages/    # Language-specific generators
-│       └── http/     # HTTP library configuration/mapping
-└── examples/         # Example OpenAPI schemas
+│   └── languages/
+│       └── http/         # HTTP library configuration
+├── examples/             # Example OpenAPI schemas
+├── Makefile              # Development tasks
+└── generate-sdk.sh       # Helper script for testing
 ```
-
-### Architecture Notes
-
-- **Parameterized Templates**: Templates are language-specific but HTTP-library-agnostic
-- **HTTP Library as Variable**: Templates use variables like `{{.HttpLib}}` and `{{.HttpLibImport}}`
-- **Dependency Management**: HTTP library is automatically added to dependency files (requirements.txt, go.mod, package.json, etc.)
-- **Maintainable**: No need to maintain separate templates for each HTTP library combination
 
 ## Development
 
 ### Building
-
-The project includes a `Makefile` with common development tasks:
 
 ```bash
 # Show all available targets
@@ -143,14 +242,15 @@ make build
 
 # Install to GOPATH/bin
 make install
+```
 
+### Code Quality
+
+```bash
 # Format code
 make fmt
 
-# Check code formatting
-make fmt-check
-
-# Run linter (golangci-lint)
+# Run linter
 make lint
 
 # Run tests
@@ -159,81 +259,75 @@ make test
 # Run tests with coverage
 make test-coverage
 
-# Run all checks (formatting + linting)
+# Run all checks
 make check
+```
 
-# Run all checks and build
-make all
+### Testing
 
-# Clean build artifacts
+```bash
+# Run all tests
+make test
+
+# Run tests with coverage report
+make test-coverage
+
+# Clean test outputs
 make clean
 ```
 
-### Manual Build
+## Generated SDK Features
 
-```bash
-# Build
-go build -o sdk-forge ./cmd/cli
+### Python SDK
 
-# Run
-./sdk-forge --help
-```
+- ✅ Package structure with `__init__.py` and `__version__`
+- ✅ Client class with authentication support
+- ✅ Data models from OpenAPI schemas
+- ✅ API methods organized by tags
+- ✅ `setup.py` with proper version and Python requirements
+- ✅ Automatic code formatting (black/autopep8)
+- ✅ Usage examples
 
-### Code Quality
+### Go SDK
 
-The project uses:
-- **gofmt** for code formatting
-- **golangci-lint** for linting (see `.golangci.yml` for configuration)
-- **go vet** for static analysis
+- ✅ Module structure with `go.mod`
+- ✅ Client struct with authentication fields
+- ✅ Data models as Go structs
+- ✅ API methods organized by tags
+- ✅ `version.go` with SDK version constant
+- ✅ Automatic code formatting (gofmt)
+- ✅ Usage examples
 
-Run `make check` to verify code quality before committing.
+## Requirements
 
-## Roadmap & Recommendations
-
-This project follows best practices for code generation, developer experience, and maintainability. Key focus areas include:
-
-### Planned Features
-
-- ✅ **Schema-Driven Generation**: Strict adherence to OpenAPI schema definitions
-- ✅ **Multi-Language Support**: Python, Go, PHP, JavaScript/TypeScript
-- ✅ **HTTP Library Flexibility**: Parameterized templates with default libraries
-- 🔄 **Code Quality**: Auto-formatting, linting, and type safety
-- 🔄 **Testing Strategy**: Unit tests, integration tests, and golden file testing
-- 🔄 **Developer Experience**: Progress indicators, dry-run mode, verbose logging
-- 🔄 **Documentation**: Auto-generated READMEs and usage examples
-- 🔄 **CI/CD**: Automated testing, building, and releases
-
-### Key Recommendations
-
-1. **Code Quality & Testing**
-   - Comprehensive test coverage (>80%)
-   - Golden file testing for generated code
-   - Language-specific code formatters
-
-2. **Developer Experience**
-   - `--dry-run` mode for preview
-   - Progress indicators during generation
-   - Config file support (`sdk-forge.yaml`)
-   - Interactive mode for missing fields
-
-3. **Generated SDK Features**
-   - Auto-generated documentation
-   - Type safety and validation
-   - Retry logic and error handling
-   - Pagination helpers
-
-4. **Extensibility**
-   - Plugin system for custom languages
-   - Template override system
-   - Pre/post generation hooks
-
-For detailed recommendations and best practices, see [`../brainstorming/README.md`](../brainstorming/README.md).
+- **Go**: 1.21 or later
+- **OpenAPI**: 3.0 or 3.1 schemas
 
 ## Contributing
 
-Contributions are welcome! Please see the [Contributing Guide](../brainstorming/README.md#recommendations--best-practices) for guidelines.
+Contributions are welcome! Please open an issue or submit a pull request.
 
 ## License
 
 TBD
 
+## Roadmap
+
+### ✅ Completed (v0.2.0)
+
+- Go and Python SDK generation
+- Language version configuration
+- SDK version management
+- Template-based code generation
+- Code formatting integration
+- Interactive CLI mode
+- Comprehensive test coverage
+
+### 🔜 Planned
+
+- PHP SDK generation
+- JavaScript/TypeScript SDK generation
+- Dry-run mode (`--dry-run`)
+- Verbose mode (`--verbose`)
+- Config file support (`sdk-forge.yaml`)
+- CI/CD pipeline
