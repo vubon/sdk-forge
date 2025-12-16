@@ -551,3 +551,178 @@ func TestGenerateGoSDK_AuthTests(t *testing.T) {
 		t.Error("auth_test.go should contain Bearer auth test")
 	}
 }
+
+func TestGenerateGoSDK_Phase3_Examples(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "nethttp"
+
+	// Create extracted data with operations that have examples
+	extractedData := createTestExtractedData()
+	extractedData.Operations = []APIOperation{
+		{
+			Method:      "GET",
+			Path:        "/users",
+			OperationID: "listUsers",
+			Summary:     "List users",
+			Tags:        []string{"users"},
+			Parameters:  []Parameter{},
+			Responses: map[string]Response{
+				"200": {
+					Description: "Success",
+					Content: map[string]ContentType{
+						"application/json": {
+							Schema: &Schema{Type: "object"},
+							Examples: map[string]interface{}{
+								"default": map[string]interface{}{
+									"id":   1,
+									"name": "Test User",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	outputPath := filepath.Join(tmpDir, sdkName)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	if err != nil {
+		t.Fatalf("GenerateGoSDK() error = %v", err)
+	}
+
+	// Verify api_test.go uses examples
+	apiTestPath := filepath.Join(outputPath, "api_test.go")
+	if _, err := os.Stat(apiTestPath); os.IsNotExist(err) {
+		t.Fatal("api_test.go should be generated")
+	}
+
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(apiTestPath)
+	if err != nil {
+		t.Fatalf("Failed to read api_test.go: %v", err)
+	}
+
+	contentStr := string(content)
+	// Check that example data is used (not just hardcoded success)
+	if !contains(contentStr, "Test User") && !contains(contentStr, "\"id\"") {
+		t.Error("api_test.go should use examples from OpenAPI spec")
+	}
+}
+
+func TestGenerateGoSDK_Phase3_ErrorTests(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "nethttp"
+
+	// Create extracted data with error responses
+	extractedData := createTestExtractedData()
+	extractedData.Operations = []APIOperation{
+		{
+			Method:      "GET",
+			Path:        "/users/{id}",
+			OperationID: "getUser",
+			Summary:     "Get user",
+			Tags:        []string{"users"},
+			Parameters: []Parameter{
+				{Name: "id", In: "path", Required: true, Schema: &Schema{Type: "string"}},
+			},
+			Responses: map[string]Response{
+				"200": {
+					Description: "Success",
+					Content: map[string]ContentType{
+						"application/json": {
+							Schema: &Schema{Type: "object"},
+						},
+					},
+				},
+				"404": {
+					Description: "Not Found",
+					Content: map[string]ContentType{
+						"application/json": {
+							Schema: &Schema{Type: "object"},
+							Examples: map[string]interface{}{
+								"default": map[string]interface{}{
+									"error": "User not found",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	outputPath := filepath.Join(tmpDir, sdkName)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	if err != nil {
+		t.Fatalf("GenerateGoSDK() error = %v", err)
+	}
+
+	// Verify error tests are generated
+	apiTestPath := filepath.Join(outputPath, "api_test.go")
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(apiTestPath)
+	if err != nil {
+		t.Fatalf("Failed to read api_test.go: %v", err)
+	}
+
+	contentStr := string(content)
+	if !contains(contentStr, "Error") || !contains(contentStr, "404") {
+		t.Error("api_test.go should contain error handling tests for 4xx responses")
+	}
+}
+
+func TestGenerateGoSDK_Phase3_Fixtures(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "nethttp"
+
+	// Create extracted data with examples
+	extractedData := createTestExtractedData()
+	extractedData.Operations = []APIOperation{
+		{
+			Method:      "GET",
+			Path:        "/users",
+			OperationID: "listUsers",
+			Tags:        []string{"users"},
+			Responses: map[string]Response{
+				"200": {
+					Content: map[string]ContentType{
+						"application/json": {
+							Examples: map[string]interface{}{
+								"default": map[string]interface{}{
+									"users": []interface{}{map[string]interface{}{"id": 1}},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	outputPath := filepath.Join(tmpDir, sdkName)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	if err != nil {
+		t.Fatalf("GenerateGoSDK() error = %v", err)
+	}
+
+	// Verify testdata directory and file are created
+	fixturesPath := filepath.Join(outputPath, "testdata", "fixtures.go")
+	if _, err := os.Stat(fixturesPath); os.IsNotExist(err) {
+		t.Fatal("testdata/fixtures.go should be generated when examples exist")
+	}
+
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(fixturesPath)
+	if err != nil {
+		t.Fatalf("Failed to read fixtures.go: %v", err)
+	}
+
+	contentStr := string(content)
+	if !contains(contentStr, "package testdata") || !contains(contentStr, "var") {
+		t.Error("fixtures.go should contain fixture variables from examples")
+	}
+}

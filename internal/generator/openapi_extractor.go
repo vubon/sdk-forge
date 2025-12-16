@@ -38,7 +38,8 @@ type RequestBody struct {
 
 // ContentType represents content type information
 type ContentType struct {
-	Schema *Schema
+	Schema   *Schema
+	Examples map[string]interface{} // Example name -> example value
 }
 
 // Response represents an API response
@@ -255,9 +256,23 @@ func extractOperationsFromPath(path string, pathItem *openapi3.PathItem, _ map[s
 				Content:  make(map[string]ContentType),
 			}
 			for mediaType, content := range op.RequestBody.Value.Content {
-				reqBody.Content[mediaType] = ContentType{
-					Schema: extractSchema(content.Schema.Value),
+				contentType := ContentType{
+					Schema:   extractSchema(content.Schema.Value),
+					Examples: make(map[string]interface{}),
 				}
+				// Extract examples
+				if content.Examples != nil {
+					for name, exampleRef := range content.Examples {
+						if exampleRef.Value != nil {
+							contentType.Examples[name] = exampleRef.Value.Value
+						}
+					}
+				}
+				// Extract single example if present
+				if content.Example != nil {
+					contentType.Examples["default"] = content.Example
+				}
+				reqBody.Content[mediaType] = contentType
 			}
 			operation.RequestBody = &reqBody
 		}
@@ -279,9 +294,23 @@ func extractOperationsFromPath(path string, pathItem *openapi3.PathItem, _ map[s
 						if content.Schema != nil && content.Schema.Value != nil {
 							schema = extractSchema(content.Schema.Value)
 						}
-						response.Content[mediaType] = ContentType{
-							Schema: schema,
+						contentType := ContentType{
+							Schema:   schema,
+							Examples: make(map[string]interface{}),
 						}
+						// Extract examples
+						if content.Examples != nil {
+							for name, exampleRef := range content.Examples {
+								if exampleRef.Value != nil {
+									contentType.Examples[name] = exampleRef.Value.Value
+								}
+							}
+						}
+						// Extract single example if present
+						if content.Example != nil {
+							contentType.Examples["default"] = content.Example
+						}
+						response.Content[mediaType] = contentType
 					}
 					operation.Responses[statusCode] = response
 				}

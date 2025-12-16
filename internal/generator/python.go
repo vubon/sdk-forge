@@ -3,6 +3,7 @@ package generator
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -1119,7 +1120,64 @@ func generatePythonTests(outputPath, packageDir string, data TemplateData, extra
 		}
 	}
 
+	// Generate test fixtures from OpenAPI examples
+	if err := generatePythonTestFixtures(testsDir, extractedData); err != nil {
+		return fmt.Errorf("failed to generate test fixtures: %w", err)
+	}
+
 	return nil
+}
+
+// generatePythonTestFixtures generates test fixture files from OpenAPI examples
+func generatePythonTestFixtures(testsDir string, extractedData *ExtractedData) error {
+	fixturesDir := filepath.Join(testsDir, "fixtures")
+	if err := os.MkdirAll(fixturesDir, 0750); err != nil {
+		return fmt.Errorf("failed to create fixtures directory: %w", err)
+	}
+
+	// Generate fixtures from response examples
+	fixtures := make(map[string]interface{})
+
+	for _, op := range extractedData.Operations {
+		for statusCode, response := range op.Responses {
+			if jsonContent, ok := response.Content["application/json"]; ok {
+				if len(jsonContent.Examples) > 0 {
+					// Use first example for each status code
+					for name, example := range jsonContent.Examples {
+						key := fmt.Sprintf("%s_%s_%s", op.OperationID, statusCode, name)
+						fixtures[key] = example
+					}
+				}
+			}
+		}
+	}
+
+	if len(fixtures) > 0 {
+		// Generate fixtures.py file
+		fixturesContent := generatePythonFixturesFile(fixtures)
+		fixturesPath := filepath.Join(fixturesDir, "fixtures.py")
+		// #nosec G306 -- 0644 is appropriate for Python fixture files
+		if err := os.WriteFile(fixturesPath, []byte(fixturesContent), 0644); err != nil {
+			return fmt.Errorf("failed to write fixtures/fixtures.py: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// generatePythonFixturesFile generates a Python file with test fixtures
+func generatePythonFixturesFile(fixtures map[string]interface{}) string {
+	var buf bytes.Buffer
+	buf.WriteString("\"\"\"Test fixtures extracted from OpenAPI examples\"\"\"\n\n")
+
+	for key, example := range fixtures {
+		// Convert key to valid Python variable name
+		varName := toSnakeCase(key)
+		exampleJSON := formatExampleForPython(example)
+		fmt.Fprintf(&buf, "%s = %s\n\n", varName, exampleJSON)
+	}
+
+	return buf.String()
 }
 
 // generatePythonConftest generates pytest conftest.py with fixtures
@@ -1353,8 +1411,15 @@ func generatePythonAPITest(data TemplateData, operations []APIOperation, extract
 			}
 
 			test.WriteString(fmt.Sprintf("        mock_response.status_code = %s\n", expectedStatus))
-			test.WriteString("        mock_response.json.return_value = {\"success\": True}\n")
-			test.WriteString("        mock_response.text = '{\"success\": true}'\n")
+
+			// Use example from OpenAPI response if available
+			exampleJSON := getPythonExampleFromResponse(op.Responses[expectedStatus])
+			test.WriteString(fmt.Sprintf("        mock_response.json.return_value = %s\n", exampleJSON))
+			// Convert Python dict to JSON string for text response
+			jsonText := strings.ReplaceAll(exampleJSON, "True", "true")
+			jsonText = strings.ReplaceAll(jsonText, "False", "false")
+			jsonText = strings.ReplaceAll(jsonText, "None", "null")
+			test.WriteString(fmt.Sprintf("        mock_response.text = %q\n", jsonText))
 			test.WriteString("        mock_request.return_value = mock_response\n\n")
 
 			// Create client
@@ -1412,6 +1477,9 @@ func generatePythonAPITest(data TemplateData, operations []APIOperation, extract
 			test.WriteString("        assert result is not None\n")
 			test.WriteString("        mock_request.assert_called_once()\n")
 			test.WriteString("\n")
+
+			// Generate error handling tests for 4xx/5xx responses
+			generatePythonErrorTests(&test, op, data, extractedData)
 		}
 		test.WriteString("\n")
 	}
@@ -1523,4 +1591,132 @@ func generatePythonAuthTest(data TemplateData, securitySchemes map[string]Securi
 	}
 
 	return test.String()
+}
+
+// getPythonExampleFromResponse extracts example from response for Python test
+func getPythonExampleFromResponse(response Response) string {
+	// Look for JSON content type first
+	if jsonContent, ok := response.Content["application/json"]; ok {
+		if len(jsonContent.Examples) > 0 {
+			// Use first example
+			for _, example := range jsonContent.Examples {
+				return formatExampleForPython(example)
+			}
+		}
+		// Fallback: generate example from schema if no examples
+		if jsonContent.Schema != nil {
+			return generatePythonExampleFromSchema(jsonContent.Schema)
+		}
+	}
+	// Default fallback
+	return "{\"success\": True}"
+}
+
+// formatExampleForPython converts an example value to Python code string
+func formatExampleForPython(example interface{}) string {
+	if example == nil {
+		return "None"
+	}
+
+	// Use JSON encoding to properly format the example
+	jsonBytes, err := json.Marshal(example)
+	if err != nil {
+		// Fallback to string representation
+		return fmt.Sprintf("%#v", example)
+	}
+
+	// Convert JSON to Python dict/list format
+	jsonStr := string(jsonBytes)
+	// Replace JSON null with Python None
+	jsonStr = strings.ReplaceAll(jsonStr, "null", "None")
+	// Replace JSON true/false with Python True/False
+	jsonStr = strings.ReplaceAll(jsonStr, "true", "True")
+	jsonStr = strings.ReplaceAll(jsonStr, "false", "False")
+
+	return jsonStr
+}
+
+// generatePythonExampleFromSchema generates a Python example from schema
+func generatePythonExampleFromSchema(schema *Schema) string {
+	if schema == nil {
+		return "{}"
+	}
+
+	switch schema.Type {
+	case "object":
+		if len(schema.Properties) == 0 {
+			return "{}"
+		}
+		var parts []string
+		for propName, propSchema := range schema.Properties {
+			value := generatePythonTestValue(propSchema, propName)
+			parts = append(parts, fmt.Sprintf("%q: %s", propName, value))
+		}
+		return fmt.Sprintf("{%s}", strings.Join(parts, ", "))
+	case "array":
+		if schema.Items != nil {
+			itemValue := generatePythonTestValue(schema.Items, "item")
+			return fmt.Sprintf("[%s]", itemValue)
+		}
+		return "[]"
+	default:
+		return generatePythonTestValue(schema, "value")
+	}
+}
+
+// generatePythonErrorTests generates error handling tests for 4xx/5xx responses
+func generatePythonErrorTests(test *bytes.Buffer, op APIOperation, data TemplateData, extractedData *ExtractedData) {
+	// Find error responses (4xx, 5xx)
+	errorStatuses := []string{}
+	for statusCode := range op.Responses {
+		if len(statusCode) >= 3 {
+			firstDigit := statusCode[0]
+			if firstDigit == '4' || firstDigit == '5' {
+				errorStatuses = append(errorStatuses, statusCode)
+			}
+		}
+	}
+
+	if len(errorStatuses) == 0 {
+		return // No error responses to test
+	}
+
+	methodName := GetOperationMethodName(op)
+
+	// Generate test for each error status
+	for _, statusCode := range errorStatuses {
+		errorTestName := fmt.Sprintf("test_%s_%s_error", methodName, statusCode)
+		fmt.Fprintf(test, "    @patch('%s.%s')\n", data.HTTPLibImport, getHTTPMethodForMock(op.Method))
+		fmt.Fprintf(test, "    def %s(self, mock_request):\n", errorTestName)
+		fmt.Fprintf(test, "        \"\"\"Test %s %s operation returns %s error.\"\"\"\n", op.Method, op.Path, statusCode)
+
+		// Setup mock error response
+		test.WriteString("        # Setup mock error response\n")
+		test.WriteString("        mock_response = Mock()\n")
+		fmt.Fprintf(test, "        mock_response.status_code = %s\n", statusCode)
+
+		// Get error example if available
+		errorResponse := op.Responses[statusCode]
+		errorExample := getPythonExampleFromResponse(errorResponse)
+		fmt.Fprintf(test, "        mock_response.json.return_value = %s\n", errorExample)
+		jsonText := strings.ReplaceAll(errorExample, "True", "true")
+		jsonText = strings.ReplaceAll(jsonText, "False", "false")
+		jsonText = strings.ReplaceAll(jsonText, "None", "null")
+		fmt.Fprintf(test, "        mock_response.text = %q\n", jsonText)
+		test.WriteString("        mock_request.return_value = mock_response\n\n")
+
+		// Create client
+		baseURL := extractedData.BaseURL
+		if baseURL == "" {
+			baseURL = "https://api.example.com/v1"
+		}
+		fmt.Fprintf(test, "        client = %s(base_url=%q)\n\n", data.ClientClassName, baseURL)
+
+		// Call API method and expect error
+		test.WriteString("        # Call API method and expect error\n")
+		fmt.Fprintf(test, "        # result = client.%s(...)\n", methodName)
+		test.WriteString("        # assert result is None or raises exception\n")
+		test.WriteString("        # mock_request.assert_called_once()\n")
+		test.WriteString("\n")
+	}
 }

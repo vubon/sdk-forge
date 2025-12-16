@@ -443,3 +443,175 @@ func TestGeneratePythonRequirements(t *testing.T) {
 		t.Error("generatePythonRequirements() should include HTTP library dependency")
 	}
 }
+
+func TestGeneratePythonSDK_Phase3_Examples(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "requests"
+
+	// Create extracted data with operations that have examples
+	extractedData := createTestExtractedData()
+	extractedData.Operations = []APIOperation{
+		{
+			Method:      "GET",
+			Path:        "/users",
+			OperationID: "listUsers",
+			Summary:     "List users",
+			Tags:        []string{"users"},
+			Parameters:  []Parameter{},
+			Responses: map[string]Response{
+				"200": {
+					Description: "Success",
+					Content: map[string]ContentType{
+						"application/json": {
+							Schema: &Schema{Type: "object"},
+							Examples: map[string]interface{}{
+								"default": map[string]interface{}{
+									"id":   1,
+									"name": "Test User",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	if err != nil {
+		t.Fatalf("GeneratePythonSDK() error = %v", err)
+	}
+
+	// Verify test_api_methods.py uses examples
+	apiTestPath := filepath.Join(tmpDir, "tests", "test_api_methods.py")
+	if _, err := os.Stat(apiTestPath); os.IsNotExist(err) {
+		t.Fatal("test_api_methods.py should be generated")
+	}
+
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(apiTestPath)
+	if err != nil {
+		t.Fatalf("Failed to read test_api_methods.py: %v", err)
+	}
+
+	contentStr := string(content)
+	// Check that example data is used (not just hardcoded success)
+	if !contains(contentStr, "Test User") && !contains(contentStr, "\"id\"") {
+		t.Error("test_api_methods.py should use examples from OpenAPI spec")
+	}
+}
+
+func TestGeneratePythonSDK_Phase3_ErrorTests(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "requests"
+
+	// Create extracted data with error responses
+	extractedData := createTestExtractedData()
+	extractedData.Operations = []APIOperation{
+		{
+			Method:      "GET",
+			Path:        "/users/{id}",
+			OperationID: "getUser",
+			Summary:     "Get user",
+			Tags:        []string{"users"},
+			Parameters: []Parameter{
+				{Name: "id", In: "path", Required: true, Schema: &Schema{Type: "string"}},
+			},
+			Responses: map[string]Response{
+				"200": {
+					Description: "Success",
+					Content: map[string]ContentType{
+						"application/json": {
+							Schema: &Schema{Type: "object"},
+						},
+					},
+				},
+				"404": {
+					Description: "Not Found",
+					Content: map[string]ContentType{
+						"application/json": {
+							Schema: &Schema{Type: "object"},
+							Examples: map[string]interface{}{
+								"default": map[string]interface{}{
+									"error": "User not found",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	if err != nil {
+		t.Fatalf("GeneratePythonSDK() error = %v", err)
+	}
+
+	// Verify error tests are generated
+	apiTestPath := filepath.Join(tmpDir, "tests", "test_api_methods.py")
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(apiTestPath)
+	if err != nil {
+		t.Fatalf("Failed to read test_api_methods.py: %v", err)
+	}
+
+	contentStr := string(content)
+	if !contains(contentStr, "error") || !contains(contentStr, "404") {
+		t.Error("test_api_methods.py should contain error handling tests for 4xx responses")
+	}
+}
+
+func TestGeneratePythonSDK_Phase3_Fixtures(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "requests"
+
+	// Create extracted data with examples
+	extractedData := createTestExtractedData()
+	extractedData.Operations = []APIOperation{
+		{
+			Method:      "GET",
+			Path:        "/users",
+			OperationID: "listUsers",
+			Tags:        []string{"users"},
+			Responses: map[string]Response{
+				"200": {
+					Content: map[string]ContentType{
+						"application/json": {
+							Examples: map[string]interface{}{
+								"default": map[string]interface{}{
+									"users": []interface{}{map[string]interface{}{"id": 1}},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	if err != nil {
+		t.Fatalf("GeneratePythonSDK() error = %v", err)
+	}
+
+	// Verify fixtures directory and file are created
+	fixturesPath := filepath.Join(tmpDir, "tests", "fixtures", "fixtures.py")
+	if _, err := os.Stat(fixturesPath); os.IsNotExist(err) {
+		t.Fatal("fixtures/fixtures.py should be generated when examples exist")
+	}
+
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(fixturesPath)
+	if err != nil {
+		t.Fatalf("Failed to read fixtures.py: %v", err)
+	}
+
+	contentStr := string(content)
+	if !contains(contentStr, "fixtures") || !contains(contentStr, "list_users") {
+		t.Error("fixtures.py should contain fixture variables from examples")
+	}
+}
