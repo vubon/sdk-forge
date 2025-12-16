@@ -68,6 +68,42 @@ func promptYesNo(reader *bufio.Reader, prompt, flagName string, cmd *cobra.Comma
 	return nil
 }
 
+// promptYesNoWithDefault prompts for yes/no input with a default value
+func promptYesNoWithDefault(reader *bufio.Reader, prompt, flagName string, defaultValue bool, cmd *cobra.Command) error {
+	input, err := promptInput(reader, prompt)
+	if err != nil {
+		return err
+	}
+	response := strings.ToLower(strings.TrimSpace(input))
+
+	// If empty, use default
+	if response == "" {
+		response = "y"
+		if !defaultValue {
+			response = "n"
+		}
+	}
+
+	// Set skip-tests flag (inverted logic: if user says no, skip tests = true)
+	if flagName == "skip-tests" {
+		if response == "n" || response == "no" {
+			if err := cmd.Flags().Set(flagName, "true"); err != nil {
+				return fmt.Errorf("failed to set %s flag: %w", flagName, err)
+			}
+		}
+		// If user says yes (or default), skip-tests remains false (tests are generated)
+		return nil
+	}
+
+	// For other boolean flags, use normal logic
+	if response == "y" || response == "yes" {
+		if err := cmd.Flags().Set(flagName, "true"); err != nil {
+			return fmt.Errorf("failed to set %s flag: %w", flagName, err)
+		}
+	}
+	return nil
+}
+
 // RunInteractive prompts for missing required information
 //
 //nolint:gocyclo // Interactive prompts naturally have high cyclomatic complexity
@@ -225,6 +261,15 @@ func RunInteractive(cmd *cobra.Command) error {
 			if err := cmd.Flags().Set("sdk-version", input); err != nil {
 				return fmt.Errorf("failed to set sdk-version flag: %w", err)
 			}
+		}
+	}
+
+	// Get test generation preference (default: generate tests)
+	skipTests, _ := cmd.Flags().GetBool("skip-tests")
+	if !skipTests {
+		prompt := "Generate tests? (Y/n): "
+		if err := promptYesNoWithDefault(reader, prompt, "skip-tests", false, cmd); err != nil {
+			return err
 		}
 	}
 

@@ -17,7 +17,7 @@ func TestGenerateGoSDK(t *testing.T) {
 	extractedData := createTestExtractedData()
 	// outputPath should include the SDK name (like CLI does)
 	outputPath := filepath.Join(tmpDir, testGoSDKName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "")
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -46,7 +46,7 @@ func TestGenerateGoSDK_InvalidHTTPLib(t *testing.T) {
 	extractedData := createTestExtractedData()
 	// outputPath should include the SDK name (like CLI does)
 	outputPath := filepath.Join(tmpDir, testGoSDKName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "")
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
 	if err == nil {
 		t.Error("GenerateGoSDK() with invalid HTTP library should return error")
 	}
@@ -60,7 +60,7 @@ func TestGenerateGoSDK_CustomHTTPLib(t *testing.T) {
 	extractedData := createTestExtractedData()
 	// outputPath should include the SDK name (like CLI does)
 	outputPath := filepath.Join(tmpDir, testGoSDKName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "")
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -98,7 +98,7 @@ func TestGenerateGoSDK_SDKNameSanitization(t *testing.T) {
 			extractedData := createTestExtractedData()
 			// outputPath should include the SDK name (like CLI does)
 			outputPath := filepath.Join(tmpDir, tt.expected)
-			err := GenerateGoSDK(outputPath, tt.sdkName, "nethttp", extractedData, nil, "")
+			err := GenerateGoSDK(outputPath, tt.sdkName, "nethttp", extractedData, nil, "", true)
 			if err != nil {
 				t.Fatalf("GenerateGoSDK() error = %v", err)
 			}
@@ -354,5 +354,48 @@ func TestGetGoType(t *testing.T) {
 				t.Errorf("getGoType() = %v, want %v", result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestGenerateGoSDK_WithTests(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "nethttp"
+
+	extractedData := createTestExtractedData()
+	outputPath := filepath.Join(tmpDir, sdkName)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	if err != nil {
+		t.Fatalf("GenerateGoSDK() error = %v", err)
+	}
+
+	// Verify test files exist
+	expectedTestFiles := []string{
+		filepath.Join(outputPath, "client_test.go"),
+	}
+
+	for _, file := range expectedTestFiles {
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			t.Errorf("GenerateGoSDK() did not create test file: %s", file)
+		}
+	}
+}
+
+func TestGenerateGoSDK_WithoutTests(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "nethttp"
+
+	extractedData := createTestExtractedData()
+	outputPath := filepath.Join(tmpDir, sdkName)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", false)
+	if err != nil {
+		t.Fatalf("GenerateGoSDK() error = %v", err)
+	}
+
+	// Verify test files do NOT exist
+	testFile := filepath.Join(outputPath, "client_test.go")
+	if _, err := os.Stat(testFile); err == nil {
+		t.Error("GenerateGoSDK() with tests disabled should NOT create test files")
 	}
 }

@@ -57,6 +57,7 @@ func GeneratePythonSDK(
 	openAPIDoc interface{},
 	version *LanguageVersion,
 	sdkVersion string,
+	generateTests bool,
 ) error {
 	// Use default version if not provided
 	if version == nil {
@@ -69,7 +70,7 @@ func GeneratePythonSDK(
 	if !ok {
 		// If not an openapi3.T, try to extract from ExtractedData
 		if extractedData, ok := openAPIDoc.(*ExtractedData); ok {
-			return generatePythonSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion)
+			return generatePythonSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests)
 		}
 		return fmt.Errorf("invalid OpenAPI document type")
 	}
@@ -80,7 +81,7 @@ func GeneratePythonSDK(
 		return fmt.Errorf("failed to extract OpenAPI data: %w", err)
 	}
 
-	return generatePythonSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion)
+	return generatePythonSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests)
 }
 
 // generatePythonSDKFromExtracted generates SDK from extracted data
@@ -89,6 +90,7 @@ func generatePythonSDKFromExtracted(
 	extractedData *ExtractedData,
 	version LanguageVersion,
 	sdkVersion string,
+	generateTests bool,
 ) error {
 	// Get HTTP library config
 	libConfig, err := httplib.GetLibraryConfig("python", httpLib)
@@ -249,6 +251,13 @@ func generatePythonSDKFromExtracted(
 	if err := formatPythonFile(examplesPath); err != nil {
 		// Log but don't fail - formatting is nice-to-have
 		_ = err
+	}
+
+	// Generate tests/ directory if test generation is enabled
+	if generateTests {
+		if err := generatePythonTests(outputPath, packageDir, data, extractedData); err != nil {
+			return fmt.Errorf("failed to generate tests: %w", err)
+		}
 	}
 
 	return nil
@@ -1026,4 +1035,131 @@ func generatePythonExamples(data TemplateData) string {
 	examples.WriteString("# print(response)\n\n")
 
 	return examples.String()
+}
+
+// generatePythonTests generates test files for Python SDK
+func generatePythonTests(outputPath, packageDir string, data TemplateData, extractedData *ExtractedData) error {
+	// Create tests/ directory
+	testsDir := filepath.Join(outputPath, "tests")
+	if err := os.MkdirAll(testsDir, 0750); err != nil {
+		return fmt.Errorf("failed to create tests directory: %w", err)
+	}
+
+	// Generate tests/__init__.py
+	initContent := "# Test package\n"
+	initPath := filepath.Join(testsDir, "__init__.py")
+	// #nosec G306 -- 0644 is appropriate for Python package files
+	if err := os.WriteFile(initPath, []byte(initContent), 0644); err != nil {
+		return fmt.Errorf("failed to write tests/__init__.py: %w", err)
+	}
+
+	// Generate tests/conftest.py (pytest fixtures)
+	conftestContent := generatePythonConftest(data)
+	conftestPath := filepath.Join(testsDir, "conftest.py")
+	// #nosec G306 -- 0644 is appropriate for Python test files
+	if err := os.WriteFile(conftestPath, []byte(conftestContent), 0644); err != nil {
+		return fmt.Errorf("failed to write tests/conftest.py: %w", err)
+	}
+	// Format with black (if available)
+	if err := formatPythonFile(conftestPath); err != nil {
+		_ = err
+	}
+
+	// Generate tests/test_client.py
+	clientTestContent := generatePythonClientTest(data)
+	clientTestPath := filepath.Join(testsDir, "test_client.py")
+	// #nosec G306 -- 0644 is appropriate for Python test files
+	if err := os.WriteFile(clientTestPath, []byte(clientTestContent), 0644); err != nil {
+		return fmt.Errorf("failed to write tests/test_client.py: %w", err)
+	}
+	// Format with black (if available)
+	if err := formatPythonFile(clientTestPath); err != nil {
+		_ = err
+	}
+
+	// Generate tests/test_models.py if schemas exist
+	if len(extractedData.Schemas) > 0 {
+		modelsTestContent := generatePythonModelsTest(data, extractedData.Schemas)
+		modelsTestPath := filepath.Join(testsDir, "test_models.py")
+		// #nosec G306 -- 0644 is appropriate for Python test files
+		if err := os.WriteFile(modelsTestPath, []byte(modelsTestContent), 0644); err != nil {
+			return fmt.Errorf("failed to write tests/test_models.py: %w", err)
+		}
+		// Format with black (if available)
+		if err := formatPythonFile(modelsTestPath); err != nil {
+			_ = err
+		}
+	}
+
+	// Generate tests/test_api_methods.py if operations exist
+	if len(extractedData.Operations) > 0 {
+		apiTestContent := generatePythonAPITest(data, extractedData.Operations)
+		apiTestPath := filepath.Join(testsDir, "test_api_methods.py")
+		// #nosec G306 -- 0644 is appropriate for Python test files
+		if err := os.WriteFile(apiTestPath, []byte(apiTestContent), 0644); err != nil {
+			return fmt.Errorf("failed to write tests/test_api_methods.py: %w", err)
+		}
+		// Format with black (if available)
+		if err := formatPythonFile(apiTestPath); err != nil {
+			_ = err
+		}
+	}
+
+	return nil
+}
+
+// generatePythonConftest generates pytest conftest.py with fixtures
+func generatePythonConftest(data TemplateData) string {
+	var conftest bytes.Buffer
+	conftest.WriteString("import pytest\n")
+	conftest.WriteString(fmt.Sprintf("from %s import %s\n\n", data.SDKName, data.ClientClassName))
+	conftest.WriteString("@pytest.fixture\n")
+	conftest.WriteString("def client():\n")
+	conftest.WriteString("    \"\"\"Create a test client instance.\"\"\"\n")
+	conftest.WriteString(fmt.Sprintf("    return %s(base_url=\"https://api.example.com\")\n", data.ClientClassName))
+	return conftest.String()
+}
+
+// generatePythonClientTest generates test_client.py
+func generatePythonClientTest(data TemplateData) string {
+	var test bytes.Buffer
+	test.WriteString("import pytest\n")
+	test.WriteString(fmt.Sprintf("from %s import %s\n\n\n", data.SDKName, data.ClientClassName))
+	test.WriteString("def test_client_initialization():\n")
+	test.WriteString("    \"\"\"Test client can be instantiated.\"\"\"\n")
+	test.WriteString(fmt.Sprintf("    client = %s(base_url=\"https://api.example.com\")\n", data.ClientClassName))
+	test.WriteString("    assert client.base_url == \"https://api.example.com\"\n")
+	test.WriteString("    assert client.http_client is not None\n")
+	return test.String()
+}
+
+// generatePythonModelsTest generates test_models.py
+func generatePythonModelsTest(data TemplateData, schemas map[string]*Schema) string {
+	var test bytes.Buffer
+	test.WriteString("import pytest\n")
+	test.WriteString(fmt.Sprintf("from %s import models\n\n\n", data.SDKName))
+	test.WriteString("# TODO: Add model tests based on your OpenAPI schema\n")
+	test.WriteString("# Example:\n")
+	test.WriteString("# def test_model_serialization():\n")
+	test.WriteString("#     model = models.YourModel(field1=\"value1\")\n")
+	test.WriteString("#     assert model.field1 == \"value1\"\n")
+	test.WriteString("#     assert model.to_dict() == {\"field1\": \"value1\"}\n")
+	return test.String()
+}
+
+// generatePythonAPITest generates test_api_methods.py
+func generatePythonAPITest(data TemplateData, operations []APIOperation) string {
+	var test bytes.Buffer
+	test.WriteString("import pytest\n")
+	test.WriteString("from unittest.mock import Mock, patch\n")
+	test.WriteString(fmt.Sprintf("from %s import %s\n\n\n", data.SDKName, data.ClientClassName))
+	test.WriteString("# TODO: Add API method tests based on your OpenAPI schema\n")
+	test.WriteString("# Example:\n")
+	test.WriteString("# @patch('requests.get')\n")
+	test.WriteString("# def test_get_endpoint(mock_get):\n")
+	test.WriteString("#     mock_get.return_value.json.return_value = [{\"id\": 1}]\n")
+	test.WriteString("#     client = Petstore()\n")
+	test.WriteString("#     result = client.get_items()\n")
+	test.WriteString("#     assert len(result) == 1\n")
+	return test.String()
 }

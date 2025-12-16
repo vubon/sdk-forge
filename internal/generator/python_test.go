@@ -47,7 +47,7 @@ func TestGeneratePythonSDK(t *testing.T) {
 
 	// Use ExtractedData for testing
 	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "")
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -73,7 +73,7 @@ func TestGeneratePythonSDK_InvalidHTTPLib(t *testing.T) {
 	httpLib := "invalid-lib"
 
 	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "")
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
 	if err == nil {
 		t.Error("GeneratePythonSDK() with invalid HTTP library should return error")
 	}
@@ -85,7 +85,7 @@ func TestGeneratePythonSDK_CustomHTTPLib(t *testing.T) {
 	httpLib := "httpx"
 
 	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "")
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -110,7 +110,7 @@ func TestGeneratePythonSDK_RequirementsTxt(t *testing.T) {
 	httpLib := "requests"
 
 	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "")
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -145,7 +145,7 @@ func TestGeneratePythonSDK_SDKNameSanitization(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
 			extractedData := createTestExtractedData()
-			err := GeneratePythonSDK(tmpDir, tt.sdkName, "requests", extractedData, nil, "")
+			err := GeneratePythonSDK(tmpDir, tt.sdkName, "requests", extractedData, nil, "", true)
 			if err != nil {
 				t.Fatalf("GeneratePythonSDK() error = %v", err)
 			}
@@ -156,6 +156,55 @@ func TestGeneratePythonSDK_SDKNameSanitization(t *testing.T) {
 				t.Errorf("GeneratePythonSDK() did not create package directory: %s", packageDir)
 			}
 		})
+	}
+}
+
+func TestGeneratePythonSDK_WithTests(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "requests"
+
+	extractedData := createTestExtractedData()
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	if err != nil {
+		t.Fatalf("GeneratePythonSDK() error = %v", err)
+	}
+
+	// Verify tests directory exists
+	testsDir := filepath.Join(tmpDir, "tests")
+	if _, err := os.Stat(testsDir); os.IsNotExist(err) {
+		t.Error("GeneratePythonSDK() with tests enabled should create tests directory")
+	}
+
+	// Verify test files exist
+	expectedTestFiles := []string{
+		filepath.Join(testsDir, "__init__.py"),
+		filepath.Join(testsDir, "conftest.py"),
+		filepath.Join(testsDir, "test_client.py"),
+	}
+
+	for _, file := range expectedTestFiles {
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			t.Errorf("GeneratePythonSDK() did not create test file: %s", file)
+		}
+	}
+}
+
+func TestGeneratePythonSDK_WithoutTests(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "requests"
+
+	extractedData := createTestExtractedData()
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", false)
+	if err != nil {
+		t.Fatalf("GeneratePythonSDK() error = %v", err)
+	}
+
+	// Verify tests directory does NOT exist
+	testsDir := filepath.Join(tmpDir, "tests")
+	if _, err := os.Stat(testsDir); err == nil {
+		t.Error("GeneratePythonSDK() with tests disabled should NOT create tests directory")
 	}
 }
 

@@ -22,6 +22,7 @@ func GenerateGoSDK(
 	openAPIDoc interface{},
 	version *LanguageVersion,
 	sdkVersion string,
+	generateTests bool,
 ) error {
 	// Use default version if not provided
 	if version == nil {
@@ -34,7 +35,7 @@ func GenerateGoSDK(
 	if !ok {
 		// If not an openapi3.T, try to extract from ExtractedData
 		if extractedData, ok := openAPIDoc.(*ExtractedData); ok {
-			return generateGoSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion)
+			return generateGoSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests)
 		}
 		return fmt.Errorf("invalid OpenAPI document type")
 	}
@@ -45,7 +46,7 @@ func GenerateGoSDK(
 		return fmt.Errorf("failed to extract OpenAPI data: %w", err)
 	}
 
-	return generateGoSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion)
+	return generateGoSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests)
 }
 
 // generateGoSDKFromExtracted generates SDK from extracted data
@@ -54,6 +55,7 @@ func generateGoSDKFromExtracted(
 	extractedData *ExtractedData,
 	version LanguageVersion,
 	sdkVersion string,
+	generateTests bool,
 ) error {
 	// Get HTTP library config
 	libConfig, err := httplib.GetLibraryConfig("go", httpLib)
@@ -201,6 +203,13 @@ func generateGoSDKFromExtracted(
 	if err := formatGoFile(examplesPath); err != nil {
 		// Log but don't fail - formatting is nice-to-have
 		_ = err
+	}
+
+	// Generate test files if test generation is enabled
+	if generateTests {
+		if err := generateGoTests(packageDir, data, extractedData, version); err != nil {
+			return fmt.Errorf("failed to generate tests: %w", err)
+		}
 	}
 
 	return nil
@@ -1022,4 +1031,130 @@ func generateGoExamples(data TemplateData) string {
 	examples.WriteString("}\n")
 
 	return examples.String()
+}
+
+// generateGoTests generates test files for Go SDK
+func generateGoTests(packageDir string, data TemplateData, extractedData *ExtractedData, version LanguageVersion) error {
+	// Generate client_test.go
+	clientTestContent := generateGoClientTest(data, version)
+	clientTestPath := filepath.Join(packageDir, "client_test.go")
+	// #nosec G306 -- 0644 is appropriate for Go test files
+	if err := os.WriteFile(clientTestPath, []byte(clientTestContent), 0644); err != nil {
+		return fmt.Errorf("failed to write client_test.go: %w", err)
+	}
+	// Format with gofmt
+	if err := formatGoFile(clientTestPath); err != nil {
+		_ = err
+	}
+
+	// Generate models_test.go if schemas exist
+	if len(extractedData.Schemas) > 0 {
+		modelsTestContent := generateGoModelsTest(data, extractedData.Schemas, version)
+		modelsTestPath := filepath.Join(packageDir, "models_test.go")
+		// #nosec G306 -- 0644 is appropriate for Go test files
+		if err := os.WriteFile(modelsTestPath, []byte(modelsTestContent), 0644); err != nil {
+			return fmt.Errorf("failed to write models_test.go: %w", err)
+		}
+		// Format with gofmt
+		if err := formatGoFile(modelsTestPath); err != nil {
+			_ = err
+		}
+	}
+
+	// Generate api_test.go if operations exist
+	if len(extractedData.Operations) > 0 {
+		apiTestContent := generateGoAPITest(data, extractedData.Operations, version)
+		apiTestPath := filepath.Join(packageDir, "api_test.go")
+		// #nosec G306 -- 0644 is appropriate for Go test files
+		if err := os.WriteFile(apiTestPath, []byte(apiTestContent), 0644); err != nil {
+			return fmt.Errorf("failed to write api_test.go: %w", err)
+		}
+		// Format with gofmt
+		if err := formatGoFile(apiTestPath); err != nil {
+			_ = err
+		}
+	}
+
+	return nil
+}
+
+// generateGoClientTest generates client_test.go
+func generateGoClientTest(data TemplateData, version LanguageVersion) string {
+	var test bytes.Buffer
+	test.WriteString(fmt.Sprintf("package %s\n\n", data.SDKName))
+	test.WriteString("import (\n")
+	test.WriteString("\t\"testing\"\n")
+	test.WriteString(")\n\n")
+	test.WriteString(fmt.Sprintf("func TestNew%s(t *testing.T) {\n", data.ClientClassName))
+	test.WriteString("\tclient := New")
+	test.WriteString(data.ClientClassName)
+	test.WriteString("(\"https://api.example.com\")\n")
+	test.WriteString("\tif client == nil {\n")
+	test.WriteString("\t\tt.Fatal(\"New")
+	test.WriteString(data.ClientClassName)
+	test.WriteString("() returned nil\")\n")
+	test.WriteString("\t}\n")
+	test.WriteString("\tif client.BaseURL != \"https://api.example.com\" {\n")
+	test.WriteString("\t\tt.Errorf(\"BaseURL = %q, want %q\", client.BaseURL, \"https://api.example.com\")\n")
+	test.WriteString("\t}\n")
+	test.WriteString("}\n")
+	return test.String()
+}
+
+// generateGoModelsTest generates models_test.go
+func generateGoModelsTest(data TemplateData, schemas map[string]*Schema, version LanguageVersion) string {
+	var test bytes.Buffer
+	test.WriteString(fmt.Sprintf("package %s\n\n", data.SDKName))
+	test.WriteString("import (\n")
+	test.WriteString("\t\"encoding/json\"\n")
+	test.WriteString("\t\"testing\"\n")
+	test.WriteString(")\n\n")
+	test.WriteString("// TODO: Add model tests based on your OpenAPI schema\n")
+	test.WriteString("// Example:\n")
+	test.WriteString("// func TestModelSerialization(t *testing.T) {\n")
+	test.WriteString("//     model := YourModel{Field1: \"value1\"}\n")
+	test.WriteString("//     data, err := json.Marshal(model)\n")
+	test.WriteString("//     if err != nil {\n")
+	test.WriteString("//         t.Fatalf(\"Marshal() error = %v\", err)\n")
+	test.WriteString("//     }\n")
+	test.WriteString("//     var unmarshaled YourModel\n")
+	test.WriteString("//     if err := json.Unmarshal(data, &unmarshaled); err != nil {\n")
+	test.WriteString("//         t.Fatalf(\"Unmarshal() error = %v\", err)\n")
+	test.WriteString("//     }\n")
+	test.WriteString("//     if unmarshaled.Field1 != \"value1\" {\n")
+	test.WriteString("//         t.Errorf(\"Field1 = %q, want %q\", unmarshaled.Field1, \"value1\")\n")
+	test.WriteString("//     }\n")
+	test.WriteString("// }\n")
+	return test.String()
+}
+
+// generateGoAPITest generates api_test.go
+func generateGoAPITest(data TemplateData, operations []APIOperation, version LanguageVersion) string {
+	var test bytes.Buffer
+	test.WriteString(fmt.Sprintf("package %s\n\n", data.SDKName))
+	test.WriteString("import (\n")
+	test.WriteString("\t\"net/http\"\n")
+	test.WriteString("\t\"net/http/httptest\"\n")
+	test.WriteString("\t\"testing\"\n")
+	test.WriteString(")\n\n")
+	test.WriteString("// TODO: Add API method tests based on your OpenAPI schema\n")
+	test.WriteString("// Example:\n")
+	test.WriteString("// func TestGetEndpoint(t *testing.T) {\n")
+	test.WriteString("//     server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n")
+	test.WriteString("//         w.WriteHeader(http.StatusOK)\n")
+	test.WriteString("//         w.Write([]byte(`[{\"id\":1}]`))\n")
+	test.WriteString("//     }))\n")
+	test.WriteString("//     defer server.Close()\n")
+	test.WriteString("//     client := New")
+	test.WriteString(data.ClientClassName)
+	test.WriteString("(server.URL)\n")
+	test.WriteString("//     result, err := client.GetItems()\n")
+	test.WriteString("//     if err != nil {\n")
+	test.WriteString("//         t.Fatalf(\"GetItems() error = %v\", err)\n")
+	test.WriteString("//     }\n")
+	test.WriteString("//     if len(result) != 1 {\n")
+	test.WriteString("//         t.Errorf(\"len(result) = %d, want 1\", len(result))\n")
+	test.WriteString("//     }\n")
+	test.WriteString("// }\n")
+	return test.String()
 }
