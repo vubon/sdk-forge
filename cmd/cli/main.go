@@ -4,12 +4,26 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/spf13/cobra"
 	"github.com/vubon/sdk-forge/cmd/cli/commands"
 )
 
-var version = "0.1.0"
+// These variables are set during build via ldflags
+var (
+	version   = "dev"     // Set via -ldflags "-X main.version=..."
+	buildDate = "unknown" // Set via -ldflags "-X main.buildDate=..."
+	gitCommit = "unknown" // Set via -ldflags "-X main.gitCommit=..."
+)
+
+// getVersion returns a formatted version string
+func getVersion() string {
+	if version == "dev" {
+		return "dev (not built with Makefile)"
+	}
+	return fmt.Sprintf("%s (commit: %s, built: %s, go: %s)", version, gitCommit, buildDate, runtime.Version())
+}
 
 func main() {
 	var rootCmd = &cobra.Command{
@@ -19,7 +33,7 @@ func main() {
 programming languages from OpenAPI schemas.
 
 Generate SDKs one language at a time with your preferred HTTP library.`,
-		Version: version,
+		Version: getVersion(),
 	}
 
 	// Add commands
