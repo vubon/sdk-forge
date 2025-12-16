@@ -208,6 +208,160 @@ func TestGeneratePythonSDK_WithoutTests(t *testing.T) {
 	}
 }
 
+func TestGeneratePythonSDK_ModelTests(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "requests"
+
+	// Create extracted data with schemas
+	extractedData := createTestExtractedData()
+	extractedData.Schemas = map[string]*Schema{
+		"User": {
+			Type:        "object",
+			Description: "User model",
+			Properties: map[string]*Schema{
+				"id": {
+					Type: "integer",
+				},
+				"name": {
+					Type: "string",
+				},
+			},
+			Required: []string{"id", "name"},
+		},
+	}
+
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	if err != nil {
+		t.Fatalf("GeneratePythonSDK() error = %v", err)
+	}
+
+	// Verify test_models.py exists and contains schema-based tests
+	modelsTestPath := filepath.Join(tmpDir, "tests", "test_models.py")
+	if _, err := os.Stat(modelsTestPath); os.IsNotExist(err) {
+		t.Fatal("test_models.py should be generated when schemas exist")
+	}
+
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(modelsTestPath)
+	if err != nil {
+		t.Fatalf("Failed to read test_models.py: %v", err)
+	}
+
+	contentStr := string(content)
+	if !contains(contentStr, "TestUser") {
+		t.Error("test_models.py should contain TestUser class")
+	}
+	if !contains(contentStr, "test_user_creation") {
+		t.Error("test_models.py should contain test_user_creation method")
+	}
+	if !contains(contentStr, "test_user_serialization") {
+		t.Error("test_models.py should contain test_user_serialization method")
+	}
+}
+
+func TestGeneratePythonSDK_APITests(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "requests"
+
+	// Create extracted data with operations
+	extractedData := createTestExtractedData()
+	extractedData.Operations = []APIOperation{
+		{
+			Method:      "GET",
+			Path:        "/users",
+			OperationID: "listUsers",
+			Summary:     "List users",
+			Tags:        []string{"users"},
+			Parameters:  []Parameter{},
+			Responses: map[string]Response{
+				"200": {
+					Description: "Success",
+				},
+			},
+		},
+	}
+
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	if err != nil {
+		t.Fatalf("GeneratePythonSDK() error = %v", err)
+	}
+
+	// Verify test_api_methods.py exists and contains operation-based tests
+	apiTestPath := filepath.Join(tmpDir, "tests", "test_api_methods.py")
+	if _, err := os.Stat(apiTestPath); os.IsNotExist(err) {
+		t.Fatal("test_api_methods.py should be generated when operations exist")
+	}
+
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(apiTestPath)
+	if err != nil {
+		t.Fatalf("Failed to read test_api_methods.py: %v", err)
+	}
+
+	contentStr := string(content)
+	if !contains(contentStr, "TestUsersAPI") {
+		t.Error("test_api_methods.py should contain TestUsersAPI class")
+	}
+	if !contains(contentStr, "test_list_users") {
+		t.Error("test_api_methods.py should contain test_list_users method")
+	}
+	if !contains(contentStr, "mock_request") {
+		t.Error("test_api_methods.py should contain mock setup")
+	}
+}
+
+func TestGeneratePythonSDK_AuthTests(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "requests"
+
+	// Create extracted data with security schemes
+	extractedData := createTestExtractedData()
+	extractedData.SecuritySchemes = map[string]SecurityScheme{
+		"apiKey": {
+			Type: "apiKey",
+			In:   "header",
+			Name: "X-API-Key",
+		},
+		"bearer": {
+			Type:   "http",
+			Scheme: "bearer",
+		},
+	}
+
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	if err != nil {
+		t.Fatalf("GeneratePythonSDK() error = %v", err)
+	}
+
+	// Verify test_auth.py exists
+	authTestPath := filepath.Join(tmpDir, "tests", "test_auth.py")
+	if _, err := os.Stat(authTestPath); os.IsNotExist(err) {
+		t.Fatal("test_auth.py should be generated when security schemes exist")
+	}
+
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(authTestPath)
+	if err != nil {
+		t.Fatalf("Failed to read test_auth.py: %v", err)
+	}
+
+	contentStr := string(content)
+	if !contains(contentStr, "TestAuthentication") {
+		t.Error("test_auth.py should contain TestAuthentication class")
+	}
+	// Check for API key auth test (scheme name "apiKey" is converted to "api_key")
+	if !contains(contentStr, "api_key") {
+		t.Error("test_auth.py should contain API key auth test")
+	}
+	// Check for Bearer auth test (scheme name "bearer" stays as "bearer")
+	if !contains(contentStr, "bearer_auth") {
+		t.Error("test_auth.py should contain Bearer auth test")
+	}
+}
+
 func TestGeneratePythonInit(t *testing.T) {
 	extractedData := createTestExtractedData()
 	data := TemplateData{
