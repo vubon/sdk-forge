@@ -3,6 +3,7 @@ package generator
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -1089,7 +1090,69 @@ func generateGoTests(packageDir string, data TemplateData, extractedData *Extrac
 		}
 	}
 
+	// Generate test fixtures from OpenAPI examples
+	if err := generateGoTestFixtures(packageDir, extractedData); err != nil {
+		return fmt.Errorf("failed to generate test fixtures: %w", err)
+	}
+
 	return nil
+}
+
+// generateGoTestFixtures generates test fixture files from OpenAPI examples
+func generateGoTestFixtures(packageDir string, extractedData *ExtractedData) error {
+	fixturesDir := filepath.Join(packageDir, "testdata")
+	if err := os.MkdirAll(fixturesDir, 0750); err != nil {
+		return fmt.Errorf("failed to create testdata directory: %w", err)
+	}
+
+	// Generate fixtures from response examples
+	fixtures := make(map[string]interface{})
+
+	for _, op := range extractedData.Operations {
+		for statusCode, response := range op.Responses {
+			if jsonContent, ok := response.Content["application/json"]; ok {
+				if len(jsonContent.Examples) > 0 {
+					// Use first example for each status code
+					for name, example := range jsonContent.Examples {
+						key := fmt.Sprintf("%s_%s_%s", op.OperationID, statusCode, name)
+						fixtures[key] = example
+					}
+				}
+			}
+		}
+	}
+
+	if len(fixtures) > 0 {
+		// Generate fixtures.go file
+		fixturesContent := generateGoFixturesFile(fixtures)
+		fixturesPath := filepath.Join(fixturesDir, "fixtures.go")
+		// #nosec G306 -- 0644 is appropriate for Go fixture files
+		if err := os.WriteFile(fixturesPath, []byte(fixturesContent), 0644); err != nil {
+			return fmt.Errorf("failed to write testdata/fixtures.go: %w", err)
+		}
+		// Format with gofmt
+		if err := formatGoFile(fixturesPath); err != nil {
+			_ = err
+		}
+	}
+
+	return nil
+}
+
+// generateGoFixturesFile generates a Go file with test fixtures
+func generateGoFixturesFile(fixtures map[string]interface{}) string {
+	var buf bytes.Buffer
+	buf.WriteString("package testdata\n\n")
+	buf.WriteString("// Test fixtures extracted from OpenAPI examples\n\n")
+
+	for key, example := range fixtures {
+		// Convert key to valid Go variable name
+		varName := toPascalCase(key)
+		exampleJSON := formatExampleForGo(example)
+		fmt.Fprintf(&buf, "var %s = %s\n\n", varName, exampleJSON)
+	}
+
+	return buf.String()
 }
 
 // generateGoClientTest generates client_test.go
@@ -1296,7 +1359,11 @@ func generateGoAPITest(data TemplateData, operations []APIOperation, extractedDa
 			}
 
 			test.WriteString(fmt.Sprintf("\t\tw.WriteHeader(%d)\n", expectedStatus))
-			test.WriteString("\t\tw.Write([]byte(`{\"success\": true}`))\n")
+
+			// Use example from OpenAPI response if available
+			statusCodeStr := fmt.Sprintf("%d", expectedStatus)
+			exampleJSON := getGoExampleFromResponse(op.Responses[statusCodeStr])
+			test.WriteString(fmt.Sprintf("\t\tw.Write([]byte(%s))\n", exampleJSON))
 			test.WriteString("\t}))\n")
 			test.WriteString("\tdefer server.Close()\n\n")
 
@@ -1345,10 +1412,66 @@ func generateGoAPITest(data TemplateData, operations []APIOperation, extractedDa
 			test.WriteString("\t//     t.Error(\"Result should not be nil\")\n")
 			test.WriteString("\t// }\n")
 			test.WriteString("}\n\n")
+
+			// Generate error handling tests for 4xx/5xx responses
+			generateGoErrorTests(&test, op, data, extractedData)
 		}
 	}
 
 	return test.String()
+}
+
+// generateGoErrorTests generates error handling tests for 4xx/5xx responses
+func generateGoErrorTests(test *bytes.Buffer, op APIOperation, data TemplateData, extractedData *ExtractedData) {
+	// Find error responses (4xx, 5xx)
+	var errorStatuses []string
+	for statusCode := range op.Responses {
+		if len(statusCode) >= 3 {
+			firstDigit := statusCode[0]
+			if firstDigit == '4' || firstDigit == '5' {
+				errorStatuses = append(errorStatuses, statusCode)
+			}
+		}
+	}
+
+	if len(errorStatuses) == 0 {
+		return // No error responses to test
+	}
+
+	methodName := GetOperationMethodName(op)
+
+	// Generate test for each error status
+	for _, statusCode := range errorStatuses {
+		statusCodeInt := 0
+		if _, err := fmt.Sscanf(statusCode, "%d", &statusCodeInt); err != nil || statusCodeInt == 0 {
+			continue
+		}
+
+		testMethodName := fmt.Sprintf("Test%s_%s_%sError", toPascalCase(op.Tags[0]), toPascalCase(methodName), statusCode)
+		fmt.Fprintf(test, "func %s(t *testing.T) {\n", testMethodName)
+		fmt.Fprintf(test, "\t// Test %s %s operation returns %s error\n", op.Method, op.Path, statusCode)
+		fmt.Fprintf(test, "\tserver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n")
+		fmt.Fprintf(test, "\t\tw.WriteHeader(%d)\n", statusCodeInt)
+
+		// Get error example if available
+		errorResponse := op.Responses[statusCode]
+		exampleJSON := getGoExampleFromResponse(errorResponse)
+		fmt.Fprintf(test, "\t\tw.Write([]byte(%s))\n", exampleJSON)
+		test.WriteString("\t}))\n")
+		test.WriteString("\tdefer server.Close()\n\n")
+
+		fmt.Fprintf(test, "\tclient := New%s(server.URL)\n", data.ClientClassName)
+		test.WriteString("\tif client == nil {\n")
+		test.WriteString("\t\tt.Fatal(\"Client is nil\")\n")
+		test.WriteString("\t}\n\n")
+
+		test.WriteString("\t// Call API method and expect error\n")
+		fmt.Fprintf(test, "\t// result, err := client.%s(...)\n", toPascalCase(methodName))
+		test.WriteString("\t// if err == nil {\n")
+		test.WriteString("\t//     t.Error(\"Expected error but got nil\")\n")
+		test.WriteString("\t// }\n")
+		test.WriteString("}\n\n")
+	}
 }
 
 // generateGoTestValueFromParam generates a test value from a parameter in Go
@@ -1458,4 +1581,58 @@ func generateGoAuthTest(data TemplateData, securitySchemes map[string]SecuritySc
 	}
 
 	return test.String()
+}
+
+// getGoExampleFromResponse extracts example from response for Go test
+func getGoExampleFromResponse(response Response) string {
+	// Look for JSON content type first
+	if jsonContent, ok := response.Content["application/json"]; ok {
+		if len(jsonContent.Examples) > 0 {
+			// Use first example
+			for _, example := range jsonContent.Examples {
+				return formatExampleForGo(example)
+			}
+		}
+		// Fallback: generate example from schema if no examples
+		if jsonContent.Schema != nil {
+			return generateGoExampleFromSchema(jsonContent.Schema)
+		}
+	}
+	// Default fallback
+	return "`{\"success\": true}`"
+}
+
+// formatExampleForGo converts an example value to Go code string
+func formatExampleForGo(example interface{}) string {
+	if example == nil {
+		return "`null`"
+	}
+
+	// Use JSON encoding to properly format the example
+	jsonBytes, err := json.Marshal(example)
+	if err != nil {
+		// Fallback: escape and quote
+		return fmt.Sprintf("%q", fmt.Sprintf("%v", example))
+	}
+
+	// Return as Go raw string literal
+	return fmt.Sprintf("`%s`", string(jsonBytes))
+}
+
+// generateGoExampleFromSchema generates a Go example from schema
+func generateGoExampleFromSchema(schema *Schema) string {
+	if schema == nil {
+		return "`{}`"
+	}
+
+	// For now, return a simple example based on type
+	// This can be enhanced to generate more complex examples
+	switch schema.Type {
+	case "object":
+		return "`{}`"
+	case "array":
+		return "`[]`"
+	default:
+		return "`{\"value\": \"test\"}`"
+	}
 }
