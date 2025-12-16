@@ -1,0 +1,82 @@
+// Package {{.PackageName}} provides a client for {{.DisplayName}} API
+// Auto-generated from OpenAPI schema
+
+package {{.PackageName}}
+
+{{.Imports}}
+
+// {{.ClientClassName}} represents the API client
+type {{.ClientClassName}} struct {
+	BaseURL    string
+	HTTPClient *http.Client{{.AuthFields}}
+}
+
+// New{{.ClientClassName}} creates a new API client
+func New{{.ClientClassName}}(baseURL string, options ...{{.ClientClassName}}Option) *{{.ClientClassName}} {
+	if baseURL == "" {
+		baseURL = "{{.BaseURLDefault}}"
+	}
+	client := &{{.ClientClassName}}{
+		BaseURL:    strings.TrimSuffix(baseURL, "/"),
+		HTTPClient: &http.Client{},
+	}
+	
+	// Apply options
+	for _, option := range options {
+		option(client)
+	}
+	
+	return client
+}
+
+// {{.ClientClassName}}Option is a function that configures the client
+type {{.ClientClassName}}Option func(*{{.ClientClassName}})
+
+// WithHTTPClient sets a custom HTTP client
+func WithHTTPClient(httpClient *http.Client) {{.ClientClassName}}Option {
+	return func(c *{{.ClientClassName}}) {
+		c.HTTPClient = httpClient
+	}
+}
+
+{{.AuthSetup}}
+
+// Request makes an HTTP request (public method for use by api package)
+func (c *{{.ClientClassName}}) Request(method, path string, body {{.EmptyInterfaceType}}) ([]byte, error) {
+	url := c.BaseURL + path
+	
+	var reqBody io.Reader
+	if body != nil {
+		jsonData, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal request body: %w", err)
+		}
+		reqBody = bytes.NewBuffer(jsonData)
+	}
+	
+	req, err := http.NewRequest(method, url, reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	
+	req.Header.Set("Content-Type", "application/json")
+	
+	// Apply authentication headers
+	c.applyAuth(req)
+	
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode >= 400 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error: %d - %s", resp.StatusCode, string(bodyBytes))
+	}
+	
+	return io.ReadAll(resp.Body)
+}
+
+{{.APIMethods}}
+

@@ -1,0 +1,1344 @@
+openapi: 3.0.0
+info:
+  title: Petstore API
+  version: 2.0.0
+  description: |
+    A comprehensive Petstore API for testing SDK generation.
+    This API demonstrates various OpenAPI features including:
+    - Multiple authentication methods
+    - Complex data models with nested objects
+    - Pagination and filtering
+    - File uploads
+    - Error handling
+  contact:
+    name: API Support
+    email: support@petstore.com
+    url: https://petstore.com/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: https://api.petstore.com/v1
+    description: Production server
+  - url: https://staging-api.petstore.com/v1
+    description: Staging server
+  - url: http://localhost:8080/v1
+    description: Local development server
+paths:
+  /pets:
+    get:
+      summary: List all pets
+      description: |
+        Retrieve a paginated list of pets. Supports filtering by status,
+        category, and search by name or tag.
+      operationId: listPets
+      tags:
+        - pets
+      parameters:
+        - name: status
+          in: query
+          description: Filter by pet status
+          required: false
+          schema:
+            type: string
+            enum: [available, pending, sold]
+            default: available
+        - name: category
+          in: query
+          description: Filter by category ID
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: tags
+          in: query
+          description: Filter by tags (comma-separated)
+          required: false
+          schema:
+            type: string
+        - name: search
+          in: query
+          description: Search pets by name or tag
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sort
+          in: query
+          description: Sort order
+          required: false
+          schema:
+            type: string
+            enum: [name, created_at, updated_at]
+            default: created_at
+        - name: order
+          in: query
+          description: Sort direction
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: A paginated list of pets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PetListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - apiKey: []
+        - bearerAuth: []
+    post:
+      summary: Create a new pet
+      description: Create a new pet in the store
+      operationId: createPet
+      tags:
+        - pets
+      requestBody:
+        required: true
+        description: Pet object to be created
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePetRequest'
+            examples:
+              dog:
+                summary: Example dog
+                value:
+                  name: Max
+                  category:
+                    id: 1
+                    name: Dogs
+                  photoUrls:
+                    - 'https://example.com/dog.jpg'
+                  tags:
+                    - name: friendly
+                    - name: active
+                  status: available
+              cat:
+                summary: Example cat
+                value:
+                  name: Whiskers
+                  category:
+                    id: 2
+                    name: Cats
+                  photoUrls:
+                    - 'https://example.com/cat.jpg'
+                  tags:
+                    - name: independent
+                  status: available
+      responses:
+        '201':
+          description: Pet created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      security:
+        - bearerAuth: []
+        - oauth2: [write:pets]
+  /pets/{id}:
+    get:
+      summary: Get a pet by ID
+      description: Retrieve detailed information about a specific pet
+      operationId: getPetById
+      tags:
+        - pets
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Pet ID
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: include
+          in: query
+          description: 'Include related resources (comma-separated values: category,owner,photos)'
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pet details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - apiKey: []
+        - bearerAuth: []
+    put:
+      summary: Update a pet
+      description: Update an existing pet's information
+      operationId: updatePet
+      tags:
+        - pets
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Pet ID
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        description: Updated pet object
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePetRequest'
+      responses:
+        '200':
+          description: Pet updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+        - bearerAuth: []
+        - oauth2: [write:pets]
+    delete:
+      summary: Delete a pet
+      description: Delete a pet from the store
+      operationId: deletePet
+      tags:
+        - pets
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Pet ID
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Pet deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+        - bearerAuth: []
+        - oauth2: [write:pets, delete:pets]
+  /pets/{id}/photos:
+    post:
+      summary: Upload pet photos
+      description: Upload one or more photos for a pet
+      operationId: uploadPetPhotos
+      tags:
+        - pets
+        - media
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Pet ID
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        description: Photo files to upload
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - photos
+              properties:
+                photos:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                description:
+                  type: string
+                  description: Optional description for the photos
+      responses:
+        '201':
+          description: Photos uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhotoUploadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+        - bearerAuth: []
+        - oauth2: [write:pets]
+  /pets/{id}/status:
+    patch:
+      summary: Update pet status
+      description: Update only the status of a pet (partial update)
+      operationId: updatePetStatus
+      tags:
+        - pets
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Pet ID
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  $ref: '#/components/schemas/PetStatus'
+      responses:
+        '200':
+          description: Status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+        - bearerAuth: []
+  /categories:
+    get:
+      summary: List all categories
+      description: Retrieve all available pet categories
+      operationId: listCategories
+      tags:
+        - categories
+      parameters:
+        - name: include_pets
+          in: query
+          description: Include pet count for each category
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - apiKey: []
+    post:
+      summary: Create a new category
+      description: Create a new pet category
+      operationId: createCategory
+      tags:
+        - categories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryRequest'
+      responses:
+        '201':
+          description: Category created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+        - oauth2: [write:categories]
+  /categories/{id}:
+    get:
+      summary: Get category by ID
+      description: Retrieve detailed information about a category
+      operationId: getCategoryById
+      tags:
+        - categories
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Category ID
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Category details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+        - apiKey: []
+  /users:
+    get:
+      summary: List users
+      description: Retrieve a list of users (admin only)
+      operationId: listUsers
+      tags:
+        - users
+      parameters:
+        - name: role
+          in: query
+          description: Filter by user role
+          required: false
+          schema:
+            $ref: '#/components/schemas/UserRole'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      security:
+        - bearerAuth: []
+        - oauth2: [read:users]
+    post:
+      summary: Create a new user
+      description: Register a new user account
+      operationId: createUser
+      tags:
+        - users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /users/{id}:
+    get:
+      summary: Get user by ID
+      description: Retrieve user information
+      operationId: getUserById
+      tags:
+        - users
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+        - bearerAuth: []
+        - oauth2: [read:users]
+    put:
+      summary: Update user
+      description: Update user information
+      operationId: updateUser
+      tags:
+        - users
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+        - bearerAuth: []
+        - oauth2: [write:users]
+  /auth/login:
+    post:
+      summary: User login
+      description: Authenticate user and receive access token
+      operationId: login
+      tags:
+        - authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security: []
+  /auth/logout:
+    post:
+      summary: User logout
+      description: Invalidate the current access token
+      operationId: logout
+      tags:
+        - authentication
+      responses:
+        '204':
+          description: Logout successful
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+  /auth/refresh:
+    post:
+      summary: Refresh access token
+      description: Get a new access token using a refresh token
+      operationId: refreshToken
+      tags:
+        - authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security: []
+  /orders:
+    get:
+      summary: List orders
+      description: Retrieve orders for the authenticated user
+      operationId: listOrders
+      tags:
+        - orders
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: List of orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+    post:
+      summary: Create an order
+      description: Create a new order
+      operationId: createOrder
+      tags:
+        - orders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+        - oauth2: [write:orders]
+  /orders/{id}:
+    get:
+      summary: Get order by ID
+      description: Retrieve order details
+      operationId: getOrderById
+      tags:
+        - orders
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+        - bearerAuth: []
+    delete:
+      summary: Cancel an order
+      description: Cancel a pending order
+      operationId: cancelOrder
+      tags:
+        - orders
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Order cancelled successfully
+        '400':
+          description: Order cannot be cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+        - bearerAuth: []
+        - oauth2: [write:orders]
+
+components:
+  schemas:
+    Pet:
+      type: object
+      required:
+        - id
+        - name
+        - status
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the pet
+          example: 12345
+        name:
+          type: string
+          description: Pet name
+          minLength: 1
+          maxLength: 100
+          example: Max
+        category:
+          $ref: '#/components/schemas/Category'
+        photoUrls:
+          type: array
+          description: URLs of pet photos
+          items:
+            type: string
+            format: uri
+          example:
+            - 'https://example.com/pet1.jpg'
+            - 'https://example.com/pet2.jpg'
+        tags:
+          type: array
+          description: Tags associated with the pet
+          items:
+            $ref: '#/components/schemas/Tag'
+        status:
+          $ref: '#/components/schemas/PetStatus'
+        owner:
+          $ref: '#/components/schemas/User'
+        createdAt:
+          type: string
+          format: date-time
+          description: When the pet was created
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the pet was last updated
+          readOnly: true
+    PetStatus:
+      type: string
+      enum: [available, pending, sold]
+      description: Pet status in the store
+      example: available
+    Category:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Category ID
+          example: 1
+        name:
+          type: string
+          description: Category name
+          example: Dogs
+        description:
+          type: string
+          description: Category description
+          example: All dog breeds
+        petCount:
+          type: integer
+          description: Number of pets in this category (only when include_pets=true)
+          readOnly: true
+    Tag:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Tag ID
+        name:
+          type: string
+          description: Tag name
+          example: friendly
+    CreatePetRequest:
+      type: object
+      required:
+        - name
+        - status
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        category:
+          type: object
+          properties:
+            id:
+              type: integer
+              format: int64
+            name:
+              type: string
+        photoUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+        tags:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+        status:
+          $ref: '#/components/schemas/PetStatus'
+    UpdatePetRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        category:
+          type: object
+          properties:
+            id:
+              type: integer
+              format: int64
+        photoUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+        tags:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+        status:
+          $ref: '#/components/schemas/PetStatus'
+    PetListResponse:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Pet'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    Pagination:
+      type: object
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          description: Items per page
+          example: 20
+        total:
+          type: integer
+          description: Total number of items
+          example: 150
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 8
+        hasNext:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        hasPrev:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+    User:
+      type: object
+      required:
+        - id
+        - username
+        - email
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: User ID
+          example: 1
+        username:
+          type: string
+          description: Username
+          minLength: 3
+          maxLength: 50
+          pattern: '^[a-zA-Z0-9_]+$'
+          example: johndoe
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: john@example.com
+        firstName:
+          type: string
+          description: First name
+          example: John
+        lastName:
+          type: string
+          description: Last name
+          example: Doe
+        phone:
+          type: string
+          description: Phone number
+          pattern: '^\+?[1-9]\d{1,14}$'
+          example: '+1234567890'
+        role:
+          $ref: '#/components/schemas/UserRole'
+        address:
+          $ref: '#/components/schemas/Address'
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+    UserRole:
+      type: string
+      enum: [user, admin, moderator]
+      description: User role
+      example: user
+    Address:
+      type: object
+      properties:
+        street:
+          type: string
+          example: 123 Main St
+        city:
+          type: string
+          example: New York
+        state:
+          type: string
+          example: NY
+        zipCode:
+          type: string
+          pattern: '^\d{5}(-\d{4})?$'
+          example: '10001'
+        country:
+          type: string
+          example: USA
+    CreateUserRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          pattern: '^[a-zA-Z0-9_]+$'
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: Password must be at least 8 characters
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+          pattern: '^\+?[1-9]\d{1,14}$'
+        address:
+          $ref: '#/components/schemas/Address'
+    UpdateUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+          pattern: '^\+?[1-9]\d{1,14}$'
+        address:
+          $ref: '#/components/schemas/Address'
+    UserListResponse:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    CreateCategoryRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: johndoe
+        password:
+          type: string
+          format: password
+          example: secret123
+    LoginResponse:
+      type: object
+      required:
+        - access_token
+        - token_type
+        - expires_in
+      properties:
+        access_token:
+          type: string
+          description: JWT access token
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          description: Token expiration time in seconds
+          example: 3600
+        refresh_token:
+          type: string
+          description: Refresh token for obtaining new access tokens
+          example: refresh_token_here
+    Order:
+      type: object
+      required:
+        - id
+        - petId
+        - quantity
+        - status
+        - shipDate
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Order ID
+          example: 10
+        petId:
+          type: integer
+          format: int64
+          description: ID of the pet being ordered
+          example: 198772
+        quantity:
+          type: integer
+          format: int32
+          description: Number of pets ordered
+          minimum: 1
+          example: 1
+        shipDate:
+          type: string
+          format: date-time
+          description: Estimated shipping date
+          example: '2024-12-20T10:00:00Z'
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        complete:
+          type: boolean
+          description: Whether the order is complete
+          default: false
+        user:
+          $ref: '#/components/schemas/User'
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+    OrderStatus:
+      type: string
+      enum: [placed, approved, processing, shipped, delivered, cancelled]
+      description: Order status
+      example: placed
+    CreateOrderRequest:
+      type: object
+      required:
+        - petId
+        - quantity
+      properties:
+        petId:
+          type: integer
+          format: int64
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+        shipDate:
+          type: string
+          format: date-time
+    PhotoUploadResponse:
+      type: object
+      required:
+        - photos
+      properties:
+        photos:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                format: int64
+              url:
+                type: string
+                format: uri
+              uploadedAt:
+                type: string
+                format: date-time
+        message:
+          type: string
+          example: Photos uploaded successfully
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          format: int32
+          description: Error code
+          example: 400
+        message:
+          type: string
+          description: Error message
+          example: Invalid request parameters
+        details:
+          type: array
+          description: Additional error details
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error occurred
+          readOnly: true
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 400
+            message: Invalid request parameters
+            details:
+              - field: name
+                message: Name is required
+    Unauthorized:
+      description: Unauthorized - authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 401
+            message: Authentication required
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 403
+            message: Insufficient permissions
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 404
+            message: Resource not found
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 422
+            message: Validation failed
+            details:
+              - field: email
+                message: Invalid email format
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 500
+            message: Internal server error
+
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Bearer token authentication
+    basicAuth:
+      type: http
+      scheme: basic
+      description: HTTP Basic authentication
+    oauth2:
+      type: oauth2
+      description: OAuth2 authentication
+      flows:
+        authorizationCode:
+          authorizationUrl: https://api.petstore.com/oauth/authorize
+          tokenUrl: https://api.petstore.com/oauth/token
+          scopes:
+            read:pets: Read pets
+            write:pets: Write pets
+            read:users: Read users
+            write:users: Write users
+            read:orders: Read orders
+            write:orders: Write orders
+            read:categories: Read categories
+            write:categories: Write categories
+            delete:pets: Delete pets
+        clientCredentials:
+          tokenUrl: https://api.petstore.com/oauth/token
+          scopes:
+            read:pets: Read pets
+            write:pets: Write pets
+        password:
+          tokenUrl: https://api.petstore.com/oauth/token
+          scopes:
+            read:pets: Read pets
+            write:pets: Write pets
+    openIdConnect:
+      type: openIdConnect
+      openIdConnectUrl: https://api.petstore.com/.well-known/openid-configuration
+      description: OpenID Connect authentication

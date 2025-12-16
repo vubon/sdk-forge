@@ -1,0 +1,344 @@
+// Package commands provides CLI commands for SDK Forge.
+package commands
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/spf13/cobra"
+	"github.com/vubon/sdk-forge/internal/generator"
+	"github.com/vubon/sdk-forge/internal/parser"
+	"github.com/vubon/sdk-forge/internal/validator"
+	httplib "github.com/vubon/sdk-forge/pkg/languages/http"
+)
+
+const (
+	langAll    = "all"
+	langGo     = "go"
+	langPython = "python"
+)
+
+var generateCmd = &cobra.Command{
+	Use:   "generate",
+	Short: "Generate SDKs from OpenAPI schema",
+	Long: `Generate SDKs for multiple programming languages from OpenAPI schemas.
+	
+The generated SDK will be placed at: output/language/sdk-name/
+
+Example:
+  sdk-forge generate --schema ./openapi.yaml --lang python --name my-sdk --output ./sdks
+  # Creates: ./sdks/python/my-sdk/`,
+	RunE: runGenerate,
+}
+
+var (
+	schemaPath    string
+	language      string
+	httpLib       string
+	sdkName       string
+	outputDir     string
+	ignoreMinor   bool
+	force         bool
+	goVersion     string
+	pythonVersion string
+	sdkVersion    string
+)
+
+func init() {
+	generateCmd.Flags().StringVarP(&schemaPath, "schema", "s", "", "Path or URL to OpenAPI schema (YAML/JSON) (required)")
+	generateCmd.Flags().StringVarP(&language, "language", "l", "", "Target language: python, go, php, js, ts (required)")
+	generateCmd.Flags().StringVar(&language, "lang", "", "Target language (alias for --language)")
+	generateCmd.Flags().StringVar(&httpLib, "http-lib", "", "HTTP library to use (optional, uses default if not provided)")
+	generateCmd.Flags().StringVarP(&sdkName, "name", "n", "", "Name for the generated SDK (required)")
+	generateCmd.Flags().StringVarP(&outputDir, "output", "o", "", "Output directory for generated SDK (required)")
+	generateCmd.Flags().BoolVar(&ignoreMinor, "ignore-minor-issues", false,
+		"Ignore minor validation issues (major issues still block generation)")
+	generateCmd.Flags().BoolVarP(&force, "force", "f", false, "Overwrite existing SDK directory")
+	generateCmd.Flags().StringVar(&goVersion, "go-version", "",
+		"Go version to use (e.g., 1.24, 1.25). Default: 1.24")
+	generateCmd.Flags().StringVar(&pythonVersion, "python-version", "",
+		"Python version to use (e.g., 3.11, 3.12, 3.13, 3.14). Default: 3.11")
+	generateCmd.Flags().StringVar(&sdkVersion, "sdk-version", "",
+		"SDK version to use (e.g., 1.0.0, 2.0.0). "+
+			"If not provided, uses OpenAPI schema version (if available) or defaults to 1.0.0")
+
+	// Don't mark flags as required - we handle validation in runGenerate
+	// This allows interactive mode to work when flags are missing
+}
+
+func runGenerate(cmd *cobra.Command, _ []string) error {
+	// Check if we need to run in interactive mode
+	// Interactive mode: if any required flag is missing, prompt for it
+	hasSchema, _ := cmd.Flags().GetString("schema")
+	hasLang, _ := cmd.Flags().GetString("lang")
+	hasLangLong, _ := cmd.Flags().GetString("language")
+	hasName, _ := cmd.Flags().GetString("name")
+	hasOutput, _ := cmd.Flags().GetString("output")
+
+	// If any required info is missing, run interactive mode
+	if hasSchema == "" || (hasLang == "" && hasLangLong == "") || hasName == "" || hasOutput == "" {
+		if err := RunInteractive(cmd); err != nil {
+			return err
+		}
+	}
+
+	// Re-read flags from command (they may have been set by interactive mode)
+	schemaPath, _ = cmd.Flags().GetString("schema")
+	sdkName, _ = cmd.Flags().GetString("name")
+	outputDir, _ = cmd.Flags().GetString("output")
+	httpLib, _ = cmd.Flags().GetString("http-lib")
+	ignoreMinor, _ = cmd.Flags().GetBool("ignore-minor-issues")
+	force, _ = cmd.Flags().GetBool("force")
+	sdkVersion, _ = cmd.Flags().GetString("sdk-version")
+
+	// Validate required flags after interactive mode (in case user didn't provide them)
+	if schemaPath == "" {
+		return fmt.Errorf("schema is required. Use --schema or -s")
+	}
+	if sdkName == "" {
+		return fmt.Errorf("name is required. Use --name or -n")
+	}
+	if outputDir == "" {
+		return fmt.Errorf("output is required. Use --output or -o")
+	}
+
+	// Get language from either --lang or --language flag
+	// Since both are bound to the same variable, check which one was set
+	langFlag := cmd.Flag("lang")
+	langFlagLong := cmd.Flag("language")
+
+	var lang string
+	switch {
+	case langFlag != nil && langFlag.Changed:
+		lang = langFlag.Value.String()
+	case langFlagLong != nil && langFlagLong.Changed:
+		lang = langFlagLong.Value.String()
+	default:
+		// Try reading from flags directly (for interactive mode)
+		lang, _ = cmd.Flags().GetString("lang")
+		if lang == "" {
+			lang, _ = cmd.Flags().GetString("language")
+		}
+		if lang == "" {
+			// Fallback to variable (in case cobra doesn't detect change)
+			lang = language
+		}
+	}
+
+	if lang == "" {
+		return fmt.Errorf("language is required. Use --lang or --language")
+	}
+
+	// Normalize language (handle aliases)
+	normalizedLang := validator.NormalizeLanguage(lang)
+
+	// Validate language
+	if err := validator.ValidateLanguage(normalizedLang); err != nil {
+		return err
+	}
+
+	// Parse and validate OpenAPI schema once (shared for all languages if using --lang all)
+	fmt.Printf("✓ Parsing OpenAPI schema... ")
+
+	doc, err := parser.ParseOpenAPI(schemaPath)
+	if err != nil {
+		return fmt.Errorf("failed to parse OpenAPI schema: %w", err)
+	}
+
+	// Validate schema
+	parseResult, err := parser.ValidateOpenAPI(doc, ignoreMinor)
+	if err != nil {
+		return fmt.Errorf("failed to validate OpenAPI schema: %w", err)
+	}
+
+	// Check if there are blocking errors
+	if len(parseResult.Errors) > 0 {
+		errorMsg := parser.FormatValidationErrors(parseResult)
+		return fmt.Errorf("OpenAPI validation failed:\n%s", errorMsg)
+	}
+
+	if len(parseResult.Warnings) > 0 {
+		fmt.Printf("OK (with %d warnings)\n", len(parseResult.Warnings))
+	} else {
+		fmt.Println("OK")
+	}
+
+	// Handle --lang all
+	if normalizedLang == langAll {
+		return generateAllLanguages(outputDir, sdkName, httpLib, doc, force, cmd)
+	}
+
+	// Validate SDK name for single language
+	if _, err := validator.ValidateSDKName(sdkName, normalizedLang); err != nil {
+		return err
+	}
+
+	// Validate or get default HTTP library
+	finalHTTPLib, err := httplib.ValidateOrGetDefault(normalizedLang, httpLib)
+	if err != nil {
+		return fmt.Errorf("HTTP library validation failed: %w", err)
+	}
+
+	// Build output path: output/language/sdk-name/
+	sdkOutputPath := filepath.Join(outputDir, normalizedLang, sdkName)
+
+	// Check if output directory exists
+	if _, err := os.Stat(sdkOutputPath); err == nil {
+		if !force {
+			return fmt.Errorf("SDK directory already exists: %s\nUse --force to overwrite", sdkOutputPath)
+		}
+	}
+
+	// Create output directory structure
+	if err := os.MkdirAll(sdkOutputPath, 0750); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	fmt.Printf("✓ Creating output directory... %s\n", sdkOutputPath)
+	fmt.Printf("✓ Validating HTTP library... OK (%s)\n", finalHTTPLib)
+	fmt.Printf("✓ Generating SDK code... ")
+
+	// Generate SDK based on language
+	if err := generateSDKForLanguage(normalizedLang, sdkOutputPath, sdkName, finalHTTPLib, doc, cmd); err != nil {
+		return err
+	}
+
+	fmt.Println("OK")
+	fmt.Printf("\n✅ SDK generated successfully at: %s\n", sdkOutputPath)
+
+	return nil
+}
+
+// generateAllLanguages generates SDKs for all implemented languages
+func generateAllLanguages(outputDir, sdkName, httpLib string, doc interface{}, force bool, cmd *cobra.Command) error {
+	implementedLangs := validator.GetImplementedLanguages()
+
+	fmt.Printf("✓ Generating SDKs for all languages: %v\n", implementedLangs)
+	fmt.Println()
+
+	var errors []string
+	successCount := 0
+
+	for _, lang := range implementedLangs {
+		fmt.Printf("Generating %s SDK...\n", lang)
+
+		// Validate SDK name for this language
+		if _, err := validator.ValidateSDKName(sdkName, lang); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", lang, err))
+			continue
+		}
+
+		// Validate or get default HTTP library
+		finalHTTPLib, err := httplib.ValidateOrGetDefault(lang, httpLib)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("%s: HTTP library validation failed: %v", lang, err))
+			continue
+		}
+
+		// Build output path: output/language/sdk-name/
+		sdkOutputPath := filepath.Join(outputDir, lang, sdkName)
+
+		// Check if output directory exists
+		if _, err := os.Stat(sdkOutputPath); err == nil {
+			if !force {
+				errors = append(errors,
+					fmt.Sprintf("%s: SDK directory already exists: %s (use --force to overwrite)",
+						lang, sdkOutputPath))
+				continue
+			}
+		}
+
+		// Create output directory structure
+		if err := os.MkdirAll(sdkOutputPath, 0750); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: failed to create output directory: %v", lang, err))
+			continue
+		}
+
+		fmt.Printf("  ✓ Validating HTTP library... OK (%s)\n", finalHTTPLib)
+		fmt.Printf("  ✓ Generating SDK code... ")
+
+		// Generate SDK for this language
+		if err := generateSDKForLanguage(lang, sdkOutputPath, sdkName, finalHTTPLib, doc, cmd); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", lang, err))
+			fmt.Println("FAILED")
+			continue
+		}
+
+		fmt.Println("OK")
+		fmt.Printf("  ✅ %s SDK generated at: %s\n", lang, sdkOutputPath)
+		fmt.Println()
+		successCount++
+	}
+
+	// Summary
+	fmt.Println("=== Generation Summary ===")
+	fmt.Printf("✓ Successfully generated: %d/%d SDKs\n", successCount, len(implementedLangs))
+
+	if len(errors) > 0 {
+		fmt.Printf("✗ Errors: %d\n", len(errors))
+		for _, err := range errors {
+			fmt.Printf("  - %s\n", err)
+		}
+		return fmt.Errorf("failed to generate some SDKs: %d errors", len(errors))
+	}
+
+	fmt.Printf("\n✅ All SDKs generated successfully!\n")
+	return nil
+}
+
+// generateSDKForLanguage generates SDK for a specific language
+func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc interface{}, cmd *cobra.Command) error {
+	var goVer *generator.LanguageVersion
+	var pythonVer *generator.LanguageVersion
+
+	// Get SDK version from flag (if provided)
+	sdkVerStr, _ := cmd.Flags().GetString("sdk-version")
+
+	// Parse version flags if provided
+	if lang == langGo || lang == langAll {
+		goVerStr, _ := cmd.Flags().GetString("go-version")
+		if goVerStr != "" {
+			parsed, err := generator.ParseVersion(goVerStr)
+			if err != nil {
+				return fmt.Errorf("invalid Go version: %w", err)
+			}
+			if err := generator.ValidateGoVersion(parsed); err != nil {
+				return err
+			}
+			goVer = &parsed
+		}
+	}
+
+	if lang == langPython || lang == langAll {
+		pythonVerStr, _ := cmd.Flags().GetString("python-version")
+		if pythonVerStr != "" {
+			parsed, err := generator.ParseVersion(pythonVerStr)
+			if err != nil {
+				return fmt.Errorf("invalid Python version: %w", err)
+			}
+			if err := generator.ValidatePythonVersion(parsed); err != nil {
+				return err
+			}
+			pythonVer = &parsed
+		}
+	}
+
+	switch lang {
+	case langPython:
+		return generator.GeneratePythonSDK(outputPath, sdkName, httpLib, doc, pythonVer, sdkVerStr)
+	case langGo:
+		return generator.GenerateGoSDK(outputPath, sdkName, httpLib, doc, goVer, sdkVerStr)
+	case "php":
+		return fmt.Errorf("PHP SDK generation not yet implemented")
+	case "javascript", "typescript":
+		return fmt.Errorf("JavaScript/TypeScript SDK generation not yet implemented")
+	default:
+		return fmt.Errorf("unsupported language: %s", lang)
+	}
+}
+
+// GetGenerateCmd returns the generate command
+func GetGenerateCmd() *cobra.Command {
+	return generateCmd
+}

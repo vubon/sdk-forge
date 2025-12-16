@@ -1,0 +1,9 @@
+"""{{.DisplayName}} SDK - Auto-generated from OpenAPI schema"""
+
+from .client import {{.ClientClassName}}
+{{- if .HasModels}}
+from .models import *
+{{- end}}
+__all__ = ["{{.ClientClassName}}"{{- if .HasModels}}{{range .ModelNames}}, "{{.}}"{{end}}{{end}}]
+__version__ = "{{.Version}}"
+

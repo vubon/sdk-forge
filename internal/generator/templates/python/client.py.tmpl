@@ -1,0 +1,31 @@
+"""{{.DisplayName}} API Client - Auto-generated from OpenAPI schema"""
+
+import {{.HTTPLibImport}}
+from typing import Optional, Dict, Any
+
+
+class {{.ClientClassName}}:
+    """Client for {{.DisplayName}} API"""
+    
+    def __init__(self, base_url: str = "{{.BaseURLDefault}}", **auth_params):
+        """
+        Initialize the client
+        
+        Args:
+            base_url: Base URL for the API
+            **auth_params: Authentication parameters (api_key, bearer_token, etc.)
+        """
+        self.base_url = base_url.rstrip('/')
+        self.session = {{.ClientClass}}()
+        
+{{.AuthSetup}}
+    
+    def _request(self, method: str, path: str, **kwargs):
+        """Make an HTTP request"""
+        url = f"{self.base_url}{path}"
+        response = self.session.request(method, url, **kwargs)
+        response.raise_for_status()
+        return response.json()
+    
+{{.APIMethods}}
+

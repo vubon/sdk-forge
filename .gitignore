@@ -1,0 +1,85 @@
+# Binaries and executables
+sdk-forge
+sdkgenerator
+/cli
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+coverage.out
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Generated SDKs and test outputs
+test-output/
+test-sdks/
+sdks/
+output/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.cache
+*.bak
+*.backup
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Duplicate templates directory (old location, now using internal/generator/templates)
+internal/templates/
+
+# Python cache (if any Python scripts are used)
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.python-version
+venv/
+env/
+ENV/
+
+# Node modules (if any JS/TS tooling is added)
+node_modules/
+package-lock.json
+yarn.lock
+

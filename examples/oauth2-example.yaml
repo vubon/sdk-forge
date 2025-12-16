@@ -1,0 +1,43 @@
+openapi: 3.0.0
+info:
+  title: OAuth2 Example API
+  version: 1.0.0
+  description: Example API with OAuth2, OpenID Connect, and mTLS authentication
+servers:
+  - url: https://api.example.com/v1
+paths:
+  /users:
+    get:
+      summary: List users
+      operationId: listUsers
+      security:
+        - oauth2: []
+        - openId: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://auth.example.com/oauth/authorize
+          tokenUrl: https://auth.example.com/oauth/token
+          scopes:
+            read:users: Read user information
+            write:users: Write user information
+        clientCredentials:
+          tokenUrl: https://auth.example.com/oauth/token
+          scopes:
+            admin: Admin access
+    openId:
+      type: openIdConnect
+      openIdConnectUrl: https://auth.example.com/.well-known/openid-configuration
+

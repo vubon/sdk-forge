@@ -1,0 +1,39 @@
+# {{.DisplayName}} Go SDK
+
+Auto-generated Go SDK from OpenAPI schema.
+
+## Installation
+
+```bash
+go get github.com/example/{{.PackageName}}
+```
+
+## Usage
+
+```go
+package main
+
+import (
+	"github.com/example/{{.PackageName}}"
+)
+
+func main() {
+	client := {{.PackageName}}.New{{.ClientClassName}}("https://api.example.com/v1")
+
+	// Use client methods...
+}
+```
+
+## HTTP Library
+
+This SDK uses `net/http` (Go standard library).
+
+## Authentication
+
+Configure authentication when creating the client:
+
+```go
+client := {{.PackageName}}.New{{.ClientClassName}}("https://api.example.com/v1")
+client.BearerToken = "your-token"
+```
+
