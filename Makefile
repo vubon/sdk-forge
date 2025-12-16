@@ -4,8 +4,11 @@
 BINARY_NAME=sdk-forge
 MAIN_PATH=./cmd/cli
 BUILD_DIR=./bin
-VERSION?=0.1.0
-LDFLAGS=-ldflags "-X main.version=$(VERSION)"
+VERSION_FILE=VERSION
+VERSION?=$(shell cat $(VERSION_FILE) 2>/dev/null || echo "0.2.0-alpha.1")
+BUILD_DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+LDFLAGS=-ldflags "-X main.version=$(VERSION) -X main.buildDate=$(BUILD_DATE) -X main.gitCommit=$(GIT_COMMIT)"
 
 # Go parameters
 GOCMD=go
@@ -136,7 +139,12 @@ dev-build: ## Build for development (no optimizations)
 	@echo "$(GREEN)✓ Development build complete$(NC)"
 
 version: ## Show version information
-	@echo "$(YELLOW)Version: $(VERSION)$(NC)"
+	@echo "$(YELLOW)Current Version: $(VERSION)$(NC)"
+	@echo "$(YELLOW)Version File: $(VERSION_FILE)$(NC)"
 	@echo "$(YELLOW)Go version: $$($(GOCMD) version)$(NC)"
 	@echo "$(YELLOW)Binary: $(BUILD_DIR)/$(BINARY_NAME)$(NC)"
+	@if [ -f "$(BUILD_DIR)/$(BINARY_NAME)" ]; then \
+		echo "$(YELLOW)Built binary version:$(NC)"; \
+		$(BUILD_DIR)/$(BINARY_NAME) --version; \
+	fi
 

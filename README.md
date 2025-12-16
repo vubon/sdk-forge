@@ -4,7 +4,9 @@ A powerful CLI tool written in Go that generates production-ready SDKs for multi
 
 ## Status
 
-✅ **v0.2.0** - Go and Python SDK generation fully implemented and tested
+✅ **v0.2.0-alpha.1** - Go and Python SDK generation fully implemented and tested
+
+> This project follows [Semantic Versioning 2.0.0](https://semver.org/). Current version is an alpha release.
 
 ## Features
 
@@ -225,6 +227,7 @@ sdk-forge/
 │   └── languages/
 │       └── http/         # HTTP library configuration
 ├── examples/             # Example OpenAPI schemas
+├── VERSION               # Semantic version (SemVer 2.0.0)
 ├── Makefile              # Development tasks
 └── generate-sdk.sh       # Helper script for testing
 ```
@@ -311,9 +314,34 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 TBD
 
+## Versioning
+
+SDK Forge follows [Semantic Versioning 2.0.0](https://semver.org/) (SemVer). The version is managed in the `VERSION` file and automatically injected during build.
+
+**Current Version**: `0.2.0-alpha.1`
+
+**Version Format**: `MAJOR.MINOR.PATCH-PRERELEASE`
+- **0.x.x**: Initial development (API may change)
+- **-alpha.x**: Alpha releases (unstable, for testing)
+- **-beta.x**: Beta releases (feature complete, testing)
+- **-rc.x**: Release candidates (stable, final testing)
+- **x.y.z**: Stable releases (production ready)
+
+Check the current version:
+```bash
+# View version file
+cat VERSION
+
+# Check built binary version
+./bin/sdk-forge --version
+
+# Or use make
+make version
+```
+
 ## Roadmap
 
-### ✅ Completed (v0.2.0)
+### ✅ Completed (v0.2.0-alpha.1)
 
 - Go and Python SDK generation
 - Language version configuration
