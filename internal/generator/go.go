@@ -1036,7 +1036,7 @@ func generateGoExamples(data TemplateData) string {
 // generateGoTests generates test files for Go SDK
 func generateGoTests(packageDir string, data TemplateData, extractedData *ExtractedData, version LanguageVersion) error {
 	// Generate client_test.go
-	clientTestContent := generateGoClientTest(data, version)
+	clientTestContent := generateGoClientTest(data, extractedData, version)
 	clientTestPath := filepath.Join(packageDir, "client_test.go")
 	// #nosec G306 -- 0644 is appropriate for Go test files
 	if err := os.WriteFile(clientTestPath, []byte(clientTestContent), 0644); err != nil {
@@ -1063,7 +1063,7 @@ func generateGoTests(packageDir string, data TemplateData, extractedData *Extrac
 
 	// Generate api_test.go if operations exist
 	if len(extractedData.Operations) > 0 {
-		apiTestContent := generateGoAPITest(data, extractedData.Operations, version)
+		apiTestContent := generateGoAPITest(data, extractedData.Operations, extractedData, version)
 		apiTestPath := filepath.Join(packageDir, "api_test.go")
 		// #nosec G306 -- 0644 is appropriate for Go test files
 		if err := os.WriteFile(apiTestPath, []byte(apiTestContent), 0644); err != nil {
@@ -1075,33 +1075,50 @@ func generateGoTests(packageDir string, data TemplateData, extractedData *Extrac
 		}
 	}
 
+	// Generate auth_test.go if security schemes exist
+	if len(extractedData.SecuritySchemes) > 0 {
+		authTestContent := generateGoAuthTest(data, extractedData.SecuritySchemes, extractedData, version)
+		authTestPath := filepath.Join(packageDir, "auth_test.go")
+		// #nosec G306 -- 0644 is appropriate for Go test files
+		if err := os.WriteFile(authTestPath, []byte(authTestContent), 0644); err != nil {
+			return fmt.Errorf("failed to write auth_test.go: %w", err)
+		}
+		// Format with gofmt
+		if err := formatGoFile(authTestPath); err != nil {
+			_ = err
+		}
+	}
+
 	return nil
 }
 
 // generateGoClientTest generates client_test.go
-func generateGoClientTest(data TemplateData, version LanguageVersion) string {
+func generateGoClientTest(data TemplateData, extractedData *ExtractedData, version LanguageVersion) string {
 	var test bytes.Buffer
 	test.WriteString(fmt.Sprintf("package %s\n\n", data.SDKName))
 	test.WriteString("import (\n")
 	test.WriteString("\t\"testing\"\n")
 	test.WriteString(")\n\n")
+
+	// Use base URL from OpenAPI spec, fallback to default
+	baseURL := extractedData.BaseURL
+	if baseURL == "" {
+		baseURL = "https://api.example.com/v1"
+	}
+
 	test.WriteString(fmt.Sprintf("func TestNew%s(t *testing.T) {\n", data.ClientClassName))
-	test.WriteString("\tclient := New")
-	test.WriteString(data.ClientClassName)
-	test.WriteString("(\"https://api.example.com\")\n")
+	test.WriteString(fmt.Sprintf("\tclient := New%s(%q)\n", data.ClientClassName, baseURL))
 	test.WriteString("\tif client == nil {\n")
-	test.WriteString("\t\tt.Fatal(\"New")
-	test.WriteString(data.ClientClassName)
-	test.WriteString("() returned nil\")\n")
+	test.WriteString(fmt.Sprintf("\t\tt.Fatal(\"New%s() returned nil\")\n", data.ClientClassName))
 	test.WriteString("\t}\n")
-	test.WriteString("\tif client.BaseURL != \"https://api.example.com\" {\n")
-	test.WriteString("\t\tt.Errorf(\"BaseURL = %q, want %q\", client.BaseURL, \"https://api.example.com\")\n")
+	test.WriteString(fmt.Sprintf("\tif client.BaseURL != %q {\n", baseURL))
+	test.WriteString(fmt.Sprintf("\t\tt.Errorf(\"BaseURL = %%q, want %%q\", client.BaseURL, %q)\n", baseURL))
 	test.WriteString("\t}\n")
 	test.WriteString("}\n")
 	return test.String()
 }
 
-// generateGoModelsTest generates models_test.go
+// generateGoModelsTest generates models_test.go with schema-based tests
 func generateGoModelsTest(data TemplateData, schemas map[string]*Schema, version LanguageVersion) string {
 	var test bytes.Buffer
 	test.WriteString(fmt.Sprintf("package %s\n\n", data.SDKName))
@@ -1109,27 +1126,133 @@ func generateGoModelsTest(data TemplateData, schemas map[string]*Schema, version
 	test.WriteString("\t\"encoding/json\"\n")
 	test.WriteString("\t\"testing\"\n")
 	test.WriteString(")\n\n")
-	test.WriteString("// TODO: Add model tests based on your OpenAPI schema\n")
-	test.WriteString("// Example:\n")
-	test.WriteString("// func TestModelSerialization(t *testing.T) {\n")
-	test.WriteString("//     model := YourModel{Field1: \"value1\"}\n")
-	test.WriteString("//     data, err := json.Marshal(model)\n")
-	test.WriteString("//     if err != nil {\n")
-	test.WriteString("//         t.Fatalf(\"Marshal() error = %v\", err)\n")
-	test.WriteString("//     }\n")
-	test.WriteString("//     var unmarshaled YourModel\n")
-	test.WriteString("//     if err := json.Unmarshal(data, &unmarshaled); err != nil {\n")
-	test.WriteString("//         t.Fatalf(\"Unmarshal() error = %v\", err)\n")
-	test.WriteString("//     }\n")
-	test.WriteString("//     if unmarshaled.Field1 != \"value1\" {\n")
-	test.WriteString("//         t.Errorf(\"Field1 = %q, want %q\", unmarshaled.Field1, \"value1\")\n")
-	test.WriteString("//     }\n")
-	test.WriteString("// }\n")
+
+	// Generate tests for each schema
+	for name, schema := range schemas {
+		structName := toPascalCase(name)
+
+		// Test struct creation
+		test.WriteString(fmt.Sprintf("func Test%s_Creation(t *testing.T) {\n", structName))
+		test.WriteString(fmt.Sprintf("\t// Test %s can be instantiated\n", structName))
+
+		if schema.Type == "object" && len(schema.Properties) > 0 {
+			// Track required fields
+			requiredSet := make(map[string]bool)
+			for _, req := range schema.Required {
+				requiredSet[req] = true
+			}
+
+			// Generate struct literal with test values
+			test.WriteString(fmt.Sprintf("\tmodel := %s{\n", structName))
+
+			for propName, propSchema := range schema.Properties {
+				if propSchema == nil {
+					continue
+				}
+
+				fieldName := toPascalCase(propName)
+				testValue := generateGoTestValue(propSchema, propName, version)
+
+				if requiredSet[propName] {
+					test.WriteString(fmt.Sprintf("\t\t%s: %s,\n", fieldName, testValue))
+				} else {
+					// Optional fields - test with pointer
+					test.WriteString(fmt.Sprintf("\t\t%s: %s,\n", fieldName, testValue))
+				}
+			}
+			test.WriteString("\t}\n")
+			test.WriteString("\t// Verify model is not zero value\n")
+			test.WriteString(fmt.Sprintf("\tvar zero %s\n", structName))
+			test.WriteString("\tif model == zero {\n")
+			test.WriteString("\t\tt.Error(\"Model should not be zero value\")\n")
+			test.WriteString("\t}\n")
+		} else {
+			// Simple model without properties
+			test.WriteString(fmt.Sprintf("\tmodel := %s{}\n", structName))
+			test.WriteString("\t// Verify model can be instantiated\n")
+			test.WriteString("\t_ = model\n")
+		}
+		test.WriteString("}\n\n")
+
+		// Test JSON serialization/deserialization
+		if schema.Type == "object" && len(schema.Properties) > 0 {
+			test.WriteString(fmt.Sprintf("func Test%s_Serialization(t *testing.T) {\n", structName))
+			test.WriteString(fmt.Sprintf("\t// Test %s JSON serialization\n", structName))
+
+			requiredSet := make(map[string]bool)
+			for _, req := range schema.Required {
+				requiredSet[req] = true
+			}
+
+			test.WriteString(fmt.Sprintf("\tmodel := %s{\n", structName))
+			for propName, propSchema := range schema.Properties {
+				if propSchema == nil {
+					continue
+				}
+				fieldName := toPascalCase(propName)
+				testValue := generateGoTestValue(propSchema, propName, version)
+				test.WriteString(fmt.Sprintf("\t\t%s: %s,\n", fieldName, testValue))
+			}
+			test.WriteString("\t}\n\n")
+
+			test.WriteString("\t// Marshal to JSON\n")
+			test.WriteString("\tdata, err := json.Marshal(model)\n")
+			test.WriteString("\tif err != nil {\n")
+			test.WriteString("\t\tt.Fatalf(\"Marshal() error = %v\", err)\n")
+			test.WriteString("\t}\n")
+			test.WriteString("\tif len(data) == 0 {\n")
+			test.WriteString("\t\tt.Error(\"Marshal() should return non-empty data\")\n")
+			test.WriteString("\t}\n\n")
+
+			test.WriteString("\t// Unmarshal from JSON\n")
+			test.WriteString(fmt.Sprintf("\tvar unmarshaled %s\n", structName))
+			test.WriteString("\tif err := json.Unmarshal(data, &unmarshaled); err != nil {\n")
+			test.WriteString("\t\tt.Fatalf(\"Unmarshal() error = %v\", err)\n")
+			test.WriteString("\t}\n")
+			test.WriteString("}\n\n")
+		}
+	}
+
 	return test.String()
 }
 
-// generateGoAPITest generates api_test.go
-func generateGoAPITest(data TemplateData, operations []APIOperation, version LanguageVersion) string {
+// generateGoTestValue generates a test value for a schema property in Go
+func generateGoTestValue(schema *Schema, propName string, version LanguageVersion) string {
+	if schema == nil {
+		return "\"test_value\""
+	}
+
+	switch schema.Type {
+	case "string":
+		if schema.Format == "date" {
+			return "\"2024-01-01\""
+		}
+		if schema.Format == "date-time" {
+			return "\"2024-01-01T00:00:00Z\""
+		}
+		if schema.Format == "email" {
+			return "\"test@example.com\""
+		}
+		return fmt.Sprintf("%q", "test_"+toSnakeCase(propName))
+	case "integer", "number":
+		return "42"
+	case "boolean":
+		return "true"
+	case "array":
+		if schema.Items != nil {
+			itemValue := generateGoTestValue(schema.Items, "item", version)
+			return fmt.Sprintf("[]%s{%s}", getGoType(schema.Items, version), itemValue)
+		}
+		return "nil"
+	case "object":
+		return fmt.Sprintf("%s{}", version.GetGoEmptyInterface())
+	default:
+		return "\"test_value\""
+	}
+}
+
+// generateGoAPITest generates api_test.go with operation-based tests
+func generateGoAPITest(data TemplateData, operations []APIOperation, extractedData *ExtractedData, version LanguageVersion) string {
 	var test bytes.Buffer
 	test.WriteString(fmt.Sprintf("package %s\n\n", data.SDKName))
 	test.WriteString("import (\n")
@@ -1137,24 +1260,202 @@ func generateGoAPITest(data TemplateData, operations []APIOperation, version Lan
 	test.WriteString("\t\"net/http/httptest\"\n")
 	test.WriteString("\t\"testing\"\n")
 	test.WriteString(")\n\n")
-	test.WriteString("// TODO: Add API method tests based on your OpenAPI schema\n")
-	test.WriteString("// Example:\n")
-	test.WriteString("// func TestGetEndpoint(t *testing.T) {\n")
-	test.WriteString("//     server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n")
-	test.WriteString("//         w.WriteHeader(http.StatusOK)\n")
-	test.WriteString("//         w.Write([]byte(`[{\"id\":1}]`))\n")
-	test.WriteString("//     }))\n")
-	test.WriteString("//     defer server.Close()\n")
-	test.WriteString("//     client := New")
-	test.WriteString(data.ClientClassName)
-	test.WriteString("(server.URL)\n")
-	test.WriteString("//     result, err := client.GetItems()\n")
-	test.WriteString("//     if err != nil {\n")
-	test.WriteString("//         t.Fatalf(\"GetItems() error = %v\", err)\n")
-	test.WriteString("//     }\n")
-	test.WriteString("//     if len(result) != 1 {\n")
-	test.WriteString("//         t.Errorf(\"len(result) = %d, want 1\", len(result))\n")
-	test.WriteString("//     }\n")
-	test.WriteString("// }\n")
+
+	// Group operations by tag for better organization
+	operationsByTag := groupOperationsByTag(operations)
+
+	// Generate tests for each tag/group
+	for tag, tagOperations := range operationsByTag {
+		test.WriteString(fmt.Sprintf("// Test%sAPI tests for %s API methods\n", toPascalCase(tag), tag))
+		test.WriteString(fmt.Sprintf("func Test%sAPI(t *testing.T) {\n", toPascalCase(tag)))
+		test.WriteString("\tt.Skip(\"TODO: Implement tests for this API group\")\n")
+		test.WriteString("}\n\n")
+
+		// Generate test for each operation
+		for _, op := range tagOperations {
+			methodName := GetOperationMethodName(op)
+			testMethodName := fmt.Sprintf("Test%s_%s", toPascalCase(tag), toPascalCase(methodName))
+
+			test.WriteString(fmt.Sprintf("func %s(t *testing.T) {\n", testMethodName))
+			test.WriteString(fmt.Sprintf("\t// Test %s %s operation\n", op.Method, op.Path))
+			test.WriteString("\tserver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n")
+
+			// Determine expected status code from responses
+			expectedStatus := 200 // http.StatusOK
+			if _, ok := op.Responses["200"]; !ok {
+				// Find first available status code
+				for statusCode := range op.Responses {
+					switch statusCode {
+					case "201":
+						expectedStatus = 201 // http.StatusCreated
+					case "204":
+						expectedStatus = 204 // http.StatusNoContent
+					}
+					break
+				}
+			}
+
+			test.WriteString(fmt.Sprintf("\t\tw.WriteHeader(%d)\n", expectedStatus))
+			test.WriteString("\t\tw.Write([]byte(`{\"success\": true}`))\n")
+			test.WriteString("\t}))\n")
+			test.WriteString("\tdefer server.Close()\n\n")
+
+			test.WriteString(fmt.Sprintf("\tclient := New%s(server.URL)\n", data.ClientClassName))
+			test.WriteString("\tif client == nil {\n")
+			test.WriteString("\t\tt.Fatal(\"Client is nil\")\n")
+			test.WriteString("\t}\n\n")
+
+			// Generate method call with parameters
+			test.WriteString("\t// Call API method\n")
+			test.WriteString("\t// TODO: Uncomment and implement based on your API method signature\n")
+			test.WriteString(fmt.Sprintf("\t// result, err := client.%s(", toPascalCase(methodName)))
+
+			// Add path parameters
+			hasParams := false
+			for _, param := range op.Parameters {
+				if param.In == "path" {
+					if hasParams {
+						test.WriteString(", ")
+					}
+					paramName := toPascalCase(param.Name)
+					testValue := generateGoTestValueFromParam(param, version)
+					test.WriteString(fmt.Sprintf("%s: %s", paramName, testValue))
+					hasParams = true
+				}
+			}
+
+			// Add query parameters
+			for _, param := range op.Parameters {
+				if param.In == "query" {
+					if hasParams {
+						test.WriteString(", ")
+					}
+					paramName := toPascalCase(param.Name)
+					testValue := generateGoTestValueFromParam(param, version)
+					test.WriteString(fmt.Sprintf("%s: %s", paramName, testValue))
+					hasParams = true
+				}
+			}
+
+			test.WriteString(")\n")
+			test.WriteString("\t// if err != nil {\n")
+			test.WriteString("\t//     t.Fatalf(\"Method call error = %v\", err)\n")
+			test.WriteString("\t// }\n")
+			test.WriteString("\t// if result == nil {\n")
+			test.WriteString("\t//     t.Error(\"Result should not be nil\")\n")
+			test.WriteString("\t// }\n")
+			test.WriteString("}\n\n")
+		}
+	}
+
+	return test.String()
+}
+
+// generateGoTestValueFromParam generates a test value from a parameter in Go
+func generateGoTestValueFromParam(param Parameter, version LanguageVersion) string {
+	if param.Schema == nil {
+		return "\"test_value\""
+	}
+	return generateGoTestValue(param.Schema, param.Name, version)
+}
+
+// generateGoAuthTest generates auth_test.go with authentication tests
+func generateGoAuthTest(data TemplateData, securitySchemes map[string]SecurityScheme, extractedData *ExtractedData, version LanguageVersion) string {
+	var test bytes.Buffer
+	test.WriteString(fmt.Sprintf("package %s\n\n", data.SDKName))
+	test.WriteString("import (\n")
+	test.WriteString("\t\"testing\"\n")
+	test.WriteString(")\n\n")
+
+	// Use base URL from OpenAPI spec, fallback to default
+	baseURL := extractedData.BaseURL
+	if baseURL == "" {
+		baseURL = "https://api.example.com/v1"
+	}
+
+	test.WriteString("// TestAuthentication tests for authentication methods\n")
+	test.WriteString("func TestAuthentication(t *testing.T) {\n")
+	test.WriteString("\tt.Skip(\"TODO: Implement authentication tests\")\n")
+	test.WriteString("}\n\n")
+
+	// Generate tests for each security scheme
+	for name, scheme := range securitySchemes {
+		schemeName := toPascalCase(name)
+
+		switch scheme.Type {
+		case "apiKey":
+			test.WriteString(fmt.Sprintf("func Test%s_APIKeyAuth(t *testing.T) {\n", schemeName))
+			test.WriteString(fmt.Sprintf("\t// Test %s API key authentication\n", name))
+			test.WriteString(fmt.Sprintf("\tclient := New%s(%q)\n", data.ClientClassName, baseURL))
+			test.WriteString("\tif client == nil {\n")
+			test.WriteString("\t\tt.Fatal(\"Client is nil\")\n")
+			test.WriteString("\t}\n")
+			apiKeyField := toPascalCase(scheme.Name)
+			test.WriteString(fmt.Sprintf("\tclient.%s = \"test-api-key\"\n", apiKeyField))
+			test.WriteString(fmt.Sprintf("\tif client.%s != \"test-api-key\" {\n", apiKeyField))
+			test.WriteString("\t\tt.Error(\"API key should be set\")\n")
+			test.WriteString("\t}\n")
+			test.WriteString("}\n\n")
+
+		case "http":
+			switch scheme.Scheme {
+			case "bearer":
+				test.WriteString(fmt.Sprintf("func Test%s_BearerAuth(t *testing.T) {\n", schemeName))
+				test.WriteString(fmt.Sprintf("\t// Test %s Bearer token authentication\n", name))
+				test.WriteString(fmt.Sprintf("\tclient := New%s(%q)\n", data.ClientClassName, baseURL))
+				test.WriteString("\tif client == nil {\n")
+				test.WriteString("\t\tt.Fatal(\"Client is nil\")\n")
+				test.WriteString("\t}\n")
+				test.WriteString("\tclient.BearerToken = \"test-bearer-token\"\n")
+				test.WriteString("\tif client.BearerToken != \"test-bearer-token\" {\n")
+				test.WriteString("\t\tt.Error(\"Bearer token should be set\")\n")
+				test.WriteString("\t}\n")
+				test.WriteString("}\n\n")
+			case "basic":
+				test.WriteString(fmt.Sprintf("func Test%s_BasicAuth(t *testing.T) {\n", schemeName))
+				test.WriteString(fmt.Sprintf("\t// Test %s Basic authentication\n", name))
+				test.WriteString(fmt.Sprintf("\tclient := New%s(%q)\n", data.ClientClassName, baseURL))
+				test.WriteString("\tif client == nil {\n")
+				test.WriteString("\t\tt.Fatal(\"Client is nil\")\n")
+				test.WriteString("\t}\n")
+				test.WriteString("\tclient.Username = \"test-user\"\n")
+				test.WriteString("\tclient.Password = \"test-password\"\n")
+				test.WriteString("\tif client.Username != \"test-user\" {\n")
+				test.WriteString("\t\tt.Error(\"Username should be set\")\n")
+				test.WriteString("\t}\n")
+				test.WriteString("\tif client.Password != \"test-password\" {\n")
+				test.WriteString("\t\tt.Error(\"Password should be set\")\n")
+				test.WriteString("\t}\n")
+				test.WriteString("}\n\n")
+			}
+
+		case "oauth2":
+			test.WriteString(fmt.Sprintf("func Test%s_OAuth2Auth(t *testing.T) {\n", schemeName))
+			test.WriteString(fmt.Sprintf("\t// Test %s OAuth2 authentication\n", name))
+			test.WriteString(fmt.Sprintf("\tclient := New%s(%q)\n", data.ClientClassName, baseURL))
+			test.WriteString("\tif client == nil {\n")
+			test.WriteString("\t\tt.Fatal(\"Client is nil\")\n")
+			test.WriteString("\t}\n")
+			test.WriteString("\tclient.Oauth2Token = \"test-oauth2-token\"\n")
+			test.WriteString("\tif client.Oauth2Token != \"test-oauth2-token\" {\n")
+			test.WriteString("\t\tt.Error(\"OAuth2 token should be set\")\n")
+			test.WriteString("\t}\n")
+			test.WriteString("}\n\n")
+
+		case "openIdConnect":
+			test.WriteString(fmt.Sprintf("func Test%s_OpenIDConnectAuth(t *testing.T) {\n", schemeName))
+			test.WriteString(fmt.Sprintf("\t// Test %s OpenID Connect authentication\n", name))
+			test.WriteString(fmt.Sprintf("\tclient := New%s(%q)\n", data.ClientClassName, baseURL))
+			test.WriteString("\tif client == nil {\n")
+			test.WriteString("\t\tt.Fatal(\"Client is nil\")\n")
+			test.WriteString("\t}\n")
+			test.WriteString("\tclient.OpenIdConnectToken = \"test-openid-token\"\n")
+			test.WriteString("\tif client.OpenIdConnectToken != \"test-openid-token\" {\n")
+			test.WriteString("\t\tt.Error(\"OpenID Connect token should be set\")\n")
+			test.WriteString("\t}\n")
+			test.WriteString("}\n\n")
+		}
+	}
+
 	return test.String()
 }

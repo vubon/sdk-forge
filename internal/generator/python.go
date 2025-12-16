@@ -1054,7 +1054,7 @@ func generatePythonTests(outputPath, packageDir string, data TemplateData, extra
 	}
 
 	// Generate tests/conftest.py (pytest fixtures)
-	conftestContent := generatePythonConftest(data)
+	conftestContent := generatePythonConftest(data, extractedData)
 	conftestPath := filepath.Join(testsDir, "conftest.py")
 	// #nosec G306 -- 0644 is appropriate for Python test files
 	if err := os.WriteFile(conftestPath, []byte(conftestContent), 0644); err != nil {
@@ -1066,7 +1066,7 @@ func generatePythonTests(outputPath, packageDir string, data TemplateData, extra
 	}
 
 	// Generate tests/test_client.py
-	clientTestContent := generatePythonClientTest(data)
+	clientTestContent := generatePythonClientTest(data, extractedData)
 	clientTestPath := filepath.Join(testsDir, "test_client.py")
 	// #nosec G306 -- 0644 is appropriate for Python test files
 	if err := os.WriteFile(clientTestPath, []byte(clientTestContent), 0644); err != nil {
@@ -1093,7 +1093,7 @@ func generatePythonTests(outputPath, packageDir string, data TemplateData, extra
 
 	// Generate tests/test_api_methods.py if operations exist
 	if len(extractedData.Operations) > 0 {
-		apiTestContent := generatePythonAPITest(data, extractedData.Operations)
+		apiTestContent := generatePythonAPITest(data, extractedData.Operations, extractedData)
 		apiTestPath := filepath.Join(testsDir, "test_api_methods.py")
 		// #nosec G306 -- 0644 is appropriate for Python test files
 		if err := os.WriteFile(apiTestPath, []byte(apiTestContent), 0644); err != nil {
@@ -1105,61 +1105,422 @@ func generatePythonTests(outputPath, packageDir string, data TemplateData, extra
 		}
 	}
 
+	// Generate tests/test_auth.py if security schemes exist
+	if len(extractedData.SecuritySchemes) > 0 {
+		authTestContent := generatePythonAuthTest(data, extractedData.SecuritySchemes, extractedData)
+		authTestPath := filepath.Join(testsDir, "test_auth.py")
+		// #nosec G306 -- 0644 is appropriate for Python test files
+		if err := os.WriteFile(authTestPath, []byte(authTestContent), 0644); err != nil {
+			return fmt.Errorf("failed to write tests/test_auth.py: %w", err)
+		}
+		// Format with black (if available)
+		if err := formatPythonFile(authTestPath); err != nil {
+			_ = err
+		}
+	}
+
 	return nil
 }
 
 // generatePythonConftest generates pytest conftest.py with fixtures
-func generatePythonConftest(data TemplateData) string {
+func generatePythonConftest(data TemplateData, extractedData *ExtractedData) string {
 	var conftest bytes.Buffer
 	conftest.WriteString("import pytest\n")
 	conftest.WriteString(fmt.Sprintf("from %s import %s\n\n", data.SDKName, data.ClientClassName))
 	conftest.WriteString("@pytest.fixture\n")
 	conftest.WriteString("def client():\n")
 	conftest.WriteString("    \"\"\"Create a test client instance.\"\"\"\n")
-	conftest.WriteString(fmt.Sprintf("    return %s(base_url=\"https://api.example.com\")\n", data.ClientClassName))
+
+	// Use base URL from OpenAPI spec, fallback to default
+	baseURL := extractedData.BaseURL
+	if baseURL == "" {
+		baseURL = "https://api.example.com/v1"
+	}
+	conftest.WriteString(fmt.Sprintf("    return %s(base_url=%q)\n", data.ClientClassName, baseURL))
 	return conftest.String()
 }
 
 // generatePythonClientTest generates test_client.py
-func generatePythonClientTest(data TemplateData) string {
+func generatePythonClientTest(data TemplateData, extractedData *ExtractedData) string {
 	var test bytes.Buffer
 	test.WriteString("import pytest\n")
 	test.WriteString(fmt.Sprintf("from %s import %s\n\n\n", data.SDKName, data.ClientClassName))
 	test.WriteString("def test_client_initialization():\n")
 	test.WriteString("    \"\"\"Test client can be instantiated.\"\"\"\n")
-	test.WriteString(fmt.Sprintf("    client = %s(base_url=\"https://api.example.com\")\n", data.ClientClassName))
-	test.WriteString("    assert client.base_url == \"https://api.example.com\"\n")
+
+	// Use base URL from OpenAPI spec, fallback to default
+	baseURL := extractedData.BaseURL
+	if baseURL == "" {
+		baseURL = "https://api.example.com/v1"
+	}
+	test.WriteString(fmt.Sprintf("    client = %s(base_url=%q)\n", data.ClientClassName, baseURL))
+	test.WriteString(fmt.Sprintf("    assert client.base_url == %q\n", baseURL))
 	test.WriteString("    assert client.http_client is not None\n")
 	return test.String()
 }
 
-// generatePythonModelsTest generates test_models.py
+// generatePythonModelsTest generates test_models.py with schema-based tests
 func generatePythonModelsTest(data TemplateData, schemas map[string]*Schema) string {
 	var test bytes.Buffer
 	test.WriteString("import pytest\n")
+	test.WriteString("from dataclasses import asdict\n")
 	test.WriteString(fmt.Sprintf("from %s import models\n\n\n", data.SDKName))
-	test.WriteString("# TODO: Add model tests based on your OpenAPI schema\n")
-	test.WriteString("# Example:\n")
-	test.WriteString("# def test_model_serialization():\n")
-	test.WriteString("#     model = models.YourModel(field1=\"value1\")\n")
-	test.WriteString("#     assert model.field1 == \"value1\"\n")
-	test.WriteString("#     assert model.to_dict() == {\"field1\": \"value1\"}\n")
+
+	// Generate tests for each schema
+	for name, schema := range schemas {
+		className := toPascalCase(name)
+		test.WriteString(fmt.Sprintf("class Test%s:\n", className))
+		test.WriteString(fmt.Sprintf("    \"\"\"Tests for %s model\"\"\"\n\n", className))
+
+		// Test model instantiation
+		test.WriteString(fmt.Sprintf("    def test_%s_creation(self):\n", toSnakeCase(name)))
+		test.WriteString(fmt.Sprintf("        \"\"\"Test %s can be instantiated.\"\"\"\n", className))
+
+		// Generate test data based on schema properties
+		if schema.Type == "object" && len(schema.Properties) > 0 {
+			test.WriteString(fmt.Sprintf("        model = models.%s(\n", className))
+
+			// Track required fields
+			requiredSet := make(map[string]bool)
+			for _, req := range schema.Required {
+				requiredSet[req] = true
+			}
+
+			// Generate test values for each property
+			first := true
+			for propName, propSchema := range schema.Properties {
+				if propSchema == nil {
+					continue
+				}
+
+				if !first {
+					test.WriteString(",\n")
+				}
+				first = false
+
+				propSnakeName := toSnakeCase(propName)
+				testValue := generatePythonTestValue(propSchema, propName)
+
+				if requiredSet[propName] {
+					test.WriteString(fmt.Sprintf("            %s=%s", propSnakeName, testValue))
+				} else {
+					// Optional fields can be None or have a value
+					test.WriteString(fmt.Sprintf("            %s=%s", propSnakeName, testValue))
+				}
+			}
+			test.WriteString("\n        )\n")
+			test.WriteString("        assert model is not None\n")
+
+			// Test property access
+			for propName := range schema.Properties {
+				propSnakeName := toSnakeCase(propName)
+				test.WriteString(fmt.Sprintf("        assert hasattr(model, '%s')\n", propSnakeName))
+			}
+		} else {
+			// Simple model without properties
+			test.WriteString(fmt.Sprintf("        model = models.%s()\n", className))
+			test.WriteString("        assert model is not None\n")
+		}
+		test.WriteString("\n")
+
+		// Test serialization (if dataclass)
+		test.WriteString(fmt.Sprintf("    def test_%s_serialization(self):\n", toSnakeCase(name)))
+		test.WriteString(fmt.Sprintf("        \"\"\"Test %s can be serialized to dict.\"\"\"\n", className))
+		if schema.Type == "object" && len(schema.Properties) > 0 {
+			test.WriteString(fmt.Sprintf("        model = models.%s(\n", className))
+
+			requiredSet := make(map[string]bool)
+			for _, req := range schema.Required {
+				requiredSet[req] = true
+			}
+
+			first := true
+			for propName, propSchema := range schema.Properties {
+				if propSchema == nil {
+					continue
+				}
+				if !first {
+					test.WriteString(",\n")
+				}
+				first = false
+				propSnakeName := toSnakeCase(propName)
+				testValue := generatePythonTestValue(propSchema, propName)
+				test.WriteString(fmt.Sprintf("            %s=%s", propSnakeName, testValue))
+			}
+			test.WriteString("\n        )\n")
+			test.WriteString("        data = asdict(model)\n")
+			test.WriteString("        assert isinstance(data, dict)\n")
+		} else {
+			test.WriteString(fmt.Sprintf("        model = models.%s()\n", className))
+			test.WriteString("        data = asdict(model)\n")
+			test.WriteString("        assert isinstance(data, dict)\n")
+		}
+		test.WriteString("\n\n")
+
+		// Test required fields validation (if any)
+		if len(schema.Required) > 0 {
+			test.WriteString(fmt.Sprintf("    def test_%s_required_fields(self):\n", toSnakeCase(name)))
+			test.WriteString(fmt.Sprintf("        \"\"\"Test %s required fields are enforced.\"\"\"\n", className))
+			test.WriteString("        # Note: dataclasses don't enforce required fields at runtime\n")
+			test.WriteString("        # This test serves as documentation of required fields\n")
+			test.WriteString("        required_fields = [")
+			for i, req := range schema.Required {
+				if i > 0 {
+					test.WriteString(", ")
+				}
+				test.WriteString(fmt.Sprintf("\"%s\"", toSnakeCase(req)))
+			}
+			test.WriteString("]\n")
+			test.WriteString("        assert len(required_fields) > 0\n")
+			test.WriteString("\n\n")
+		}
+	}
+
 	return test.String()
 }
 
-// generatePythonAPITest generates test_api_methods.py
-func generatePythonAPITest(data TemplateData, operations []APIOperation) string {
+// generatePythonTestValue generates a test value for a schema property
+func generatePythonTestValue(schema *Schema, propName string) string {
+	if schema == nil {
+		return "\"test_value\""
+	}
+
+	switch schema.Type {
+	case "string":
+		if schema.Format == "date" {
+			return "\"2024-01-01\""
+		}
+		if schema.Format == "date-time" {
+			return "\"2024-01-01T00:00:00Z\""
+		}
+		if schema.Format == "email" {
+			return "\"test@example.com\""
+		}
+		return fmt.Sprintf("\"test_%s\"", toSnakeCase(propName))
+	case "integer", "number":
+		return "42"
+	case "boolean":
+		return "True"
+	case "array":
+		if schema.Items != nil {
+			itemValue := generatePythonTestValue(schema.Items, "item")
+			return fmt.Sprintf("[%s]", itemValue)
+		}
+		return "[]"
+	case "object":
+		return "{}"
+	default:
+		return "\"test_value\""
+	}
+}
+
+// generatePythonAPITest generates test_api_methods.py with operation-based tests
+func generatePythonAPITest(data TemplateData, operations []APIOperation, extractedData *ExtractedData) string {
 	var test bytes.Buffer
 	test.WriteString("import pytest\n")
 	test.WriteString("from unittest.mock import Mock, patch\n")
 	test.WriteString(fmt.Sprintf("from %s import %s\n\n\n", data.SDKName, data.ClientClassName))
-	test.WriteString("# TODO: Add API method tests based on your OpenAPI schema\n")
-	test.WriteString("# Example:\n")
-	test.WriteString("# @patch('requests.get')\n")
-	test.WriteString("# def test_get_endpoint(mock_get):\n")
-	test.WriteString("#     mock_get.return_value.json.return_value = [{\"id\": 1}]\n")
-	test.WriteString("#     client = Petstore()\n")
-	test.WriteString("#     result = client.get_items()\n")
-	test.WriteString("#     assert len(result) == 1\n")
+
+	// Group operations by tag for better organization
+	operationsByTag := groupOperationsByTag(operations)
+
+	// Generate tests for each tag/group
+	for tag, tagOperations := range operationsByTag {
+		test.WriteString(fmt.Sprintf("class Test%sAPI:\n", toPascalCase(tag)))
+		test.WriteString(fmt.Sprintf("    \"\"\"Tests for %s API methods\"\"\"\n\n", tag))
+
+		// Generate test for each operation
+		for _, op := range tagOperations {
+			methodName := GetOperationMethodName(op)
+			testMethodName := fmt.Sprintf("test_%s", methodName)
+
+			test.WriteString(fmt.Sprintf("    @patch('%s.%s')\n", data.HTTPLibImport, getHTTPMethodForMock(op.Method)))
+			test.WriteString(fmt.Sprintf("    def %s(self, mock_request):\n", testMethodName))
+			test.WriteString(fmt.Sprintf("        \"\"\"Test %s %s operation.\"\"\"\n", op.Method, op.Path))
+
+			// Setup mock response
+			test.WriteString("        # Setup mock response\n")
+			test.WriteString("        mock_response = Mock()\n")
+
+			// Determine expected status code from responses
+			expectedStatus := "200"
+			if _, ok := op.Responses["200"]; !ok {
+				// Find first available status code
+				for statusCode := range op.Responses {
+					expectedStatus = statusCode
+					break
+				}
+			}
+
+			test.WriteString(fmt.Sprintf("        mock_response.status_code = %s\n", expectedStatus))
+			test.WriteString("        mock_response.json.return_value = {\"success\": True}\n")
+			test.WriteString("        mock_response.text = '{\"success\": true}'\n")
+			test.WriteString("        mock_request.return_value = mock_response\n\n")
+
+			// Create client
+			test.WriteString("        # Create client\n")
+			// Use base URL from OpenAPI spec, fallback to default
+			baseURL := extractedData.BaseURL
+			if baseURL == "" {
+				baseURL = "https://api.example.com/v1"
+			}
+			test.WriteString(fmt.Sprintf("        client = %s(base_url=%q)\n\n", data.ClientClassName, baseURL))
+
+			// Generate method call with parameters
+			test.WriteString("        # Call API method\n")
+			test.WriteString(fmt.Sprintf("        result = client.%s(", methodName))
+
+			// Add path parameters
+			hasParams := false
+			for _, param := range op.Parameters {
+				if param.In == "path" {
+					if hasParams {
+						test.WriteString(", ")
+					}
+					paramName := toSnakeCase(param.Name)
+					testValue := generatePythonTestValueFromParam(param)
+					test.WriteString(fmt.Sprintf("%s=%s", paramName, testValue))
+					hasParams = true
+				}
+			}
+
+			// Add query parameters
+			for _, param := range op.Parameters {
+				if param.In == "query" {
+					if hasParams {
+						test.WriteString(", ")
+					}
+					paramName := toSnakeCase(param.Name)
+					testValue := generatePythonTestValueFromParam(param)
+					test.WriteString(fmt.Sprintf("%s=%s", paramName, testValue))
+					hasParams = true
+				}
+			}
+
+			// Add request body if present
+			if op.RequestBody != nil {
+				if hasParams {
+					test.WriteString(", ")
+				}
+				test.WriteString("body={\"test\": \"data\"}")
+			}
+
+			test.WriteString(")\n\n")
+
+			// Assertions
+			test.WriteString("        # Assertions\n")
+			test.WriteString("        assert result is not None\n")
+			test.WriteString("        mock_request.assert_called_once()\n")
+			test.WriteString("\n")
+		}
+		test.WriteString("\n")
+	}
+
+	return test.String()
+}
+
+// getHTTPMethodForMock returns the HTTP method function name for mocking
+func getHTTPMethodForMock(method string) string {
+	switch strings.ToUpper(method) {
+	case "GET":
+		return "get"
+	case "POST":
+		return "post"
+	case "PUT":
+		return "put"
+	case "DELETE":
+		return "delete"
+	case "PATCH":
+		return "patch"
+	default:
+		return "request"
+	}
+}
+
+// generatePythonTestValueFromParam generates a test value from a parameter
+func generatePythonTestValueFromParam(param Parameter) string {
+	if param.Schema == nil {
+		return "\"test_value\""
+	}
+	return generatePythonTestValue(param.Schema, param.Name)
+}
+
+// generatePythonAuthTest generates test_auth.py with authentication tests
+func generatePythonAuthTest(data TemplateData, securitySchemes map[string]SecurityScheme, extractedData *ExtractedData) string {
+	var test bytes.Buffer
+	test.WriteString("import pytest\n")
+	test.WriteString(fmt.Sprintf("from %s import %s\n\n\n", data.SDKName, data.ClientClassName))
+
+	test.WriteString("class TestAuthentication:\n")
+	test.WriteString("    \"\"\"Tests for authentication methods\"\"\"\n\n")
+
+	// Use base URL from OpenAPI spec, fallback to default
+	baseURL := extractedData.BaseURL
+	if baseURL == "" {
+		baseURL = "https://api.example.com/v1"
+	}
+
+	// Generate tests for each security scheme
+	for name, scheme := range securitySchemes {
+		schemeName := toSnakeCase(name)
+
+		switch scheme.Type {
+		case "apiKey":
+			test.WriteString(fmt.Sprintf("    def test_%s_api_key_auth(self):\n", schemeName))
+			test.WriteString(fmt.Sprintf("        \"\"\"Test %s API key authentication.\"\"\"\n", name))
+			test.WriteString(fmt.Sprintf("        client = %s(\n", data.ClientClassName))
+			test.WriteString("            base_url=\"https://api.example.com\",\n")
+			apiKeyValue := "test-api-key" //nolint:goconst // Test value for generated code
+			test.WriteString(fmt.Sprintf("            %s=%q\n", schemeName, apiKeyValue))
+			test.WriteString("        )\n")
+			test.WriteString(fmt.Sprintf("        assert client.%s == %q\n", schemeName, apiKeyValue))
+			test.WriteString("\n")
+
+		case "http":
+			switch scheme.Scheme {
+			case "bearer":
+				test.WriteString(fmt.Sprintf("    def test_%s_bearer_auth(self):\n", schemeName))
+				test.WriteString(fmt.Sprintf("        \"\"\"Test %s Bearer token authentication.\"\"\"\n", name))
+				test.WriteString(fmt.Sprintf("        client = %s(\n", data.ClientClassName))
+				test.WriteString(fmt.Sprintf("            base_url=%q,\n", baseURL))
+				test.WriteString("            bearer_token=\"test-bearer-token\"\n")
+				test.WriteString("        )\n")
+				test.WriteString("        assert client.bearer_token == \"test-bearer-token\"\n")
+				test.WriteString("\n")
+			case "basic":
+				test.WriteString(fmt.Sprintf("    def test_%s_basic_auth(self):\n", schemeName))
+				test.WriteString(fmt.Sprintf("        \"\"\"Test %s Basic authentication.\"\"\"\n", name))
+				test.WriteString(fmt.Sprintf("        client = %s(\n", data.ClientClassName))
+				test.WriteString(fmt.Sprintf("            base_url=%q,\n", baseURL))
+				test.WriteString("            username=\"test-user\",\n")
+				test.WriteString("            password=\"test-password\"\n")
+				test.WriteString("        )\n")
+				test.WriteString("        assert client.username == \"test-user\"\n")
+				test.WriteString("        assert client.password == \"test-password\"\n")
+				test.WriteString("\n")
+			}
+
+		case "oauth2":
+			test.WriteString(fmt.Sprintf("    def test_%s_oauth2_auth(self):\n", schemeName))
+			test.WriteString(fmt.Sprintf("        \"\"\"Test %s OAuth2 authentication.\"\"\"\n", name))
+			test.WriteString(fmt.Sprintf("        client = %s(\n", data.ClientClassName))
+			test.WriteString(fmt.Sprintf("            base_url=%q,\n", baseURL))
+			test.WriteString("            oauth2_token=\"test-oauth2-token\"\n")
+			test.WriteString("        )\n")
+			test.WriteString("        assert client.oauth2_token == \"test-oauth2-token\"\n")
+			test.WriteString("\n")
+
+		case "openIdConnect":
+			test.WriteString(fmt.Sprintf("    def test_%s_openid_connect_auth(self):\n", schemeName))
+			test.WriteString(fmt.Sprintf("        \"\"\"Test %s OpenID Connect authentication.\"\"\"\n", name))
+			test.WriteString(fmt.Sprintf("        client = %s(\n", data.ClientClassName))
+			test.WriteString(fmt.Sprintf("            base_url=%q,\n", baseURL))
+			test.WriteString("            open_id_connect_token=\"test-openid-token\"\n")
+			test.WriteString("        )\n")
+			test.WriteString("        assert client.open_id_connect_token == \"test-openid-token\"\n")
+			test.WriteString("\n")
+		}
+	}
+
 	return test.String()
 }

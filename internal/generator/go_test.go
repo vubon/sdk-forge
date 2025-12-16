@@ -399,3 +399,155 @@ func TestGenerateGoSDK_WithoutTests(t *testing.T) {
 		t.Error("GenerateGoSDK() with tests disabled should NOT create test files")
 	}
 }
+
+func TestGenerateGoSDK_ModelTests(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "nethttp"
+
+	// Create extracted data with schemas
+	extractedData := createTestExtractedData()
+	extractedData.Schemas = map[string]*Schema{
+		"User": {
+			Type:        "object",
+			Description: "User model",
+			Properties: map[string]*Schema{
+				"id": {
+					Type: "integer",
+				},
+				"name": {
+					Type: "string",
+				},
+			},
+			Required: []string{"id", "name"},
+		},
+	}
+
+	outputPath := filepath.Join(tmpDir, sdkName)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	if err != nil {
+		t.Fatalf("GenerateGoSDK() error = %v", err)
+	}
+
+	// Verify models_test.go exists and contains schema-based tests
+	modelsTestPath := filepath.Join(outputPath, "models_test.go")
+	if _, err := os.Stat(modelsTestPath); os.IsNotExist(err) {
+		t.Fatal("models_test.go should be generated when schemas exist")
+	}
+
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(modelsTestPath)
+	if err != nil {
+		t.Fatalf("Failed to read models_test.go: %v", err)
+	}
+
+	contentStr := string(content)
+	if !contains(contentStr, "TestUser_Creation") {
+		t.Error("models_test.go should contain TestUser_Creation function")
+	}
+	if !contains(contentStr, "TestUser_Serialization") {
+		t.Error("models_test.go should contain TestUser_Serialization function")
+	}
+}
+
+func TestGenerateGoSDK_APITests(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "nethttp"
+
+	// Create extracted data with operations
+	extractedData := createTestExtractedData()
+	extractedData.Operations = []APIOperation{
+		{
+			Method:      "GET",
+			Path:        "/users",
+			OperationID: "listUsers",
+			Summary:     "List users",
+			Tags:        []string{"users"},
+			Parameters:  []Parameter{},
+			Responses: map[string]Response{
+				"200": {
+					Description: "Success",
+				},
+			},
+		},
+	}
+
+	outputPath := filepath.Join(tmpDir, sdkName)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	if err != nil {
+		t.Fatalf("GenerateGoSDK() error = %v", err)
+	}
+
+	// Verify api_test.go exists and contains operation-based tests
+	apiTestPath := filepath.Join(outputPath, "api_test.go")
+	if _, err := os.Stat(apiTestPath); os.IsNotExist(err) {
+		t.Fatal("api_test.go should be generated when operations exist")
+	}
+
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(apiTestPath)
+	if err != nil {
+		t.Fatalf("Failed to read api_test.go: %v", err)
+	}
+
+	contentStr := string(content)
+	if !contains(contentStr, "TestUsersAPI") {
+		t.Error("api_test.go should contain TestUsersAPI function")
+	}
+	if !contains(contentStr, "TestUsers_ListUsers") {
+		t.Error("api_test.go should contain TestUsers_ListUsers function")
+	}
+	if !contains(contentStr, "httptest.NewServer") {
+		t.Error("api_test.go should contain httptest server setup")
+	}
+}
+
+func TestGenerateGoSDK_AuthTests(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := testSDKName
+	httpLib := "nethttp"
+
+	// Create extracted data with security schemes
+	extractedData := createTestExtractedData()
+	extractedData.SecuritySchemes = map[string]SecurityScheme{
+		"apiKey": {
+			Type: "apiKey",
+			In:   "header",
+			Name: "X-API-Key",
+		},
+		"bearer": {
+			Type:   "http",
+			Scheme: "bearer",
+		},
+	}
+
+	outputPath := filepath.Join(tmpDir, sdkName)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	if err != nil {
+		t.Fatalf("GenerateGoSDK() error = %v", err)
+	}
+
+	// Verify auth_test.go exists
+	authTestPath := filepath.Join(outputPath, "auth_test.go")
+	if _, err := os.Stat(authTestPath); os.IsNotExist(err) {
+		t.Fatal("auth_test.go should be generated when security schemes exist")
+	}
+
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(authTestPath)
+	if err != nil {
+		t.Fatalf("Failed to read auth_test.go: %v", err)
+	}
+
+	contentStr := string(content)
+	if !contains(contentStr, "TestAuthentication") {
+		t.Error("auth_test.go should contain TestAuthentication function")
+	}
+	if !contains(contentStr, "TestApiKey_APIKeyAuth") {
+		t.Error("auth_test.go should contain API key auth test")
+	}
+	if !contains(contentStr, "TestBearer_BearerAuth") {
+		t.Error("auth_test.go should contain Bearer auth test")
+	}
+}
