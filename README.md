@@ -4,7 +4,7 @@ A powerful CLI tool written in Go that generates production-ready SDKs for multi
 
 ## Status
 
-✅ **v0.3.0-alpha.1** - Go and Python SDK generation with automatic test generation fully implemented
+✅ **v0.3.0-alpha.2** - Go and Python SDK generation with automatic test generation fully implemented
 
 > This project follows [Semantic Versioning 2.0.0](https://semver.org/). Current version is an alpha release.
 
