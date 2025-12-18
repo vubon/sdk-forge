@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -68,25 +69,61 @@ func generatePythonObjectFields(schema *Schema, allSchemas map[string]*Schema) s
 		requiredSet[req] = true
 	}
 
-	// Generate fields
+	// Separate required and optional fields for proper dataclass ordering
+	type fieldInfo struct {
+		name        string
+		schema      *Schema
+		isRequired  bool
+		description string
+	}
+
+	var requiredFields []fieldInfo
+	var optionalFields []fieldInfo
+
+	// Collect and categorize fields
 	for propName, propSchema := range schema.Properties {
 		if propSchema == nil {
 			continue
 		}
 
-		fieldType := getPythonTypeFromSchema(propSchema, allSchemas)
 		isRequired := requiredSet[propName]
-
-		// Generate field with type hint
-		if isRequired {
-			fields.WriteString(fmt.Sprintf("    %s: %s\n", toSnakeCase(propName), fieldType))
-		} else {
-			fields.WriteString(fmt.Sprintf("    %s: Optional[%s] = None\n", toSnakeCase(propName), fieldType))
+		info := fieldInfo{
+			name:        propName,
+			schema:      propSchema,
+			isRequired:  isRequired,
+			description: propSchema.Description,
 		}
 
-		// Add field description if available
-		if propSchema.Description != "" {
-			fields.WriteString(fmt.Sprintf("    # %s\n", propSchema.Description))
+		if isRequired {
+			requiredFields = append(requiredFields, info)
+		} else {
+			optionalFields = append(optionalFields, info)
+		}
+	}
+
+	// Sort fields by name for consistent output
+	sort.Slice(requiredFields, func(i, j int) bool {
+		return requiredFields[i].name < requiredFields[j].name
+	})
+	sort.Slice(optionalFields, func(i, j int) bool {
+		return optionalFields[i].name < optionalFields[j].name
+	})
+
+	// Generate required fields first (no default values)
+	for _, info := range requiredFields {
+		fieldType := getPythonTypeFromSchema(info.schema, allSchemas)
+		fields.WriteString(fmt.Sprintf("    %s: %s\n", toSnakeCase(info.name), fieldType))
+		if info.description != "" {
+			fields.WriteString(fmt.Sprintf("    # %s\n", info.description))
+		}
+	}
+
+	// Generate optional fields second (with default values)
+	for _, info := range optionalFields {
+		fieldType := getPythonTypeFromSchema(info.schema, allSchemas)
+		fields.WriteString(fmt.Sprintf("    %s: Optional[%s] = None\n", toSnakeCase(info.name), fieldType))
+		if info.description != "" {
+			fields.WriteString(fmt.Sprintf("    # %s\n", info.description))
 		}
 	}
 
