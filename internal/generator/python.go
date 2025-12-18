@@ -18,38 +18,6 @@ import (
 	httplib "github.com/vubon/sdk-forge/pkg/languages/http"
 )
 
-// getClientClassName removes common suffixes (sdk, api, client) from SDK name and converts to PascalCase
-// This ensures class names like "PetstoreClient" instead of "PetstoreSdkClient"
-func getClientClassName(sdkName string) string {
-	// Remove common suffixes (case-insensitive)
-	name := strings.ToLower(sdkName)
-	name = strings.TrimSuffix(name, "_sdk")
-	name = strings.TrimSuffix(name, "-sdk")
-	name = strings.TrimSuffix(name, "_api")
-	name = strings.TrimSuffix(name, "-api")
-	name = strings.TrimSuffix(name, "_client")
-	name = strings.TrimSuffix(name, "-client")
-
-	// Convert to PascalCase
-	return toPascalCase(name)
-}
-
-// groupOperationsByTag groups operations by their tags
-func groupOperationsByTag(operations []APIOperation) map[string][]APIOperation {
-	tagMap := make(map[string][]APIOperation)
-	for _, op := range operations {
-		if len(op.Tags) == 0 {
-			// If no tags, use "default"
-			tagMap["default"] = append(tagMap["default"], op)
-		} else {
-			// Add to first tag (primary tag)
-			tag := op.Tags[0]
-			tagMap[tag] = append(tagMap[tag], op)
-		}
-	}
-	return tagMap
-}
-
 // GeneratePythonSDK generates a Python SDK
 // If version is nil, uses the default Python version
 // If sdkVersion is empty, extracts from OpenAPI schema or defaults to "1.0.0"
@@ -119,17 +87,8 @@ func generatePythonSDKFromExtracted(
 		ClientClassName: getClientClassName(sanitizedName),
 	}
 
-	// Determine SDK version: OpenAPI schema > user-provided > default
-	finalSDKVersion := ""
-	if extractedData != nil && extractedData.Version != "" {
-		finalSDKVersion = extractedData.Version
-	}
-	if finalSDKVersion == "" && sdkVersion != "" {
-		finalSDKVersion = sdkVersion
-	}
-	if finalSDKVersion == "" {
-		finalSDKVersion = "1.0.0"
-	}
+	// Determine SDK version using common utility
+	finalSDKVersion := determineSDKVersion(extractedData, sdkVersion)
 
 	// Generate __init__.py
 	initContent := generatePythonInit(data, finalSDKVersion)
@@ -1550,13 +1509,6 @@ func generatePythonAPITest(data TemplateData, operations []APIOperation, extract
 	return test.String()
 }
 
-// getHTTPMethodForMock returns the patch path for mocking requests.Session.request
-// Since the client uses session.request(), we need to patch requests.Session.request
-func getHTTPMethodForMock(method string) string {
-	// Always patch requests.Session.request since that's what the client uses
-	return "requests.Session.request"
-}
-
 // generatePythonTestValueFromParam generates a test value from a parameter
 func generatePythonTestValueFromParam(param Parameter) string {
 	if param.Schema == nil {
@@ -1620,6 +1572,17 @@ func generatePythonAuthTest(data TemplateData, securitySchemes map[string]Securi
 				test.WriteString("        assert client.username == \"test-user\"\n")
 				test.WriteString("        assert client.password == \"test-password\"\n")
 				test.WriteString("\n")
+			case "digest":
+				test.WriteString(fmt.Sprintf("    def test_%s_digest_auth(self):\n", schemeName))
+				test.WriteString(fmt.Sprintf("        \"\"\"Test %s Digest authentication.\"\"\"\n", name))
+				test.WriteString(fmt.Sprintf("        client = %s(\n", data.ClientClassName))
+				test.WriteString(fmt.Sprintf("            base_url=%q,\n", baseURL))
+				test.WriteString("            username=\"test-user\",\n")
+				test.WriteString("            password=\"test-password\"\n")
+				test.WriteString("        )\n")
+				test.WriteString("        assert client.username == \"test-user\"\n")
+				test.WriteString("        assert client.password == \"test-password\"\n")
+				test.WriteString("\n")
 			}
 
 		case "oauth2":
@@ -1642,6 +1605,21 @@ func generatePythonAuthTest(data TemplateData, securitySchemes map[string]Securi
 			test.WriteString(fmt.Sprintf("            %s=\"test-openid-token\"\n", paramName))
 			test.WriteString("        )\n")
 			test.WriteString(fmt.Sprintf("        assert client.%s == \"test-openid-token\"\n", paramName))
+			test.WriteString("\n")
+
+		case "mutualTLS":
+			test.WriteString(fmt.Sprintf("    def test_%s_mutual_tls_auth(self):\n", schemeName))
+			test.WriteString(fmt.Sprintf("        \"\"\"Test %s Mutual TLS authentication.\"\"\"\n", name))
+			test.WriteString(fmt.Sprintf("        client = %s(\n", data.ClientClassName))
+			test.WriteString(fmt.Sprintf("            base_url=%q,\n", baseURL))
+			// Use camelCase for parameter name (matches client code)
+			certParamName := toCamelCase(name) + "_cert"
+			keyParamName := toCamelCase(name) + "_key"
+			test.WriteString(fmt.Sprintf("            %s=\"test-cert.pem\",\n", certParamName))
+			test.WriteString(fmt.Sprintf("            %s=\"test-key.pem\"\n", keyParamName))
+			test.WriteString("        )\n")
+			test.WriteString(fmt.Sprintf("        assert client.%s == \"test-cert.pem\"\n", certParamName))
+			test.WriteString(fmt.Sprintf("        assert client.%s == \"test-key.pem\"\n", keyParamName))
 			test.WriteString("\n")
 		}
 	}

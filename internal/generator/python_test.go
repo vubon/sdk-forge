@@ -329,6 +329,23 @@ func TestGeneratePythonSDK_AuthTests(t *testing.T) {
 			Type:   "http",
 			Scheme: "bearer",
 		},
+		"basic": {
+			Type:   "http",
+			Scheme: "basic",
+		},
+		"digest": {
+			Type:   "http",
+			Scheme: "digest",
+		},
+		"oauth2": {
+			Type: "oauth2",
+		},
+		"openIdConnect": {
+			Type: "openIdConnect",
+		},
+		"mutualTLS": {
+			Type: "mutualTLS",
+		},
 	}
 
 	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
@@ -359,6 +376,26 @@ func TestGeneratePythonSDK_AuthTests(t *testing.T) {
 	// Check for Bearer auth test (scheme name "bearer" stays as "bearer")
 	if !contains(contentStr, "bearer_auth") {
 		t.Error("test_auth.py should contain Bearer auth test")
+	}
+	// Check for Basic auth test
+	if !contains(contentStr, "basic_auth") {
+		t.Error("test_auth.py should contain Basic auth test")
+	}
+	// Check for Digest auth test
+	if !contains(contentStr, "digest_auth") {
+		t.Error("test_auth.py should contain Digest auth test")
+	}
+	// Check for OAuth2 auth test
+	if !contains(contentStr, "oauth2_auth") {
+		t.Error("test_auth.py should contain OAuth2 auth test")
+	}
+	// Check for OpenID Connect auth test
+	if !contains(contentStr, "openid_connect_auth") {
+		t.Error("test_auth.py should contain OpenID Connect auth test")
+	}
+	// Check for Mutual TLS auth test
+	if !contains(contentStr, "mutual_tls_auth") {
+		t.Error("test_auth.py should contain Mutual TLS auth test")
 	}
 }
 

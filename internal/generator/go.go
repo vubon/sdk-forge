@@ -86,17 +86,8 @@ func generateGoSDKFromExtracted(
 		ClientClassName: getClientClassName(sanitizedName),
 	}
 
-	// Determine SDK version: OpenAPI schema > user-provided > default
-	finalSDKVersion := ""
-	if extractedData != nil && extractedData.Version != "" {
-		finalSDKVersion = extractedData.Version
-	}
-	if finalSDKVersion == "" && sdkVersion != "" {
-		finalSDKVersion = sdkVersion
-	}
-	if finalSDKVersion == "" {
-		finalSDKVersion = "1.0.0"
-	}
+	// Determine SDK version using common utility
+	finalSDKVersion := determineSDKVersion(extractedData, sdkVersion)
 
 	// Generate go.mod
 	goModContent := generateGoMod(sdkName, extractedData, version)
@@ -1384,13 +1375,14 @@ func generateGoTestValue(schema *Schema, propName string, version LanguageVersio
 
 	switch schema.Type {
 	case "string":
-		if schema.Format == "date" {
+		switch schema.Format {
+		case "date":
 			value = "\"2024-01-01\""
-		} else if schema.Format == "date-time" {
+		case "date-time":
 			value = "\"2024-01-01T00:00:00Z\""
-		} else if schema.Format == "email" {
+		case "email":
 			value = "\"test@example.com\""
-		} else {
+		default:
 			value = fmt.Sprintf("%q", "test_"+toSnakeCase(propName))
 		}
 	case "integer", "number":
@@ -1707,6 +1699,22 @@ func generateGoAuthTest(data TemplateData, securitySchemes map[string]SecuritySc
 				test.WriteString("\t\tt.Error(\"Password should be set\")\n")
 				test.WriteString("\t}\n")
 				test.WriteString("}\n\n")
+			case "digest":
+				test.WriteString(fmt.Sprintf("func Test%s_DigestAuth(t *testing.T) {\n", schemeName))
+				test.WriteString(fmt.Sprintf("\t// Test %s Digest authentication\n", name))
+				test.WriteString(fmt.Sprintf("\tclient := New%s(%q)\n", data.ClientClassName, baseURL))
+				test.WriteString("\tif client == nil {\n")
+				test.WriteString("\t\tt.Fatal(\"Client is nil\")\n")
+				test.WriteString("\t}\n")
+				test.WriteString("\tclient.Username = \"test-user\"\n")
+				test.WriteString("\tclient.Password = \"test-password\"\n")
+				test.WriteString("\tif client.Username != \"test-user\" {\n")
+				test.WriteString("\t\tt.Error(\"Username should be set\")\n")
+				test.WriteString("\t}\n")
+				test.WriteString("\tif client.Password != \"test-password\" {\n")
+				test.WriteString("\t\tt.Error(\"Password should be set\")\n")
+				test.WriteString("\t}\n")
+				test.WriteString("}\n\n")
 			}
 
 		case "oauth2":
@@ -1733,6 +1741,18 @@ func generateGoAuthTest(data TemplateData, securitySchemes map[string]SecuritySc
 			test.WriteString("\tif client.OpenIdConnectToken != \"test-openid-token\" {\n")
 			test.WriteString("\t\tt.Error(\"OpenID Connect token should be set\")\n")
 			test.WriteString("\t}\n")
+			test.WriteString("}\n\n")
+
+		case "mutualTLS":
+			test.WriteString(fmt.Sprintf("func Test%s_MutualTLSAuth(t *testing.T) {\n", schemeName))
+			test.WriteString(fmt.Sprintf("\t// Test %s Mutual TLS authentication\n", name))
+			test.WriteString(fmt.Sprintf("\tclient := New%s(%q)\n", data.ClientClassName, baseURL))
+			test.WriteString("\tif client == nil {\n")
+			test.WriteString("\t\tt.Fatal(\"Client is nil\")\n")
+			test.WriteString("\t}\n")
+			test.WriteString("\t// Note: Mutual TLS requires certificate configuration\n")
+			test.WriteString("\t// This test verifies the client can be instantiated\n")
+			test.WriteString("\t_ = client\n")
 			test.WriteString("}\n\n")
 		}
 	}
