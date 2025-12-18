@@ -645,14 +645,44 @@ func generateGoAPIMethods(operations []APIOperation, clientClassName string, ver
 
 		// Build path with parameters
 		path := op.Path
-		for _, param := range pathParams {
-			path = strings.ReplaceAll(path, "{"+param+"}", fmt.Sprintf("${%s}", param))
+		if len(pathParams) > 0 {
+			// First escape any existing % signs
+			path = strings.ReplaceAll(path, "%", "%%")
+			// Replace {param} with appropriate format specifier based on parameter type
+			for _, param := range pathParams {
+				// Find the parameter schema to determine type
+				var paramSchema *Schema
+				for _, p := range op.Parameters {
+					if p.Name == param && p.In == paramLocationPath {
+						paramSchema = p.Schema
+						break
+					}
+				}
+				// Determine format specifier
+				formatSpec := "%s" // default to string
+				if paramSchema != nil {
+					switch paramSchema.Type {
+					case "integer", "int32", "int64":
+						formatSpec = "%d"
+					case "number", "float", "double":
+						formatSpec = "%f"
+					case "boolean":
+						formatSpec = "%t"
+					}
+				}
+				// Replace {param} with format specifier
+				path = strings.ReplaceAll(path, "{%%"+param+"}", formatSpec)
+				path = strings.ReplaceAll(path, "{"+param+"}", formatSpec)
+			}
+			methods.WriteString(fmt.Sprintf("\tpath := fmt.Sprintf(\"%s\"", path))
+			for _, param := range pathParams {
+				methods.WriteString(fmt.Sprintf(", %s", param))
+			}
+			methods.WriteString(")\n")
+		} else {
+			// No path parameters, just use the path as-is
+			methods.WriteString(fmt.Sprintf("\tpath := \"%s\"\n", path))
 		}
-		methods.WriteString(fmt.Sprintf("\tpath := fmt.Sprintf(\"%s\"", path))
-		for _, param := range pathParams {
-			methods.WriteString(fmt.Sprintf(", %s", param))
-		}
-		methods.WriteString(")\n")
 
 		// Add query parameters
 		if len(queryParams) > 0 {
@@ -671,7 +701,11 @@ func generateGoAPIMethods(operations []APIOperation, clientClassName string, ver
 		}
 
 		// Make request
-		methods.WriteString(fmt.Sprintf("\treturn c.Request(\"%s\", path, body)\n", op.Method))
+		if op.RequestBody != nil {
+			methods.WriteString(fmt.Sprintf("\treturn c.Request(\"%s\", path, body)\n", op.Method))
+		} else {
+			methods.WriteString(fmt.Sprintf("\treturn c.Request(\"%s\", path, nil)\n", op.Method))
+		}
 		methods.WriteString("}\n\n")
 	}
 
@@ -866,8 +900,25 @@ func generateGoAPIModule(tag string, operations []APIOperation, data TemplateDat
 	module.WriteString(fmt.Sprintf("// Package api provides %s API endpoints\n", tag))
 	module.WriteString("// Auto-generated from OpenAPI schema\n\n")
 	module.WriteString("package api\n\n")
+
+	// Check if any operation has path parameters (needs fmt.Sprintf)
+	needsFmt := false
+	for _, op := range operations {
+		for _, param := range op.Parameters {
+			if param.In == paramLocationPath {
+				needsFmt = true
+				break
+			}
+		}
+		if needsFmt {
+			break
+		}
+	}
+
 	module.WriteString("import (\n")
-	module.WriteString("\t\"fmt\"\n")
+	if needsFmt {
+		module.WriteString("\t\"fmt\"\n")
+	}
 	module.WriteString(fmt.Sprintf("\t\"github.com/example/%s\"\n", packageName))
 	module.WriteString(")\n\n")
 
@@ -886,7 +937,14 @@ func generateGoAPIModule(tag string, operations []APIOperation, data TemplateDat
 		// Method signature - methods are on the client from the parent package
 		module.WriteString(fmt.Sprintf("// %s %s\n", methodName, op.Summary))
 		if op.Description != "" {
-			module.WriteString(fmt.Sprintf("// %s\n", op.Description))
+			// Split description by newlines and add "// " prefix to each line
+			descLines := strings.Split(op.Description, "\n")
+			for _, line := range descLines {
+				line = strings.TrimSpace(line)
+				if line != "" {
+					module.WriteString(fmt.Sprintf("// %s\n", line))
+				}
+			}
 		}
 		module.WriteString(fmt.Sprintf("func %s(c *%s.%s, ", methodName, packageName, clientClassName))
 
@@ -919,14 +977,44 @@ func generateGoAPIModule(tag string, operations []APIOperation, data TemplateDat
 
 		// Build path with parameters
 		path := op.Path
-		for _, param := range pathParams {
-			path = strings.ReplaceAll(path, "{"+param+"}", fmt.Sprintf("${%s}", param))
+		if len(pathParams) > 0 {
+			// First escape any existing % signs
+			path = strings.ReplaceAll(path, "%", "%%")
+			// Replace {param} with appropriate format specifier based on parameter type
+			for _, param := range pathParams {
+				// Find the parameter schema to determine type
+				var paramSchema *Schema
+				for _, p := range op.Parameters {
+					if p.Name == param && p.In == paramLocationPath {
+						paramSchema = p.Schema
+						break
+					}
+				}
+				// Determine format specifier
+				formatSpec := "%s" // default to string
+				if paramSchema != nil {
+					switch paramSchema.Type {
+					case "integer", "int32", "int64":
+						formatSpec = "%d"
+					case "number", "float", "double":
+						formatSpec = "%f"
+					case "boolean":
+						formatSpec = "%t"
+					}
+				}
+				// Replace {param} with format specifier
+				path = strings.ReplaceAll(path, "{%%"+param+"}", formatSpec)
+				path = strings.ReplaceAll(path, "{"+param+"}", formatSpec)
+			}
+			module.WriteString(fmt.Sprintf("\tpath := fmt.Sprintf(\"%s\"", path))
+			for _, param := range pathParams {
+				module.WriteString(fmt.Sprintf(", %s", param))
+			}
+			module.WriteString(")\n")
+		} else {
+			// No path parameters, just use the path as-is
+			module.WriteString(fmt.Sprintf("\tpath := \"%s\"\n", path))
 		}
-		module.WriteString(fmt.Sprintf("\tpath := fmt.Sprintf(\"%s\"", path))
-		for _, param := range pathParams {
-			module.WriteString(fmt.Sprintf(", %s", param))
-		}
-		module.WriteString(")\n")
 
 		// Add query parameters if any
 		if len(queryParams) > 0 {
@@ -968,7 +1056,9 @@ func generateGoExamples(data TemplateData) string {
 	examples.WriteString("// Auto-generated from OpenAPI schema\n\n")
 	examples.WriteString("package main\n\n")
 	examples.WriteString("import (\n")
-	examples.WriteString("\t\"fmt\"\n")
+	// Only add fmt if we're actually using it in the examples
+	// For now, examples are commented out, so we don't need fmt
+	// examples.WriteString("\t\"fmt\"\n")
 	examples.WriteString(fmt.Sprintf("\t\"github.com/example/%s\"\n", packageName))
 	examples.WriteString(")\n\n")
 	examples.WriteString("func main() {\n")
