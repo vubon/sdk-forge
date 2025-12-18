@@ -1233,7 +1233,7 @@ func generatePythonClientTest(data TemplateData, extractedData *ExtractedData) s
 	}
 	test.WriteString(fmt.Sprintf("    client = %s(base_url=%q)\n", data.ClientClassName, baseURL))
 	test.WriteString(fmt.Sprintf("    assert client.base_url == %q\n", baseURL))
-	test.WriteString("    assert client.http_client is not None\n")
+	test.WriteString("    assert client.session is not None\n")
 	return test.String()
 }
 
@@ -1295,8 +1295,29 @@ func generatePythonModelsTest(data TemplateData, schemas map[string]*Schema) str
 				test.WriteString(fmt.Sprintf("        assert hasattr(model, '%s')\n", propSnakeName))
 			}
 		} else {
-			// Simple model without properties
-			test.WriteString(fmt.Sprintf("        model = models.%s()\n", className))
+			// Primitive/enum model (has 'value' field) or model without properties
+			// Primitive models (string with enum, etc.) have a 'value' field
+			if schema.Type != "object" && schema.Type != "array" {
+				// Primitive type model - has required 'value' field
+				testValue := generatePythonTestValue(schema, "value")
+				test.WriteString(fmt.Sprintf("        model = models.%s(value=%s)\n", className, testValue))
+			} else if len(schema.Required) > 0 {
+				// Object model with required fields but no properties (edge case)
+				test.WriteString(fmt.Sprintf("        model = models.%s(\n", className))
+				first := true
+				for _, reqField := range schema.Required {
+					if !first {
+						test.WriteString(",\n")
+					}
+					first = false
+					fieldSnakeName := toSnakeCase(reqField)
+					test.WriteString(fmt.Sprintf("            %s=\"test_value\"", fieldSnakeName))
+				}
+				test.WriteString("\n        )\n")
+			} else {
+				// No required fields, can instantiate without arguments
+				test.WriteString(fmt.Sprintf("        model = models.%s()\n", className))
+			}
 			test.WriteString("        assert model is not None\n")
 		}
 		test.WriteString("\n")
@@ -1329,7 +1350,28 @@ func generatePythonModelsTest(data TemplateData, schemas map[string]*Schema) str
 			test.WriteString("        data = asdict(model)\n")
 			test.WriteString("        assert isinstance(data, dict)\n")
 		} else {
-			test.WriteString(fmt.Sprintf("        model = models.%s()\n", className))
+			// Primitive/enum model (has 'value' field) or model without properties
+			if schema.Type != "object" && schema.Type != "array" {
+				// Primitive type model - has required 'value' field
+				testValue := generatePythonTestValue(schema, "value")
+				test.WriteString(fmt.Sprintf("        model = models.%s(value=%s)\n", className, testValue))
+			} else if len(schema.Required) > 0 {
+				// Object model with required fields but no properties (edge case)
+				test.WriteString(fmt.Sprintf("        model = models.%s(\n", className))
+				first := true
+				for _, reqField := range schema.Required {
+					if !first {
+						test.WriteString(",\n")
+					}
+					first = false
+					fieldSnakeName := toSnakeCase(reqField)
+					test.WriteString(fmt.Sprintf("            %s=\"test_value\"", fieldSnakeName))
+				}
+				test.WriteString("\n        )\n")
+			} else {
+				// No required fields
+				test.WriteString(fmt.Sprintf("        model = models.%s()\n", className))
+			}
 			test.WriteString("        data = asdict(model)\n")
 			test.WriteString("        assert isinstance(data, dict)\n")
 		}
@@ -1412,7 +1454,8 @@ func generatePythonAPITest(data TemplateData, operations []APIOperation, extract
 			methodName := GetOperationMethodName(op)
 			testMethodName := fmt.Sprintf("test_%s", methodName)
 
-			test.WriteString(fmt.Sprintf("    @patch('%s.%s')\n", data.HTTPLibImport, getHTTPMethodForMock(op.Method)))
+			// Patch requests.Session.request since client uses session.request()
+			test.WriteString("    @patch('requests.Session.request')\n")
 			test.WriteString(fmt.Sprintf("    def %s(self, mock_request):\n", testMethodName))
 			test.WriteString(fmt.Sprintf("        \"\"\"Test %s %s operation.\"\"\"\n", op.Method, op.Path))
 
@@ -1507,22 +1550,11 @@ func generatePythonAPITest(data TemplateData, operations []APIOperation, extract
 	return test.String()
 }
 
-// getHTTPMethodForMock returns the HTTP method function name for mocking
+// getHTTPMethodForMock returns the patch path for mocking requests.Session.request
+// Since the client uses session.request(), we need to patch requests.Session.request
 func getHTTPMethodForMock(method string) string {
-	switch strings.ToUpper(method) {
-	case "GET":
-		return "get"
-	case "POST":
-		return "post"
-	case "PUT":
-		return "put"
-	case "DELETE":
-		return "delete"
-	case "PATCH":
-		return "patch"
-	default:
-		return "request"
-	}
+	// Always patch requests.Session.request since that's what the client uses
+	return "requests.Session.request"
 }
 
 // generatePythonTestValueFromParam generates a test value from a parameter
@@ -1559,9 +1591,11 @@ func generatePythonAuthTest(data TemplateData, securitySchemes map[string]Securi
 			test.WriteString(fmt.Sprintf("        client = %s(\n", data.ClientClassName))
 			test.WriteString("            base_url=\"https://api.example.com\",\n")
 			apiKeyValue := "test-api-key" //nolint:goconst // Test value for generated code
-			test.WriteString(fmt.Sprintf("            %s=%q\n", schemeName, apiKeyValue))
+			// Use camelCase for attribute name (matches client code)
+			attrName := toCamelCase(name)
+			test.WriteString(fmt.Sprintf("            %s=%q\n", attrName, apiKeyValue))
 			test.WriteString("        )\n")
-			test.WriteString(fmt.Sprintf("        assert client.%s == %q\n", schemeName, apiKeyValue))
+			test.WriteString(fmt.Sprintf("        assert client.%s == %q\n", attrName, apiKeyValue))
 			test.WriteString("\n")
 
 		case "http":
@@ -1603,9 +1637,11 @@ func generatePythonAuthTest(data TemplateData, securitySchemes map[string]Securi
 			test.WriteString(fmt.Sprintf("        \"\"\"Test %s OpenID Connect authentication.\"\"\"\n", name))
 			test.WriteString(fmt.Sprintf("        client = %s(\n", data.ClientClassName))
 			test.WriteString(fmt.Sprintf("            base_url=%q,\n", baseURL))
-			test.WriteString("            open_id_connect_token=\"test-openid-token\"\n")
+			// Use camelCase for parameter name (matches client code)
+			paramName := toCamelCase(name) + "_token"
+			test.WriteString(fmt.Sprintf("            %s=\"test-openid-token\"\n", paramName))
 			test.WriteString("        )\n")
-			test.WriteString("        assert client.open_id_connect_token == \"test-openid-token\"\n")
+			test.WriteString(fmt.Sprintf("        assert client.%s == \"test-openid-token\"\n", paramName))
 			test.WriteString("\n")
 		}
 	}
@@ -1706,7 +1742,8 @@ func generatePythonErrorTests(test *bytes.Buffer, op APIOperation, data Template
 	// Generate test for each error status
 	for _, statusCode := range errorStatuses {
 		errorTestName := fmt.Sprintf("test_%s_%s_error", methodName, statusCode)
-		fmt.Fprintf(test, "    @patch('%s.%s')\n", data.HTTPLibImport, getHTTPMethodForMock(op.Method))
+		// Patch requests.Session.request since client uses session.request()
+		test.WriteString("    @patch('requests.Session.request')\n")
 		fmt.Fprintf(test, "    def %s(self, mock_request):\n", errorTestName)
 		fmt.Fprintf(test, "        \"\"\"Test %s %s operation returns %s error.\"\"\"\n", op.Method, op.Path, statusCode)
 
