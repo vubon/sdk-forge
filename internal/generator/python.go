@@ -18,38 +18,6 @@ import (
 	httplib "github.com/vubon/sdk-forge/pkg/languages/http"
 )
 
-// getClientClassName removes common suffixes (sdk, api, client) from SDK name and converts to PascalCase
-// This ensures class names like "PetstoreClient" instead of "PetstoreSdkClient"
-func getClientClassName(sdkName string) string {
-	// Remove common suffixes (case-insensitive)
-	name := strings.ToLower(sdkName)
-	name = strings.TrimSuffix(name, "_sdk")
-	name = strings.TrimSuffix(name, "-sdk")
-	name = strings.TrimSuffix(name, "_api")
-	name = strings.TrimSuffix(name, "-api")
-	name = strings.TrimSuffix(name, "_client")
-	name = strings.TrimSuffix(name, "-client")
-
-	// Convert to PascalCase
-	return toPascalCase(name)
-}
-
-// groupOperationsByTag groups operations by their tags
-func groupOperationsByTag(operations []APIOperation) map[string][]APIOperation {
-	tagMap := make(map[string][]APIOperation)
-	for _, op := range operations {
-		if len(op.Tags) == 0 {
-			// If no tags, use "default"
-			tagMap["default"] = append(tagMap["default"], op)
-		} else {
-			// Add to first tag (primary tag)
-			tag := op.Tags[0]
-			tagMap[tag] = append(tagMap[tag], op)
-		}
-	}
-	return tagMap
-}
-
 // GeneratePythonSDK generates a Python SDK
 // If version is nil, uses the default Python version
 // If sdkVersion is empty, extracts from OpenAPI schema or defaults to "1.0.0"
@@ -119,17 +87,8 @@ func generatePythonSDKFromExtracted(
 		ClientClassName: getClientClassName(sanitizedName),
 	}
 
-	// Determine SDK version: OpenAPI schema > user-provided > default
-	finalSDKVersion := ""
-	if extractedData != nil && extractedData.Version != "" {
-		finalSDKVersion = extractedData.Version
-	}
-	if finalSDKVersion == "" && sdkVersion != "" {
-		finalSDKVersion = sdkVersion
-	}
-	if finalSDKVersion == "" {
-		finalSDKVersion = "1.0.0"
-	}
+	// Determine SDK version using common utility
+	finalSDKVersion := determineSDKVersion(extractedData, sdkVersion)
 
 	// Generate __init__.py
 	initContent := generatePythonInit(data, finalSDKVersion)

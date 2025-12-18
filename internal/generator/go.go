@@ -86,17 +86,8 @@ func generateGoSDKFromExtracted(
 		ClientClassName: getClientClassName(sanitizedName),
 	}
 
-	// Determine SDK version: OpenAPI schema > user-provided > default
-	finalSDKVersion := ""
-	if extractedData != nil && extractedData.Version != "" {
-		finalSDKVersion = extractedData.Version
-	}
-	if finalSDKVersion == "" && sdkVersion != "" {
-		finalSDKVersion = sdkVersion
-	}
-	if finalSDKVersion == "" {
-		finalSDKVersion = "1.0.0"
-	}
+	// Determine SDK version using common utility
+	finalSDKVersion := determineSDKVersion(extractedData, sdkVersion)
 
 	// Generate go.mod
 	goModContent := generateGoMod(sdkName, extractedData, version)
