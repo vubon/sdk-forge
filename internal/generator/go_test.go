@@ -520,6 +520,23 @@ func TestGenerateGoSDK_AuthTests(t *testing.T) {
 			Type:   "http",
 			Scheme: "bearer",
 		},
+		"basic": {
+			Type:   "http",
+			Scheme: "basic",
+		},
+		"digest": {
+			Type:   "http",
+			Scheme: "digest",
+		},
+		"oauth2": {
+			Type: "oauth2",
+		},
+		"openIdConnect": {
+			Type: "openIdConnect",
+		},
+		"mutualTLS": {
+			Type: "mutualTLS",
+		},
 	}
 
 	outputPath := filepath.Join(tmpDir, sdkName)
@@ -549,6 +566,21 @@ func TestGenerateGoSDK_AuthTests(t *testing.T) {
 	}
 	if !contains(contentStr, "TestBearer_BearerAuth") {
 		t.Error("auth_test.go should contain Bearer auth test")
+	}
+	if !contains(contentStr, "TestBasic_BasicAuth") {
+		t.Error("auth_test.go should contain Basic auth test")
+	}
+	if !contains(contentStr, "TestDigest_DigestAuth") {
+		t.Error("auth_test.go should contain Digest auth test")
+	}
+	if !contains(contentStr, "TestOauth2_OAuth2Auth") {
+		t.Error("auth_test.go should contain OAuth2 auth test")
+	}
+	if !contains(contentStr, "TestOpenIdConnect_OpenIDConnectAuth") {
+		t.Error("auth_test.go should contain OpenID Connect auth test")
+	}
+	if !contains(contentStr, "TestMutualTLS_MutualTLSAuth") {
+		t.Error("auth_test.go should contain Mutual TLS auth test")
 	}
 }
 

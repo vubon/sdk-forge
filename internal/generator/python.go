@@ -1550,13 +1550,6 @@ func generatePythonAPITest(data TemplateData, operations []APIOperation, extract
 	return test.String()
 }
 
-// getHTTPMethodForMock returns the patch path for mocking requests.Session.request
-// Since the client uses session.request(), we need to patch requests.Session.request
-func getHTTPMethodForMock(method string) string {
-	// Always patch requests.Session.request since that's what the client uses
-	return "requests.Session.request"
-}
-
 // generatePythonTestValueFromParam generates a test value from a parameter
 func generatePythonTestValueFromParam(param Parameter) string {
 	if param.Schema == nil {
@@ -1620,6 +1613,17 @@ func generatePythonAuthTest(data TemplateData, securitySchemes map[string]Securi
 				test.WriteString("        assert client.username == \"test-user\"\n")
 				test.WriteString("        assert client.password == \"test-password\"\n")
 				test.WriteString("\n")
+			case "digest":
+				test.WriteString(fmt.Sprintf("    def test_%s_digest_auth(self):\n", schemeName))
+				test.WriteString(fmt.Sprintf("        \"\"\"Test %s Digest authentication.\"\"\"\n", name))
+				test.WriteString(fmt.Sprintf("        client = %s(\n", data.ClientClassName))
+				test.WriteString(fmt.Sprintf("            base_url=%q,\n", baseURL))
+				test.WriteString("            username=\"test-user\",\n")
+				test.WriteString("            password=\"test-password\"\n")
+				test.WriteString("        )\n")
+				test.WriteString("        assert client.username == \"test-user\"\n")
+				test.WriteString("        assert client.password == \"test-password\"\n")
+				test.WriteString("\n")
 			}
 
 		case "oauth2":
@@ -1642,6 +1646,21 @@ func generatePythonAuthTest(data TemplateData, securitySchemes map[string]Securi
 			test.WriteString(fmt.Sprintf("            %s=\"test-openid-token\"\n", paramName))
 			test.WriteString("        )\n")
 			test.WriteString(fmt.Sprintf("        assert client.%s == \"test-openid-token\"\n", paramName))
+			test.WriteString("\n")
+
+		case "mutualTLS":
+			test.WriteString(fmt.Sprintf("    def test_%s_mutual_tls_auth(self):\n", schemeName))
+			test.WriteString(fmt.Sprintf("        \"\"\"Test %s Mutual TLS authentication.\"\"\"\n", name))
+			test.WriteString(fmt.Sprintf("        client = %s(\n", data.ClientClassName))
+			test.WriteString(fmt.Sprintf("            base_url=%q,\n", baseURL))
+			// Use camelCase for parameter name (matches client code)
+			certParamName := toCamelCase(name) + "_cert"
+			keyParamName := toCamelCase(name) + "_key"
+			test.WriteString(fmt.Sprintf("            %s=\"test-cert.pem\",\n", certParamName))
+			test.WriteString(fmt.Sprintf("            %s=\"test-key.pem\"\n", keyParamName))
+			test.WriteString("        )\n")
+			test.WriteString(fmt.Sprintf("        assert client.%s == \"test-cert.pem\"\n", certParamName))
+			test.WriteString(fmt.Sprintf("        assert client.%s == \"test-key.pem\"\n", keyParamName))
 			test.WriteString("\n")
 		}
 	}
