@@ -750,6 +750,21 @@ func generatePythonREADME(data TemplateData) string {
 }
 
 // generatePythonSetup generates setup.py for Python package
+// escapePythonString escapes a string for use in a Python string literal
+func escapePythonString(s string) string {
+	// Replace backslashes first (to avoid double-escaping)
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	// Escape double quotes
+	s = strings.ReplaceAll(s, "\"", "\\\"")
+	// Replace newlines with \n
+	s = strings.ReplaceAll(s, "\n", "\\n")
+	// Replace carriage returns
+	s = strings.ReplaceAll(s, "\r", "\\r")
+	// Replace tabs
+	s = strings.ReplaceAll(s, "\t", "\\t")
+	return s
+}
+
 func generatePythonSetup(data TemplateData, pythonVersion LanguageVersion, sdkVersion string) string {
 	extractedData, ok := data.OpenAPIDoc.(*ExtractedData)
 	description := "Auto-generated Python SDK"
@@ -758,6 +773,9 @@ func generatePythonSetup(data TemplateData, pythonVersion LanguageVersion, sdkVe
 			description = extractedData.Description
 		}
 	}
+
+	// Escape description for Python string
+	escapedDescription := escapePythonString(description)
 
 	// Prepare template data
 	type PythonSetupData struct {
@@ -789,7 +807,7 @@ func generatePythonSetup(data TemplateData, pythonVersion LanguageVersion, sdkVe
 	templateData := PythonSetupData{
 		SDKName:        data.SDKName,
 		Version:        sdkVersion,
-		Description:    description,
+		Description:    escapedDescription,
 		PythonVersion:  fmt.Sprintf("%d.%d", pythonVersion.Major, pythonVersion.Minor),
 		PythonRequires: fmt.Sprintf(">=%d.%d", pythonVersion.Major, pythonVersion.Minor),
 		Classifiers:    classifiers,
@@ -804,7 +822,8 @@ func generatePythonSetup(data TemplateData, pythonVersion LanguageVersion, sdkVe
 		setup.WriteString("setup(\n")
 		setup.WriteString(fmt.Sprintf("    name=\"%s\",\n", data.SDKName))
 		setup.WriteString(fmt.Sprintf("    version=\"%s\",\n", sdkVersion))
-		setup.WriteString(fmt.Sprintf("    description=\"%s\",\n", description))
+		// Use escaped description
+		setup.WriteString(fmt.Sprintf("    description=\"%s\",\n", escapedDescription))
 		setup.WriteString("    long_description=open(\"README.md\").read(),\n")
 		setup.WriteString("    long_description_content_type=\"text/markdown\",\n")
 		setup.WriteString("    author=\"SDK Forge\",\n")
@@ -838,7 +857,8 @@ func generatePythonSetup(data TemplateData, pythonVersion LanguageVersion, sdkVe
 		setup.WriteString("setup(\n")
 		setup.WriteString(fmt.Sprintf("    name=\"%s\",\n", data.SDKName))
 		setup.WriteString(fmt.Sprintf("    version=\"%s\",\n", sdkVersion))
-		setup.WriteString(fmt.Sprintf("    description=\"%s\",\n", description))
+		// Use escaped description
+		setup.WriteString(fmt.Sprintf("    description=\"%s\",\n", escapedDescription))
 		setup.WriteString("    long_description=open(\"README.md\").read(),\n")
 		setup.WriteString("    long_description_content_type=\"text/markdown\",\n")
 		setup.WriteString("    author=\"SDK Forge\",\n")
