@@ -1,6 +1,6 @@
 # SDK Forge - Usage Guide
 
-**Version**: 0.3.0-alpha.2  
+**Version**: 0.3.0  
 **Last Updated**: December 2025
 
 Quick reference guide for using SDK Forge. For detailed documentation, see the [User Manual](MANUAL.md).

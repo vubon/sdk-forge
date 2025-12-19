@@ -5,6 +5,36 @@ All notable changes to SDK Forge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-12-19
+
+### Added
+- Complete infrastructure setup and project documentation
+  - CI/CD pipeline (GitHub Actions) for pull requests targeting main branch
+  - Automated release workflow for building and publishing releases
+  - CONTRIBUTING.md with comprehensive development workflow and guidelines
+  - CODE_OF_CONDUCT.md following Contributor Covenant 2.1
+  - GitHub issue templates (bug report, feature request, question)
+  - Pull request template with comprehensive checklist
+  - Dockerfile with multi-stage build for containerized usage
+  - docker-compose.yml for easy Docker usage
+  - .dockerignore to optimize Docker builds
+- Complete authentication test coverage for all 7 authentication schemes
+- Common utilities refactoring (`common.go`) for shared functionality across language generators
+- Support for Digest and Mutual TLS authentication test generation
+
+### Fixed
+- Go SDK path parameter formatting issues
+- Go SDK body parameter handling for methods without request bodies
+- Python SDK dataclass field ordering (required fields before optional fields)
+- Python SDK setup.py description escaping for multi-line descriptions
+- Go SDK import management (conditional imports only when needed)
+- Go SDK comment formatting for multi-line descriptions
+
+### Changed
+- Extracted common utilities (`getClientClassName`, `groupOperationsByTag`, `determineSDKVersion`) to shared `common.go` file
+- Improved code reusability for future language support
+- Updated README.md with Docker installation instructions
+
 ## [0.3.0-alpha.2] - 2025-12-19
 
 ### Added
@@ -79,6 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **-rc.x**: Release candidates (stable, final testing)
 - **x.y.z**: Stable releases (production ready)
 
+[0.3.0]: https://github.com/vubon/sdk-forge/compare/v0.3.0-alpha.2...v0.3.0
 [0.3.0-alpha.2]: https://github.com/vubon/sdk-forge/compare/v0.3.0-alpha.1...v0.3.0-alpha.2
 [0.3.0-alpha.1]: https://github.com/vubon/sdk-forge/compare/v0.2.0-alpha.1...v0.3.0-alpha.1
 [0.2.0-alpha.1]: https://github.com/vubon/sdk-forge/releases/tag/v0.2.0-alpha.1
