@@ -1,0 +1,178 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on tags like v1.0.0, v0.3.0-alpha.2, etc.
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for CHANGELOG
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Get version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: make test
+
+      - name: Build binaries
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD_DATE: ${{ github.event.head_commit.timestamp || github.event.repository.pushed_at }}
+          GIT_COMMIT: ${{ github.sha }}
+        run: |
+          mkdir -p dist
+          
+          # Build for multiple platforms
+          platforms=(
+            "linux/amd64"
+            "linux/arm64"
+            "darwin/amd64"
+            "darwin/arm64"
+            "windows/amd64"
+            "windows/arm64"
+          )
+          
+          for platform in "${platforms[@]}"; do
+            platform_split=(${platform//\// })
+            GOOS=${platform_split[0]}
+            GOARCH=${platform_split[1]}
+            
+            output_name="sdk-forge"
+            if [ $GOOS = "windows" ]; then
+              output_name+='.exe'
+            fi
+            
+            echo "Building for $GOOS/$GOARCH..."
+            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
+              -ldflags "-X main.version=$VERSION -X main.buildDate=$BUILD_DATE -X main.gitCommit=${GIT_COMMIT:0:7}" \
+              -o "dist/sdk-forge-$VERSION-$GOOS-$GOARCH$([ $GOOS = "windows" ] && echo ".exe" || echo "")" \
+              ./cmd/cli
+          done
+          
+          ls -lh dist/
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          for file in sdk-forge-*; do
+            if [[ "$file" != *.sha256 ]]; then
+              sha256sum "$file" > "$file.sha256"
+            fi
+          done
+          ls -lh *.sha256
+
+      - name: Extract release notes
+        id: release_notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Extract release notes from CHANGELOG.md
+          # Find the section for this version (handles formats like [0.3.0-alpha.2] or [v0.3.0-alpha.2])
+          if grep -q "## \[$VERSION\]" CHANGELOG.md || grep -q "## \[v$VERSION\]" CHANGELOG.md; then
+            # Extract the section for this version
+            awk -v version="$VERSION" '
+              BEGIN { in_section = 0; found = 0 }
+              /^## \[/ {
+                if ($0 ~ "\\[" version "\\]" || $0 ~ "\\[v" version "\\]") {
+                  in_section = 1
+                  found = 1
+                  next
+                } else if (found && /^## \[/) {
+                  exit
+                }
+              }
+              in_section && found {
+                print
+              }
+            ' CHANGELOG.md > release_notes.txt
+          else
+            # Fallback if version not found in CHANGELOG
+            echo "## Release $VERSION" > release_notes.txt
+            echo "" >> release_notes.txt
+            echo "See [CHANGELOG.md](https://github.com/vubon/sdk-forge/blob/main/CHANGELOG.md) for details." >> release_notes.txt
+          fi
+          
+          # Add installation instructions
+          cat >> release_notes.txt << EOF
+
+          ## Installation
+
+          ### Download Binary
+
+          1. Download the appropriate binary for your platform:
+             - **Linux**: \`sdk-forge-$VERSION-linux-amd64\` or \`sdk-forge-$VERSION-linux-arm64\`
+             - **macOS**: \`sdk-forge-$VERSION-darwin-amd64\` or \`sdk-forge-$VERSION-darwin-arm64\`
+             - **Windows**: \`sdk-forge-$VERSION-windows-amd64.exe\` or \`sdk-forge-$VERSION-windows-arm64.exe\`
+
+          2. Verify checksum:
+             \`\`\`bash
+             sha256sum -c sdk-forge-$VERSION-<platform>.sha256
+             \`\`\`
+
+          3. Make executable (Linux/macOS):
+             \`\`\`bash
+             chmod +x sdk-forge-$VERSION-<platform>
+             \`\`\`
+
+          4. Move to PATH:
+             \`\`\`bash
+             # Linux/macOS
+             sudo mv sdk-forge-$VERSION-<platform> /usr/local/bin/sdk-forge
+             
+             # Or add to your local bin
+             mkdir -p ~/bin
+             mv sdk-forge-$VERSION-<platform> ~/bin/sdk-forge
+             export PATH="\$HOME/bin:\$PATH"
+             \`\`\`
+
+          ### Verify Installation
+
+          \`\`\`bash
+          sdk-forge version
+          \`\`\`
+
+          For more information, see the [documentation](https://github.com/vubon/sdk-forge/tree/main/docs).
+          EOF
+          
+          cat release_notes.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+          name: Release ${{ steps.version.outputs.version }}
+          body_path: release_notes.txt
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
+
