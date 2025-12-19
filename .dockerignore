@@ -1,0 +1,51 @@
+# Build artifacts
+bin/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test outputs
+test-output/
+test-sdks/
+output/
+coverage.out
+coverage.html
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (optional - comment out if you want docs in image)
+# docs/
+# brainstorming/
+
+# CI/CD
+.github/
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Development files
+Makefile
+generate-sdk.sh
+*.md
+!README.md
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+

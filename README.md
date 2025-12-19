@@ -75,7 +75,6 @@ SDK Forge automatically generates authentication methods based on your OpenAPI s
 - **[Usage Guide](docs/README.md)** - Quick reference and common tasks
 - **[User Manual](docs/MANUAL.md)** - Complete guide with detailed instructions
 - **[CHANGELOG](CHANGELOG.md)** - Version history and changes
-- **[Feature Roadmap](../brainstorming/FEATURE_LIST.md)** - Planned features and enhancements
 
 ## Installation
 
@@ -97,6 +96,30 @@ make install
 
 ```bash
 go build -o sdk-forge ./cmd/cli
+```
+
+### Docker
+
+```bash
+# Build the image
+docker build -t sdk-forge:latest .
+
+# Run with Docker
+docker run --rm \
+  -v $(pwd)/examples:/app/input:ro \
+  -v $(pwd)/output:/app/output \
+  sdk-forge:latest generate \
+    --schema /app/input/petstore.yaml \
+    --lang python \
+    --name my-sdk \
+    --output /app/output
+
+# Or use docker-compose
+docker-compose run --rm sdk-forge generate \
+  --schema /app/input/petstore.yaml \
+  --lang python \
+  --name my-sdk \
+  --output /app/output
 ```
 
 ## Usage
@@ -280,7 +303,9 @@ make version
 
 SDK Forge is designed to be extensible. The common utilities and template system make it easy to add support for new languages.
 
-Contributions are welcome! Please open an issue or submit a pull request.
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute.
+
+Please also read our [Code of Conduct](CODE_OF_CONDUCT.md) before contributing.
 
 ## License
 

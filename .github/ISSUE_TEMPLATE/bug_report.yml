@@ -1,0 +1,156 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in SDK Forge
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out the form below to help us understand and fix the issue.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of what the bug is
+      placeholder: Describe the bug...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Run command '...'
+        2. Use schema '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+      placeholder: What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command Used
+      description: The exact command you ran (remove any sensitive information)
+      placeholder: |
+        sdk-forge generate \
+          --schema examples/petstore.yaml \
+          --lang python \
+          --name my-sdk \
+          --output ./sdks
+    validations:
+      required: true
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: Target Language
+      description: Which language SDK were you trying to generate?
+      options:
+        - Python
+        - Go
+        - PHP (not yet supported)
+        - JavaScript/TypeScript (not yet supported)
+        - Multiple languages
+        - Not applicable
+    validations:
+      required: true
+
+  - type: textarea
+    id: schema
+    attributes:
+      label: OpenAPI Schema
+      description: |
+        If possible, please provide a minimal OpenAPI schema that reproduces the issue.
+        You can use code blocks or attach a file. Remove any sensitive information.
+      placeholder: |
+        ```yaml
+        openapi: 3.0.0
+        info:
+          title: Example API
+          version: 1.0.0
+        paths:
+          /example:
+            get:
+              responses:
+                '200':
+                  description: OK
+        ```
+      render: yaml
+
+  - type: textarea
+    id: error
+    attributes:
+      label: Error Message / Output
+      description: Full error message or output (if applicable)
+      placeholder: |
+        Paste the complete error message here...
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: SDK Forge Version
+      description: Version of SDK Forge you're using
+      placeholder: e.g., v0.3.0-alpha.2 or commit hash
+    validations:
+      required: true
+
+  - type: input
+    id: go_version
+    attributes:
+      label: Go Version (if applicable)
+      description: Version of Go used to build SDK Forge
+      placeholder: e.g., go1.24.8
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other context, screenshots, or information about the problem
+      placeholder: Add any other context about the problem here...
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I have checked the [documentation](https://github.com/vubon/sdk-forge/tree/main/docs) for similar issues
+          required: true
+        - label: I have searched existing issues to avoid duplicates
+          required: true
+        - label: I have validated my OpenAPI schema using [Swagger Editor](https://editor.swagger.io/) or similar
+          required: false
+

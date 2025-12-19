@@ -1,0 +1,18 @@
+services:
+  sdk-forge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sdk-forge:latest
+    container_name: sdk-forge
+    volumes:
+      # Mount directory with OpenAPI schemas
+      - ./examples:/app/input:ro
+      # Mount output directory (generated SDKs will be written here)
+      - ./output:/app/output
+    working_dir: /app
+    # Override default command
+    command: generate --schema /app/input/petstore.yaml --lang python --name my-sdk --output /app/output
+    # Run as non-root user (already set in Dockerfile)
+    user: sdkforge
+
