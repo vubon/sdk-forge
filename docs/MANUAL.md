@@ -1,6 +1,6 @@
 # SDK Forge - User Manual
 
-**Version**: 0.3.0-alpha.2  
+**Version**: 0.3.0  
 **Last Updated**: December 2025
 
 A comprehensive guide to using SDK Forge to generate production-ready SDKs from OpenAPI schemas.

@@ -4,9 +4,9 @@ A powerful CLI tool written in Go that generates production-ready SDKs for multi
 
 ## Status
 
-✅ **v0.3.0-alpha.2** - Go and Python SDK generation with automatic test generation fully implemented
+✅ **v0.3.0** - Go and Python SDK generation with automatic test generation fully implemented
 
-> This project follows [Semantic Versioning 2.0.0](https://semver.org/). Current version is an alpha release.
+> This project follows [Semantic Versioning 2.0.0](https://semver.org/). Current version is a stable release.
 
 ## Quick Start
 
@@ -278,7 +278,7 @@ make clean
 
 SDK Forge follows [Semantic Versioning 2.0.0](https://semver.org/) (SemVer). The version is managed in the `VERSION` file and automatically injected during build.
 
-**Current Version**: `0.3.0-alpha.2`
+**Current Version**: `0.3.0`
 
 **Version Format**: `MAJOR.MINOR.PATCH-PRERELEASE`
 - **0.x.x**: Initial development (API may change)
