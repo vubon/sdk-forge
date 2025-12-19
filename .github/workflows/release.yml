@@ -87,7 +87,10 @@ jobs:
           cd dist
           for file in sdk-forge-*; do
             if [[ "$file" != *.sha256 ]]; then
+              # Generate checksum with filename for sha256sum -c compatibility
               sha256sum "$file" > "$file.sha256"
+              # Also create a checksum file with just the hash (for manual verification)
+              sha256sum "$file" | awk '{print $1}' > "$file.sha256sum"
             fi
           done
           ls -lh *.sha256
@@ -136,8 +139,23 @@ jobs:
              - **Windows**: \`sdk-forge-$VERSION-windows-amd64.exe\` or \`sdk-forge-$VERSION-windows-arm64.exe\`
 
           2. Verify checksum:
+             
+             **Linux:**
              \`\`\`bash
              sha256sum -c sdk-forge-$VERSION-<platform>.sha256
+             \`\`\`
+             
+             **macOS:**
+             \`\`\`bash
+             shasum -a 256 -c sdk-forge-$VERSION-<platform>.sha256
+             \`\`\`
+             
+             **Manual verification (any OS):**
+             \`\`\`bash
+             # Compare the hash manually
+             sha256sum sdk-forge-$VERSION-<platform>  # Linux
+             shasum -a 256 sdk-forge-$VERSION-<platform>  # macOS
+             # Compare output with the hash in the .sha256 file
              \`\`\`
 
           3. Make executable (Linux/macOS):
