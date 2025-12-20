@@ -82,6 +82,52 @@ jobs:
           
           ls -lh dist/
 
+      - name: Verify binaries
+        run: |
+          cd dist
+          echo "Verifying binary formats..."
+          for file in sdk-forge-*; do
+            if [[ "$file" != *.sha256 ]] && [[ "$file" != *.sha256sum ]]; then
+              echo "Checking $file..."
+              # Check if file exists and is not empty
+              if [[ ! -f "$file" ]] || [[ ! -s "$file" ]]; then
+                echo "ERROR: $file is missing or empty"
+                exit 1
+              fi
+              
+              # Verify file type based on platform
+              case "$file" in
+                *linux*)
+                  if ! file "$file" | grep -q "ELF"; then
+                    echo "ERROR: $file is not a valid Linux ELF binary"
+                    exit 1
+                  fi
+                  ;;
+                *darwin*)
+                  if ! file "$file" | grep -q "Mach-O"; then
+                    echo "ERROR: $file is not a valid macOS Mach-O binary"
+                    exit 1
+                  fi
+                  ;;
+                *windows*)
+                  if ! file "$file" | grep -q "PE32"; then
+                    echo "ERROR: $file is not a valid Windows PE binary"
+                    exit 1
+                  fi
+                  ;;
+              esac
+              
+              # Check binary size (should be reasonable, not too small)
+              size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null)
+              if [[ $size -lt 1000000 ]]; then  # Less than 1MB is suspicious
+                echo "WARNING: $file is unusually small ($size bytes)"
+              fi
+              
+              echo "✓ $file verified (size: $size bytes)"
+            fi
+          done
+          echo "All binaries verified successfully!"
+
       - name: Generate checksums
         run: |
           cd dist
