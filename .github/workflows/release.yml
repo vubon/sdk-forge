@@ -186,29 +186,40 @@ jobs:
 
           2. Verify checksum:
              
+             **Important:** Make sure both the binary file and the checksum file are in the same directory before verifying.
+             
              **Linux:**
              \`\`\`bash
+             # Both files must be in the same directory
              sha256sum -c sdk-forge-$VERSION-<platform>.sha256
              \`\`\`
              
              **macOS (Apple Silicon/Intel):**
              \`\`\`bash
-             # Use shasum with the .sha256 file (contains hash + filename)
+             # Both files must be in the same directory
+             # The binary file (sdk-forge-$VERSION-darwin-arm64) and checksum file (.sha256) must be together
              shasum -a 256 -c sdk-forge-$VERSION-<platform>.sha256
              \`\`\`
              
-             **Manual verification (any OS):**
+             **Manual verification (if automatic verification fails):**
              \`\`\`bash
-             # Calculate hash and compare manually
+             # Calculate hash of the binary file
              # Linux:
              sha256sum sdk-forge-$VERSION-<platform> | awk '{print $1}'
              # macOS:
              shasum -a 256 sdk-forge-$VERSION-<platform> | awk '{print $1}'
-             # Compare with the hash in the .sha256sum file (hash only)
+             
+             # Compare with the hash in the .sha256 file (first field)
+             cat sdk-forge-$VERSION-<platform>.sha256 | awk '{print $1}'
+             
+             # Or use the .sha256sum file (hash only)
              cat sdk-forge-$VERSION-<platform>.sha256sum
              \`\`\`
              
-             **Note:** Use the \`.sha256\` file for automatic verification (\`-c\` flag). The \`.sha256sum\` file contains only the hash for manual comparison.
+             **Troubleshooting:**
+             - If you get "No such file or directory", make sure the binary file is in the same directory as the checksum file
+             - The binary filename in the checksum file must exactly match the actual binary filename
+             - Example: If checksum file says \`sdk-forge-0.3.0-darwin-arm64\`, the binary file must be named exactly \`sdk-forge-0.3.0-darwin-arm64\`
 
           3. Make executable (Linux/macOS):
              \`\`\`bash
