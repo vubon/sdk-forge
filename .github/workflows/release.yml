@@ -86,14 +86,14 @@ jobs:
         run: |
           cd dist
           for file in sdk-forge-*; do
-            if [[ "$file" != *.sha256 ]]; then
-              # Generate checksum with filename for sha256sum -c compatibility
+            if [[ "$file" != *.sha256 ]] && [[ "$file" != *.sha256sum ]]; then
+              # Generate checksum with filename for sha256sum -c compatibility (Linux)
               sha256sum "$file" > "$file.sha256"
               # Also create a checksum file with just the hash (for manual verification)
               sha256sum "$file" | awk '{print $1}' > "$file.sha256sum"
             fi
           done
-          ls -lh *.sha256
+          ls -lh *.sha256 *.sha256sum 2>/dev/null || ls -lh *.sha256
 
       - name: Extract release notes
         id: release_notes
@@ -145,18 +145,24 @@ jobs:
              sha256sum -c sdk-forge-$VERSION-<platform>.sha256
              \`\`\`
              
-             **macOS:**
+             **macOS (Apple Silicon/Intel):**
              \`\`\`bash
+             # Use shasum with the .sha256 file (contains hash + filename)
              shasum -a 256 -c sdk-forge-$VERSION-<platform>.sha256
              \`\`\`
              
              **Manual verification (any OS):**
              \`\`\`bash
-             # Compare the hash manually
-             sha256sum sdk-forge-$VERSION-<platform>  # Linux
-             shasum -a 256 sdk-forge-$VERSION-<platform>  # macOS
-             # Compare output with the hash in the .sha256 file
+             # Calculate hash and compare manually
+             # Linux:
+             sha256sum sdk-forge-$VERSION-<platform> | awk '{print $1}'
+             # macOS:
+             shasum -a 256 sdk-forge-$VERSION-<platform> | awk '{print $1}'
+             # Compare with the hash in the .sha256sum file (hash only)
+             cat sdk-forge-$VERSION-<platform>.sha256sum
              \`\`\`
+             
+             **Note:** Use the \`.sha256\` file for automatic verification (\`-c\` flag). The \`.sha256sum\` file contains only the hash for manual comparison.
 
           3. Make executable (Linux/macOS):
              \`\`\`bash
