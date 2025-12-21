@@ -125,7 +125,8 @@ func generatePHPSDKFromExtracted(
 
 		// Generate Models/Model.php for each schema
 		for name, schema := range extractedData.Schemas {
-			modelContent := generatePHPModel(name, schema, extractedData.Schemas, version)
+			// Pass SDK name for namespace generation
+			modelContent := generatePHPModelWithNamespace(name, schema, extractedData.Schemas, data.SDKName, version)
 			modelFileName := fmt.Sprintf("%s.php", toPascalCase(name))
 			modelPath := filepath.Join(modelsDir, modelFileName)
 			// #nosec G306 -- 0644 is appropriate for PHP source files
@@ -283,11 +284,7 @@ func generatePHPComposerJSON(sdkName, sdkVersion, httpLib string, version Langua
 // generatePHPClient generates PHP client class
 // Implementation moved to php_client.go
 
-// generatePHPModel generates a PHP model class
-func generatePHPModel(name string, schema *Schema, allSchemas map[string]*Schema, version LanguageVersion) string {
-	// TODO: Implement PHP model generation
-	return fmt.Sprintf("<?php\n\n// PHP Model %s - TODO: Implement\n", name)
-}
+// generatePHPModel is now generatePHPModelWithNamespace in php_models.go
 
 // generatePHPAPIModule generates PHP API module
 func generatePHPAPIModule(tag string, operations []APIOperation, data TemplateData, version LanguageVersion) string {
