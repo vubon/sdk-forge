@@ -46,6 +46,7 @@ var (
 	force         bool
 	goVersion     string
 	pythonVersion string
+	phpVersion    string
 	sdkVersion    string
 	skipTests     bool
 )
@@ -64,6 +65,8 @@ func init() {
 		"Go version to use (e.g., 1.24, 1.25). Default: 1.24")
 	generateCmd.Flags().StringVar(&pythonVersion, "python-version", "",
 		"Python version to use (e.g., 3.11, 3.12, 3.13, 3.14). Default: 3.11")
+	generateCmd.Flags().StringVar(&phpVersion, "php-version", "",
+		"PHP version to use (e.g., 8.0, 8.1, 8.2, 8.3). Default: 8.1")
 	generateCmd.Flags().StringVar(&sdkVersion, "sdk-version", "",
 		"SDK version to use (e.g., 1.0.0, 2.0.0). "+
 			"If not provided, uses OpenAPI schema version (if available) or defaults to 1.0.0")
@@ -315,6 +318,7 @@ func generateAllLanguages(outputDir, sdkName, httpLib string, doc interface{}, f
 func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc interface{}, cmd *cobra.Command) error {
 	var goVer *generator.LanguageVersion
 	var pythonVer *generator.LanguageVersion
+	var phpVer *generator.LanguageVersion
 
 	// Get SDK version from flag (if provided)
 	sdkVerStr, _ := cmd.Flags().GetString("sdk-version")
@@ -348,6 +352,20 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 		}
 	}
 
+	if lang == "php" || lang == langAll {
+		phpVerStr, _ := cmd.Flags().GetString("php-version")
+		if phpVerStr != "" {
+			parsed, err := generator.ParseVersion(phpVerStr)
+			if err != nil {
+				return fmt.Errorf("invalid PHP version: %w", err)
+			}
+			if err := generator.ValidatePHPVersion(parsed); err != nil {
+				return err
+			}
+			phpVer = &parsed
+		}
+	}
+
 	// Get skip-tests flag (inverted: if skipTests is true, generateTests is false)
 	skipTestsFlag, _ := cmd.Flags().GetBool("skip-tests")
 	generateTests := !skipTestsFlag
@@ -376,7 +394,7 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 	case langGo:
 		return generator.GenerateGoSDK(outputPath, sdkName, httpLib, doc, goVer, sdkVerStr, generateTests, retryConfig)
 	case "php":
-		return fmt.Errorf("PHP SDK generation not yet implemented")
+		return generator.GeneratePHPSDK(outputPath, sdkName, httpLib, doc, phpVer, sdkVerStr, generateTests, retryConfig)
 	case "javascript", "typescript":
 		return fmt.Errorf("JavaScript/TypeScript SDK generation not yet implemented")
 	default:
