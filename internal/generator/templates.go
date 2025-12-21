@@ -28,6 +28,15 @@ var pythonSetupTemplate string
 //go:embed templates/python/README.md.tmpl
 var pythonReadmeTemplate string
 
+//go:embed templates/php/client.php.tmpl
+var phpClientTemplate string
+
+//go:embed templates/php/composer.json.tmpl
+var phpComposerTemplate string
+
+//go:embed templates/php/README.md.tmpl
+var phpReadmeTemplate string
+
 // LoadTemplate loads and parses a template string with custom functions
 func LoadTemplate(tmplContent string) (*template.Template, error) {
 	tmpl, err := template.New("sdk").Funcs(FuncMap()).Parse(tmplContent)
@@ -70,4 +79,19 @@ func GetPythonSetupTemplate() string {
 // GetPythonReadmeTemplate returns the Python README template
 func GetPythonReadmeTemplate() string {
 	return pythonReadmeTemplate
+}
+
+// GetPHPClientTemplate returns the PHP client template
+func GetPHPClientTemplate() string {
+	return phpClientTemplate
+}
+
+// GetPHPComposerTemplate returns the PHP composer.json template
+func GetPHPComposerTemplate() string {
+	return phpComposerTemplate
+}
+
+// GetPHPReadmeTemplate returns the PHP README template
+func GetPHPReadmeTemplate() string {
+	return phpReadmeTemplate
 }

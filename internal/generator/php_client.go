@@ -9,8 +9,8 @@ import (
 	"golang.org/x/text/language"
 )
 
-// generatePHPClient generates PHP client class
-func generatePHPClient(data TemplateData, version LanguageVersion) string {
+// generatePHPClient generates PHP client class using template
+func generatePHPClient(data TemplateData, version LanguageVersion) (string, error) {
 	// Extract OpenAPI data
 	extractedData, ok := data.OpenAPIDoc.(*ExtractedData)
 	if !ok {
@@ -48,172 +48,136 @@ func generatePHPClient(data TemplateData, version LanguageVersion) string {
 	// Build imports
 	imports := buildPHPImports(data, version, data.RetryConfig.Enabled)
 
-	var client strings.Builder
-	client.WriteString("<?php\n\n")
-	client.WriteString(fmt.Sprintf("namespace %s;\n\n", namespace))
-	client.WriteString(imports)
-	client.WriteString("\n")
-	client.WriteString(fmt.Sprintf("/**\n * %s API Client\n * Auto-generated from OpenAPI schema\n */\n", displayName))
-	client.WriteString(fmt.Sprintf("class %s\n{\n", clientClassName))
-	client.WriteString("    private string $baseUrl;\n")
-	client.WriteString(fmt.Sprintf("    private %s $httpClient;\n\n", getPHPHTTPClientType(data.HTTPLib)))
+	// Generate authentication fields
+	authFields := generatePHPAuthFields(extractedData.SecuritySchemes)
 
-	// Add authentication fields
-	if len(extractedData.SecuritySchemes) > 0 {
-		client.WriteString("    // Authentication fields\n")
-		for name, scheme := range extractedData.SecuritySchemes {
-			switch scheme.Type {
-			case securitySchemeAPIKey:
-				client.WriteString(fmt.Sprintf("    private ?string $%s = null;\n", toCamelCase(name)))
-			case securitySchemeHTTP:
-				switch scheme.Scheme {
-				case securitySchemeBearer:
-					client.WriteString("    private ?string $bearerToken = null;\n")
-				case securitySchemeBasic, securitySchemeDigest:
-					client.WriteString("    private ?string $username = null;\n")
-					client.WriteString("    private ?string $password = null;\n")
-				}
-			case securitySchemeOAuth2, securitySchemeOpenIDConnect:
-				client.WriteString(fmt.Sprintf("    private ?string $%sToken = null;\n", toCamelCase(name)))
-			case securitySchemeMutualTLS:
-				client.WriteString(fmt.Sprintf("    private ?string $%sCert = null;\n", toCamelCase(name)))
-				client.WriteString(fmt.Sprintf("    private ?string $%sKey = null;\n", toCamelCase(name)))
+	// Generate auth method body
+	authMethodBody := generatePHPAuthMethodBody(extractedData.SecuritySchemes)
+
+	// Prepare template data
+	type PHPClientData struct {
+		Namespace        string
+		Imports          string
+		DisplayName      string
+		ClientClassName  string
+		HTTPClientType   string
+		BaseURLDefault   string
+		HTTPClientMethod string
+		AuthFields       string
+		RetryEnabled     bool
+		RetryFields      string
+		RetryInit        string
+		RetryHelper      string
+		AuthSetup        string
+		AuthMethodBody   string
+	}
+	templateData := PHPClientData{
+		Namespace:        namespace,
+		Imports:          imports,
+		DisplayName:      displayName,
+		ClientClassName:  clientClassName,
+		HTTPClientType:   getPHPHTTPClientType(data.HTTPLib),
+		BaseURLDefault:   baseURLDefault,
+		HTTPClientMethod: getPHPHTTPClientMethod(data.HTTPLib),
+		AuthFields:       authFields,
+		RetryEnabled:     data.RetryConfig.Enabled,
+		RetryFields:      retryFields,
+		RetryInit:        retryInit,
+		RetryHelper:      retryHelper,
+		AuthSetup:        authSetup,
+		AuthMethodBody:   authMethodBody,
+	}
+
+	// Load and render template
+	tmpl, err := LoadTemplate(GetPHPClientTemplate())
+	if err != nil {
+		return "", fmt.Errorf("failed to load PHP client template: %w", err)
+	}
+
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, templateData); err != nil {
+		return "", fmt.Errorf("failed to execute PHP client template: %w", err)
+	}
+
+	return buf.String(), nil
+}
+
+// generatePHPAuthFields generates authentication field declarations
+func generatePHPAuthFields(securitySchemes map[string]SecurityScheme) string {
+	if len(securitySchemes) == 0 {
+		return ""
+	}
+
+	var fields strings.Builder
+	fields.WriteString("    // Authentication fields\n")
+	for name, scheme := range securitySchemes {
+		switch scheme.Type {
+		case securitySchemeAPIKey:
+			fields.WriteString(fmt.Sprintf("    private ?string $%s = null;\n", toCamelCase(name)))
+		case securitySchemeHTTP:
+			switch scheme.Scheme {
+			case securitySchemeBearer:
+				fields.WriteString("    private ?string $bearerToken = null;\n")
+			case securitySchemeBasic, securitySchemeDigest:
+				fields.WriteString("    private ?string $username = null;\n")
+				fields.WriteString("    private ?string $password = null;\n")
 			}
-		}
-		client.WriteString("\n")
-	}
-
-	// Add retry fields if enabled
-	if data.RetryConfig.Enabled {
-		client.WriteString(retryFields)
-		client.WriteString("\n")
-	}
-
-	// Constructor
-	client.WriteString("    /**\n")
-	client.WriteString("     * Create a new API client\n")
-	client.WriteString("     *\n")
-	client.WriteString("     * @param string $baseUrl Base URL for the API\n")
-	client.WriteString("     * @param array<string, mixed> $options Client options (http_client, auth, retry, etc.)\n")
-	client.WriteString("     */\n")
-	client.WriteString(fmt.Sprintf("    public function __construct(string $baseUrl = \"%s\", array $options = [])\n", baseURLDefault))
-	client.WriteString("    {\n")
-	client.WriteString("        $this->baseUrl = rtrim($baseUrl, '/');\n")
-	client.WriteString(fmt.Sprintf("        $this->httpClient = $options['http_client'] ?? new %s();\n\n", getPHPHTTPClientType(data.HTTPLib)))
-
-	// Authentication setup
-	client.WriteString(authSetup)
-
-	// Retry initialization
-	if data.RetryConfig.Enabled {
-		client.WriteString(retryInit)
-	}
-
-	client.WriteString("    }\n\n")
-
-	// Add retry helper methods if enabled
-	if data.RetryConfig.Enabled {
-		client.WriteString(retryHelper)
-		client.WriteString("\n")
-	}
-
-	// Request method (public for use by API classes)
-	client.WriteString("    /**\n")
-	client.WriteString("     * Make an HTTP request\n")
-	if data.RetryConfig.Enabled {
-		client.WriteString("     * Includes automatic retry logic for transient failures\n")
-	}
-	client.WriteString("     *\n")
-	client.WriteString("     * @param string $method HTTP method\n")
-	client.WriteString("     * @param string $path API path\n")
-	client.WriteString("     * @param array<string, mixed> $options Request options\n")
-	client.WriteString("     * @return array<string, mixed> Response data\n")
-	client.WriteString("     * @throws ApiException\n")
-	client.WriteString("     */\n")
-	client.WriteString("    public function request(string $method, string $path, array $options = []): array\n")
-	client.WriteString("    {\n")
-	client.WriteString("        $url = $this->baseUrl . $path;\n\n")
-	client.WriteString("        // Apply authentication\n")
-	client.WriteString("        $this->applyAuth($options);\n\n")
-
-	if data.RetryConfig.Enabled {
-		client.WriteString("        // Use retry logic if enabled\n")
-		client.WriteString("        return $this->requestWithRetry($method, $url, $options);\n")
-	} else {
-		client.WriteString("        // Make request\n")
-		client.WriteString("        try {\n")
-		client.WriteString(fmt.Sprintf("            $response = $this->httpClient->%s($method, $url, $options);\n", getPHPHTTPClientMethod(data.HTTPLib)))
-		client.WriteString("            $statusCode = $response->getStatusCode();\n\n")
-		client.WriteString("            if ($statusCode >= 400) {\n")
-		client.WriteString("                $body = $response->getBody()->getContents();\n")
-		client.WriteString("                throw new ApiException(\n")
-		client.WriteString("                    \"API error: {$statusCode} - {$body}\",\n")
-		client.WriteString("                    $statusCode,\n")
-		client.WriteString("                    null,\n")
-		client.WriteString("                    json_decode($body, true)\n")
-		client.WriteString("                );\n")
-		client.WriteString("            }\n\n")
-		client.WriteString("            return json_decode($response->getBody()->getContents(), true);\n")
-		client.WriteString("        } catch (\\GuzzleHttp\\Exception\\RequestException $e) {\n")
-		client.WriteString("            throw new ApiException($e->getMessage(), $e->getCode(), $e);\n")
-		client.WriteString("        }\n")
-	}
-
-	client.WriteString("    }\n\n")
-
-	// Apply auth method
-	client.WriteString("    /**\n")
-	client.WriteString("     * Apply authentication to request options\n")
-	client.WriteString("     *\n")
-	client.WriteString("     * @param array<string, mixed> $options Request options (modified in place)\n")
-	client.WriteString("     */\n")
-	client.WriteString("    private function applyAuth(array &$options): void\n")
-	client.WriteString("    {\n")
-	if len(extractedData.SecuritySchemes) == 0 {
-		client.WriteString("        // No authentication required\n")
-	} else {
-		client.WriteString("        if (!isset($options['headers'])) {\n")
-		client.WriteString("            $options['headers'] = [];\n")
-		client.WriteString("        }\n\n")
-
-		for name, scheme := range extractedData.SecuritySchemes {
-			switch scheme.Type {
-			case securitySchemeAPIKey:
-				fieldName := toCamelCase(name)
-				client.WriteString(fmt.Sprintf("        if ($this->%s !== null) {\n", fieldName))
-				switch scheme.In {
-				case paramLocationHeader:
-					client.WriteString(fmt.Sprintf("            $options['headers']['%s'] = $this->%s;\n", scheme.Name, fieldName))
-				case paramLocationQuery:
-					client.WriteString("            if (!isset($options['query'])) {\n")
-					client.WriteString("                $options['query'] = [];\n")
-					client.WriteString("            }\n")
-					client.WriteString(fmt.Sprintf("            $options['query']['%s'] = $this->%s;\n", scheme.Name, fieldName))
-				}
-				client.WriteString("        }\n\n")
-			case securitySchemeHTTP:
-				switch scheme.Scheme {
-				case securitySchemeBearer:
-					client.WriteString("        if ($this->bearerToken !== null) {\n")
-					client.WriteString("            $options['headers']['Authorization'] = 'Bearer ' . $this->bearerToken;\n")
-					client.WriteString("        }\n\n")
-				case securitySchemeBasic:
-					client.WriteString("        if ($this->username !== null && $this->password !== null) {\n")
-					client.WriteString("            $options['auth'] = [$this->username, $this->password];\n")
-					client.WriteString("        }\n\n")
-				}
-			case securitySchemeOAuth2, securitySchemeOpenIDConnect:
-				fieldName := toCamelCase(name)
-				client.WriteString(fmt.Sprintf("        if ($this->%sToken !== null) {\n", fieldName))
-				client.WriteString(fmt.Sprintf("            $options['headers']['Authorization'] = 'Bearer ' . $this->%sToken;\n", fieldName))
-				client.WriteString("        }\n\n")
-			}
+		case securitySchemeOAuth2, securitySchemeOpenIDConnect:
+			fields.WriteString(fmt.Sprintf("    private ?string $%sToken = null;\n", toCamelCase(name)))
+		case securitySchemeMutualTLS:
+			fields.WriteString(fmt.Sprintf("    private ?string $%sCert = null;\n", toCamelCase(name)))
+			fields.WriteString(fmt.Sprintf("    private ?string $%sKey = null;\n", toCamelCase(name)))
 		}
 	}
-	client.WriteString("    }\n")
-	client.WriteString("}\n")
+	fields.WriteString("\n")
+	return fields.String()
+}
 
-	return client.String()
+// generatePHPAuthMethodBody generates the body of the applyAuth method
+func generatePHPAuthMethodBody(securitySchemes map[string]SecurityScheme) string {
+	if len(securitySchemes) == 0 {
+		return "        // No authentication required\n"
+	}
+
+	var body strings.Builder
+	body.WriteString("        if (!isset($options['headers'])) {\n")
+	body.WriteString("            $options['headers'] = [];\n")
+	body.WriteString("        }\n\n")
+
+	for name, scheme := range securitySchemes {
+		switch scheme.Type {
+		case securitySchemeAPIKey:
+			fieldName := toCamelCase(name)
+			body.WriteString(fmt.Sprintf("        if ($this->%s !== null) {\n", fieldName))
+			switch scheme.In {
+			case paramLocationHeader:
+				body.WriteString(fmt.Sprintf("            $options['headers']['%s'] = $this->%s;\n", scheme.Name, fieldName))
+			case paramLocationQuery:
+				body.WriteString("            if (!isset($options['query'])) {\n")
+				body.WriteString("                $options['query'] = [];\n")
+				body.WriteString("            }\n")
+				body.WriteString(fmt.Sprintf("            $options['query']['%s'] = $this->%s;\n", scheme.Name, fieldName))
+			}
+			body.WriteString("        }\n\n")
+		case securitySchemeHTTP:
+			switch scheme.Scheme {
+			case securitySchemeBearer:
+				body.WriteString("        if ($this->bearerToken !== null) {\n")
+				body.WriteString("            $options['headers']['Authorization'] = 'Bearer ' . $this->bearerToken;\n")
+				body.WriteString("        }\n\n")
+			case securitySchemeBasic:
+				body.WriteString("        if ($this->username !== null && $this->password !== null) {\n")
+				body.WriteString("            $options['auth'] = [$this->username, $this->password];\n")
+				body.WriteString("        }\n\n")
+			}
+		case securitySchemeOAuth2, securitySchemeOpenIDConnect:
+			fieldName := toCamelCase(name)
+			body.WriteString(fmt.Sprintf("        if ($this->%sToken !== null) {\n", fieldName))
+			body.WriteString(fmt.Sprintf("            $options['headers']['Authorization'] = 'Bearer ' . $this->%sToken;\n", fieldName))
+			body.WriteString("        }\n\n")
+		}
+	}
+	return body.String()
 }
 
 // buildPHPImports builds the import/use statements for PHP

@@ -1,0 +1,24 @@
+{
+    "name": "vendor/{{.SDKName}}",
+    "description": "PHP SDK for {{.SDKName}} - Auto-generated from OpenAPI schema",
+    "type": "library",
+    "license": "MIT",
+    "version": "{{.SDKVersion}}",
+    "require": {
+{{.Dependencies}}
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "{{.Namespace}}\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "{{.Namespace}}\\Tests\\": "tests/"
+        }
+    }
+}
+

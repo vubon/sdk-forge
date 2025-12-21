@@ -92,8 +92,11 @@ func generatePHPSDKFromExtracted(
 	// Determine SDK version using common utility
 	finalSDKVersion := determineSDKVersion(extractedData, sdkVersion)
 
-	// Generate composer.json
-	composerContent := generatePHPComposerJSON(sdkName, finalSDKVersion, httpLib, version, libConfig)
+	// Generate composer.json using template
+	composerContent, err := generatePHPComposerJSON(sdkName, finalSDKVersion, httpLib, version, libConfig)
+	if err != nil {
+		return fmt.Errorf("failed to generate composer.json: %w", err)
+	}
 	composerPath := filepath.Join(packageDir, "composer.json")
 	// #nosec G306 -- 0644 is appropriate for composer.json file
 	if err := os.WriteFile(composerPath, []byte(composerContent), 0644); err != nil {
@@ -106,8 +109,11 @@ func generatePHPSDKFromExtracted(
 		return fmt.Errorf("failed to create src directory: %w", err)
 	}
 
-	// Generate client class
-	clientContent := generatePHPClient(data, version)
+	// Generate client class using template
+	clientContent, err := generatePHPClient(data, version)
+	if err != nil {
+		return fmt.Errorf("failed to generate client: %w", err)
+	}
 	clientPath := filepath.Join(srcDir, fmt.Sprintf("%sClient.php", sanitizedName))
 	// #nosec G306 -- 0644 is appropriate for PHP source files
 	if err := os.WriteFile(clientPath, []byte(clientContent), 0644); err != nil {
@@ -185,8 +191,11 @@ func generatePHPSDKFromExtracted(
 		_ = err
 	}
 
-	// Generate README.md
-	readmeContent := generatePHPReadme(data, finalSDKVersion)
+	// Generate README.md using template
+	readmeContent, err := generatePHPReadme(data, finalSDKVersion)
+	if err != nil {
+		return fmt.Errorf("failed to generate README: %w", err)
+	}
 	readmePath := filepath.Join(packageDir, "README.md")
 	// #nosec G306 -- 0644 is appropriate for README file
 	if err := os.WriteFile(readmePath, []byte(readmeContent), 0644); err != nil {
@@ -226,8 +235,8 @@ func generatePHPSDKFromExtracted(
 	return nil
 }
 
-// generatePHPComposerJSON generates composer.json file
-func generatePHPComposerJSON(sdkName, sdkVersion, httpLib string, version LanguageVersion, libConfig *httplib.LibraryConfig) string {
+// generatePHPComposerJSON generates composer.json file using template
+func generatePHPComposerJSON(sdkName, sdkVersion, httpLib string, version LanguageVersion, libConfig *httplib.LibraryConfig) (string, error) {
 	// Parse dependency string (format: "package:version" or "package")
 	dependency := libConfig.Dependency
 	if dependency == "" {
@@ -243,45 +252,47 @@ func generatePHPComposerJSON(sdkName, sdkVersion, httpLib string, version Langua
 		packageVersion = parts[1]
 	}
 
-	// Build require section
-	requireSection := fmt.Sprintf(`        "php": "%s"`, version.GetPHPVersionString())
+	// Build dependencies string
+	var dependencies strings.Builder
+	dependencies.WriteString(fmt.Sprintf(`        "php": "%s"`, version.GetPHPVersionString()))
 	if packageName != "" {
 		if packageVersion != "" {
-			requireSection += fmt.Sprintf(",\n        \"%s\": \"%s\"", packageName, packageVersion)
+			dependencies.WriteString(fmt.Sprintf(",\n        \"%s\": \"%s\"", packageName, packageVersion))
 		} else {
-			requireSection += fmt.Sprintf(",\n        \"%s\"", packageName)
+			dependencies.WriteString(fmt.Sprintf(",\n        \"%s\"", packageName))
 		}
 	}
 
-	// Add PHPUnit for dev dependencies if tests will be generated
-	requireDevSection := `        "phpunit/phpunit": "^10.0"`
+	namespace := fmt.Sprintf("Vendor\\%s", toPascalCase(sdkName))
 
-	namespace := fmt.Sprintf("Vendor\\%s", sdkName)
+	// Prepare template data
+	type ComposerData struct {
+		SDKName      string
+		SDKVersion   string
+		PHPVersion   string
+		Dependencies string
+		Namespace    string
+	}
+	templateData := ComposerData{
+		SDKName:      strings.ToLower(sdkName),
+		SDKVersion:   sdkVersion,
+		PHPVersion:   version.GetPHPVersionString(),
+		Dependencies: dependencies.String(),
+		Namespace:    namespace,
+	}
 
-	return fmt.Sprintf(`{
-    "name": "vendor/%s",
-    "description": "PHP SDK for %s - Auto-generated from OpenAPI schema",
-    "type": "library",
-    "license": "MIT",
-    "version": "%s",
-    "require": {
-%s
-    },
-    "require-dev": {
-%s
-    },
-    "autoload": {
-        "psr-4": {
-            "%s\\": "src/"
-        }
-    },
-    "autoload-dev": {
-        "psr-4": {
-            "%s\\Tests\\": "tests/"
-        }
-    }
-}
-`, strings.ToLower(sdkName), sdkName, sdkVersion, requireSection, requireDevSection, namespace, namespace)
+	// Load and render template
+	tmpl, err := LoadTemplate(GetPHPComposerTemplate())
+	if err != nil {
+		return "", fmt.Errorf("failed to load composer template: %w", err)
+	}
+
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, templateData); err != nil {
+		return "", fmt.Errorf("failed to execute composer template: %w", err)
+	}
+
+	return buf.String(), nil
 }
 
 // generatePHPClient generates PHP client class
@@ -316,8 +327,8 @@ class ApiException extends \Exception
 `
 }
 
-// generatePHPReadme generates README.md for PHP SDK
-func generatePHPReadme(data TemplateData, sdkVersion string) string {
+// generatePHPReadme generates README.md for PHP SDK using template
+func generatePHPReadme(data TemplateData, sdkVersion string) (string, error) {
 	extractedData, ok := data.OpenAPIDoc.(*ExtractedData)
 	namespace := getPHPNamespace(data.SDKName)
 	clientClassName := getClientClassName(data.SDKName)
@@ -339,67 +350,44 @@ func generatePHPReadme(data TemplateData, sdkVersion string) string {
 		description = extractedData.Description
 	}
 
-	var readme strings.Builder
-	readme.WriteString(fmt.Sprintf("# %s PHP SDK\n\n", displayName))
-	readme.WriteString(fmt.Sprintf("%s\n\n", description))
-	readme.WriteString(fmt.Sprintf("**Version:** %s\n\n", sdkVersion))
-	readme.WriteString("## Installation\n\n")
-	readme.WriteString("Install via Composer:\n\n")
-	readme.WriteString("```bash\n")
-	readme.WriteString("composer require vendor/" + strings.ToLower(data.SDKName) + "\n")
-	readme.WriteString("```\n\n")
-	readme.WriteString("Or add to your `composer.json`:\n\n")
-	readme.WriteString("```json\n")
-	readme.WriteString(fmt.Sprintf("{\n    \"require\": {\n        \"vendor/%s\": \"%s\"\n    }\n}\n", strings.ToLower(data.SDKName), sdkVersion))
-	readme.WriteString("```\n\n")
-
-	readme.WriteString("## Quick Start\n\n")
-	readme.WriteString("```php\n")
-	readme.WriteString("<?php\n\n")
-	readme.WriteString("require_once __DIR__ . '/vendor/autoload.php';\n\n")
-	readme.WriteString(fmt.Sprintf("use %s\\%s;\n", namespace, clientClassName))
-
-	// Add API namespace if operations exist
-	if ok && extractedData != nil && len(extractedData.Operations) > 0 {
-		operationsByTag := groupOperationsByTag(extractedData.Operations)
-		for tag := range operationsByTag {
-			apiClassName := toPascalCase(tag) + "Api"
-			readme.WriteString(fmt.Sprintf("use %s\\Api\\%s;\n", namespace, apiClassName))
-			break // Just show first one as example
-		}
-	}
-
-	readme.WriteString("\n")
-	readme.WriteString("// Initialize client\n")
-	readme.WriteString(fmt.Sprintf("$client = new %s(\n", clientClassName))
-	readme.WriteString(fmt.Sprintf("    baseUrl: \"%s\"\n", baseURL))
-
-	// Add authentication example if available
-	if ok && extractedData != nil && len(extractedData.SecuritySchemes) > 0 {
+	// Generate auth example for quick start
+	authExample := ""
+	hasAuth := ok && extractedData != nil && len(extractedData.SecuritySchemes) > 0
+	if hasAuth {
 		for name, scheme := range extractedData.SecuritySchemes {
 			switch scheme.Type {
 			case securitySchemeAPIKey:
-				readme.WriteString(fmt.Sprintf("    options: [\n        '%s' => 'your-api-key'\n    ]\n", name))
+				authExample = fmt.Sprintf("        '%s' => 'your-api-key'", name)
 			case securitySchemeHTTP:
 				switch scheme.Scheme {
 				case securitySchemeBearer:
-					readme.WriteString("    options: [\n        'bearer_token' => 'your-token'\n    ]\n")
+					authExample = "        'bearer_token' => 'your-token'"
 				case securitySchemeBasic:
-					readme.WriteString("    options: [\n        'username' => 'your-username',\n        'password' => 'your-password'\n    ]\n")
+					authExample = "        'username' => 'your-username',\n        'password' => 'your-password'"
 				}
 			case securitySchemeOAuth2, securitySchemeOpenIDConnect:
-				readme.WriteString(fmt.Sprintf("    options: [\n        '%s_token' => 'your-token'\n    ]\n", name))
+				authExample = fmt.Sprintf("        '%s_token' => 'your-token'", name)
 			}
-			break // Just show first one as example
+			break // Just show first one
 		}
-	} else {
-		readme.WriteString(")\n")
 	}
 
-	readme.WriteString(");\n\n")
+	// Generate API imports
+	apiImports := ""
+	hasAPI := ok && extractedData != nil && len(extractedData.Operations) > 0
+	if hasAPI {
+		operationsByTag := groupOperationsByTag(extractedData.Operations)
+		for tag := range operationsByTag {
+			apiClassName := toPascalCase(tag) + "Api"
+			apiImports = fmt.Sprintf("use %s\\Api\\%s;", namespace, apiClassName)
+			break // Just show first one
+		}
+	}
 
-	// Add API usage example if operations exist
-	if ok && extractedData != nil && len(extractedData.Operations) > 0 {
+	// Generate usage example
+	usageExample := ""
+	hasOperations := ok && extractedData != nil && len(extractedData.Operations) > 0
+	if hasOperations {
 		operationsByTag := groupOperationsByTag(extractedData.Operations)
 		for tag, operations := range operationsByTag {
 			if len(operations) > 0 {
@@ -412,105 +400,104 @@ func generatePHPReadme(data TemplateData, sdkVersion string) string {
 				}
 				methodName = toCamelCase(methodName)
 
-				readme.WriteString("// Use API methods\n")
-				readme.WriteString(fmt.Sprintf("$api = new %s($client);\n", apiClassName))
-				readme.WriteString(fmt.Sprintf("$response = $api->%s(", methodName))
-
-				// Add example parameters
 				var params []string
 				for _, param := range op.Parameters {
 					if param.In == paramLocationPath {
 						params = append(params, fmt.Sprintf("\"example-%s\"", param.Name))
 					}
 				}
+				paramStr := ""
 				if len(params) > 0 {
-					readme.WriteString(strings.Join(params, ", "))
+					paramStr = strings.Join(params, ", ")
 				}
-				readme.WriteString(");\n")
-				readme.WriteString("print_r($response);\n")
-				break // Just show first operation as example
+
+				usageExample = fmt.Sprintf("$api = new %s($client);\n$response = $api->%s(%s);\nprint_r($response);", apiClassName, methodName, paramStr)
+				break
 			}
 		}
 	}
 
-	readme.WriteString("```\n\n")
-
-	// HTTP Library section
-	readme.WriteString("## HTTP Library\n\n")
-	readme.WriteString(fmt.Sprintf("This SDK uses **%s** for HTTP requests.\n\n", data.HTTPLib))
-
-	// Authentication section
-	if ok && extractedData != nil && len(extractedData.SecuritySchemes) > 0 {
-		readme.WriteString("## Authentication\n\n")
-		readme.WriteString("Configure authentication when creating the client:\n\n")
-		readme.WriteString("```php\n")
+	// Generate auth example code for authentication section
+	authExampleCode := ""
+	if hasAuth {
 		for name, scheme := range extractedData.SecuritySchemes {
 			switch scheme.Type {
 			case securitySchemeAPIKey:
-				readme.WriteString(fmt.Sprintf("$client = new %s(\n", clientClassName))
-				readme.WriteString(fmt.Sprintf("    baseUrl: \"%s\",\n", baseURL))
-				readme.WriteString(fmt.Sprintf("    options: ['%s' => 'your-api-key']\n", name))
-				readme.WriteString(");\n")
+				authExampleCode = fmt.Sprintf("$client = new %s(\n    baseUrl: \"%s\",\n    options: ['%s' => 'your-api-key']\n);", clientClassName, baseURL, name)
 			case securitySchemeHTTP:
 				switch scheme.Scheme {
 				case securitySchemeBearer:
-					readme.WriteString(fmt.Sprintf("$client = new %s(\n", clientClassName))
-					readme.WriteString(fmt.Sprintf("    baseUrl: \"%s\",\n", baseURL))
-					readme.WriteString("    options: ['bearer_token' => 'your-token']\n")
-					readme.WriteString(");\n")
+					authExampleCode = fmt.Sprintf("$client = new %s(\n    baseUrl: \"%s\",\n    options: ['bearer_token' => 'your-token']\n);", clientClassName, baseURL)
 				case securitySchemeBasic:
-					readme.WriteString(fmt.Sprintf("$client = new %s(\n", clientClassName))
-					readme.WriteString(fmt.Sprintf("    baseUrl: \"%s\",\n", baseURL))
-					readme.WriteString("    options: [\n")
-					readme.WriteString("        'username' => 'your-username',\n")
-					readme.WriteString("        'password' => 'your-password'\n")
-					readme.WriteString("    ]\n")
-					readme.WriteString(");\n")
+					authExampleCode = fmt.Sprintf("$client = new %s(\n    baseUrl: \"%s\",\n    options: [\n        'username' => 'your-username',\n        'password' => 'your-password'\n    ]\n);", clientClassName, baseURL)
 				}
 			case securitySchemeOAuth2, securitySchemeOpenIDConnect:
-				readme.WriteString(fmt.Sprintf("$client = new %s(\n", clientClassName))
-				readme.WriteString(fmt.Sprintf("    baseUrl: \"%s\",\n", baseURL))
-				readme.WriteString(fmt.Sprintf("    options: ['%s_token' => 'your-token']\n", name))
-				readme.WriteString(");\n")
+				authExampleCode = fmt.Sprintf("$client = new %s(\n    baseUrl: \"%s\",\n    options: ['%s_token' => 'your-token']\n);", clientClassName, baseURL, name)
 			}
-			break // Just show first one
+			break
 		}
-		readme.WriteString("```\n\n")
 	}
 
-	// Retry mechanism section (if enabled)
-	if data.RetryConfig.Enabled {
-		readme.WriteString("## Retry Mechanism\n\n")
-		readme.WriteString("This SDK includes automatic retry logic for transient failures.\n\n")
-		readme.WriteString("**Configuration:**\n")
-		readme.WriteString(fmt.Sprintf("- Max attempts: %d\n", data.RetryConfig.MaxAttempts))
-		readme.WriteString(fmt.Sprintf("- Strategy: %s\n", data.RetryConfig.Strategy))
-		readme.WriteString(fmt.Sprintf("- Initial delay: %.1fs\n", data.RetryConfig.InitialDelay.Seconds()))
-		readme.WriteString(fmt.Sprintf("- Max delay: %.1fs\n", data.RetryConfig.MaxDelay.Seconds()))
-		readme.WriteString(fmt.Sprintf("- Backoff multiplier: %.1f\n", data.RetryConfig.BackoffMultiplier))
-		readme.WriteString("\n")
+	// Prepare template data
+	type PHPReadmeData struct {
+		DisplayName            string
+		Description            string
+		SDKVersion             string
+		SDKName                string
+		Namespace              string
+		ClientClassName        string
+		BaseURL                string
+		HTTPLib                string
+		HasAuth                bool
+		AuthExample            string
+		AuthExampleCode        string
+		HasAPI                 bool
+		APIImports             string
+		HasOperations          bool
+		UsageExample           string
+		RetryEnabled           bool
+		RetryMaxAttempts       int
+		RetryStrategy          string
+		RetryInitialDelay      float64
+		RetryMaxDelay          float64
+		RetryBackoffMultiplier float64
+	}
+	templateData := PHPReadmeData{
+		DisplayName:            displayName,
+		Description:            description,
+		SDKVersion:             sdkVersion,
+		SDKName:                strings.ToLower(data.SDKName),
+		Namespace:              namespace,
+		ClientClassName:        clientClassName,
+		BaseURL:                baseURL,
+		HTTPLib:                data.HTTPLib,
+		HasAuth:                hasAuth,
+		AuthExample:            authExample,
+		AuthExampleCode:        authExampleCode,
+		HasAPI:                 hasAPI,
+		APIImports:             apiImports,
+		HasOperations:          hasOperations,
+		UsageExample:           usageExample,
+		RetryEnabled:           data.RetryConfig.Enabled,
+		RetryMaxAttempts:       data.RetryConfig.MaxAttempts,
+		RetryStrategy:          string(data.RetryConfig.Strategy),
+		RetryInitialDelay:      data.RetryConfig.InitialDelay.Seconds(),
+		RetryMaxDelay:          data.RetryConfig.MaxDelay.Seconds(),
+		RetryBackoffMultiplier: data.RetryConfig.BackoffMultiplier,
 	}
 
-	// Testing section
-	readme.WriteString("## Testing\n\n")
-	readme.WriteString("Run PHPUnit tests:\n\n")
-	readme.WriteString("```bash\n")
-	readme.WriteString("composer install --dev\n")
-	readme.WriteString("vendor/bin/phpunit\n")
-	readme.WriteString("```\n\n")
+	// Load and render template
+	tmpl, err := LoadTemplate(GetPHPReadmeTemplate())
+	if err != nil {
+		return "", fmt.Errorf("failed to load PHP README template: %w", err)
+	}
 
-	// Code Quality section
-	readme.WriteString("## Code Quality\n\n")
-	readme.WriteString("This SDK includes code quality tools:\n\n")
-	readme.WriteString("- **PHP_CodeSniffer** (PSR-12): `vendor/bin/phpcs`\n")
-	readme.WriteString("- **PHPStan** (static analysis): `vendor/bin/phpstan analyse`\n")
-	readme.WriteString("- **PHP-CS-Fixer** (formatting): `vendor/bin/php-cs-fixer fix`\n\n")
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, templateData); err != nil {
+		return "", fmt.Errorf("failed to execute PHP README template: %w", err)
+	}
 
-	// License section
-	readme.WriteString("## License\n\n")
-	readme.WriteString("Generated by [SDK Forge](https://github.com/vubon/sdk-forge)\n")
-
-	return readme.String()
+	return buf.String(), nil
 }
 
 // generatePHPExamples generates PHP usage examples
