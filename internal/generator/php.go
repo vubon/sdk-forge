@@ -325,16 +325,101 @@ func generatePHPExamples(data TemplateData) string {
 	return "<?php\n\n// PHP Examples - TODO: Implement\n"
 }
 
-// generatePHPTests generates PHPUnit tests
-func generatePHPTests(packageDir, srcDir string, data TemplateData, extractedData *ExtractedData) error {
-	// TODO: Implement PHP test generation
-	return nil
-}
+// generatePHPTests is now implemented in php_tests.go
 
 // generatePHPQualityConfigs generates code quality configuration files
 func generatePHPQualityConfigs(packageDir string) error {
-	// TODO: Implement PHP quality config generation (phpcs.xml, phpstan.neon, .php-cs-fixer.php)
+	// Generate phpcs.xml (PHP_CodeSniffer configuration)
+	phpcsContent := generatePHPCodeSnifferConfig()
+	phpcsPath := filepath.Join(packageDir, "phpcs.xml")
+	// #nosec G306 -- 0644 is appropriate for config files
+	if err := os.WriteFile(phpcsPath, []byte(phpcsContent), 0644); err != nil {
+		return fmt.Errorf("failed to write phpcs.xml: %w", err)
+	}
+
+	// Generate phpstan.neon (PHPStan configuration)
+	phpstanContent := generatePHPPHPStanConfig()
+	phpstanPath := filepath.Join(packageDir, "phpstan.neon")
+	// #nosec G306 -- 0644 is appropriate for config files
+	if err := os.WriteFile(phpstanPath, []byte(phpstanContent), 0644); err != nil {
+		return fmt.Errorf("failed to write phpstan.neon: %w", err)
+	}
+
+	// Generate .php-cs-fixer.php (PHP-CS-Fixer configuration)
+	csFixerContent := generatePHPCsFixerConfig()
+	csFixerPath := filepath.Join(packageDir, ".php-cs-fixer.php")
+	// #nosec G306 -- 0644 is appropriate for config files
+	if err := os.WriteFile(csFixerPath, []byte(csFixerContent), 0644); err != nil {
+		return fmt.Errorf("failed to write .php-cs-fixer.php: %w", err)
+	}
+
 	return nil
+}
+
+// generatePHPCodeSnifferConfig generates phpcs.xml configuration
+func generatePHPCodeSnifferConfig() string {
+	return `<?xml version="1.0"?>
+<ruleset name="SDK CodeSniffer Rules">
+    <description>PHP_CodeSniffer configuration for generated SDK</description>
+    
+    <!-- Include the whole project -->
+    <file>src</file>
+    <file>tests</file>
+    
+    <!-- Use PSR-12 standard -->
+    <rule ref="PSR12"/>
+    
+    <!-- Exclude vendor directory -->
+    <exclude-pattern>vendor/*</exclude-pattern>
+    <exclude-pattern>*.cache</exclude-pattern>
+</ruleset>
+`
+}
+
+// generatePHPPHPStanConfig generates phpstan.neon configuration
+func generatePHPPHPStanConfig() string {
+	return `parameters:
+    level: 5
+    paths:
+        - src
+        - tests
+    excludePaths:
+        - vendor
+    checkMissingIterableValueType: false
+    checkGenericClassInNonGenericObjectType: false
+`
+}
+
+// generatePHPCsFixerConfig generates .php-cs-fixer.php configuration
+func generatePHPCsFixerConfig() string {
+	return `<?php
+
+$finder = PhpCsFixer\Finder::create()
+    ->in(__DIR__)
+    ->exclude('vendor')
+    ->exclude('.phpunit.cache')
+    ->name('*.php');
+
+$config = new PhpCsFixer\Config();
+return $config
+    ->setRules([
+        '@PSR12' => true,
+        'array_syntax' => ['syntax' => 'short'],
+        'ordered_imports' => ['sort_algorithm' => 'alpha'],
+        'no_unused_imports' => true,
+        'not_operator_with_successor_space' => true,
+        'trailing_comma_in_multiline' => true,
+        'phpdoc_scalar' => true,
+        'unary_operator_spaces' => true,
+        'binary_operator_spaces' => true,
+        'blank_line_before_statement' => [
+            'statements' => ['break', 'continue', 'declare', 'return', 'throw', 'try'],
+        ],
+        'phpdoc_single_line_var_spacing' => true,
+        'phpdoc_var_without_name' => true,
+    ])
+    ->setFinder($finder);
+`
 }
 
 // formatPHPFile formats a PHP source file using PHP-CS-Fixer (if available)
