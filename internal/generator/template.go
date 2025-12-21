@@ -22,6 +22,7 @@ type TemplateData struct {
 	HTTPLibConfig   *httplib.LibraryConfig
 	OpenAPIDoc      interface{} // Will be properly typed later
 	ClientClassName string      // Client class name without "Sdk" suffix
+	RetryConfig     RetryConfig // Retry configuration for HTTP requests
 }
 
 // FuncMap returns custom template functions

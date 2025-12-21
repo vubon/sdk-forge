@@ -5,6 +5,32 @@ All notable changes to SDK Forge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-12-22
+
+### Added
+- **Retry Mechanism**: Configurable automatic retry logic for generated SDKs
+  - Support for exponential, linear, and fixed backoff strategies
+  - Configurable retry attempts, delays, and retryable status codes
+  - Network error retry support
+  - CLI flags: `--retry-enabled`, `--retry-max-attempts`, `--retry-strategy`, `--retry-initial-delay`, `--retry-max-delay`, `--retry-backoff-multiplier`, `--retry-status-codes`
+  - OpenAPI extension support via `x-sdk-forge-retry` for schema-level configuration
+  - Full support for Python SDKs (requests, httpx, aiohttp, urllib3)
+  - Full support for Go SDKs (nethttp, resty, gentleman)
+  - Comprehensive retry configuration structure with sensible defaults
+  - Retry delay calculation methods for all strategies
+  - Retryable status code checking
+  - Integration with existing HTTP request flow in generated SDKs
+- Comprehensive unit tests for retry mechanism
+- CLI integration tests for retry configuration parsing
+- Manual test scripts for retry mechanism verification (Python and Go)
+- Documentation for retry configuration in User Manual
+
+### Changed
+- Default retry configuration: disabled by default (backward compatible)
+- When enabled, defaults to exponential backoff with 3 max attempts
+- Retryable status codes default: 429, 500, 502, 503, 504
+- Network error retries enabled by default when retry is enabled
+
 ## [0.3.0] - 2025-12-19
 
 ### Added

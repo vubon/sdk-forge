@@ -8,7 +8,7 @@ package {{.PackageName}}
 // {{.ClientClassName}} represents the API client
 type {{.ClientClassName}} struct {
 	BaseURL    string
-	HTTPClient *http.Client{{.AuthFields}}
+	HTTPClient *http.Client{{.AuthFields}}{{.RetryFields}}
 }
 
 // New{{.ClientClassName}} creates a new API client
@@ -20,6 +20,9 @@ func New{{.ClientClassName}}(baseURL string, options ...{{.ClientClassName}}Opti
 		BaseURL:    strings.TrimSuffix(baseURL, "/"),
 		HTTPClient: &http.Client{},
 	}
+{{- if .RetryEnabled}}
+{{.RetryInit}}
+{{- end}}
 	
 	// Apply options
 	for _, option := range options {
@@ -40,8 +43,11 @@ func WithHTTPClient(httpClient *http.Client) {{.ClientClassName}}Option {
 }
 
 {{.AuthSetup}}
+{{- if .RetryEnabled}}
+{{.RetryHelper}}
+{{- end}}
 
-// Request makes an HTTP request (public method for use by api package)
+// Request makes an HTTP request (public method for use by api package){{- if .RetryEnabled}} with retry logic{{- end}}
 func (c *{{.ClientClassName}}) Request(method, path string, body {{.EmptyInterfaceType}}) ([]byte, error) {
 	url := c.BaseURL + path
 	
@@ -63,8 +69,13 @@ func (c *{{.ClientClassName}}) Request(method, path string, body {{.EmptyInterfa
 	
 	// Apply authentication headers
 	c.applyAuth(req)
+{{- if .RetryEnabled}}
 	
+	// Use retry logic if enabled
+	resp, err := c.requestWithRetry(req)
+{{- else}}
 	resp, err := c.HTTPClient.Do(req)
+{{- end}}
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}

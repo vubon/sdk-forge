@@ -18,12 +18,14 @@ import (
 // GenerateGoSDK generates a Go SDK
 // If version is nil, uses the default Go version
 // If sdkVersion is empty, extracts from OpenAPI schema or defaults to "1.0.0"
+// retryConfig specifies retry behavior for HTTP requests (can be disabled)
 func GenerateGoSDK(
 	outputPath, sdkName, httpLib string,
 	openAPIDoc interface{},
 	version *LanguageVersion,
 	sdkVersion string,
 	generateTests bool,
+	retryConfig RetryConfig,
 ) error {
 	// Use default version if not provided
 	if version == nil {
@@ -36,7 +38,7 @@ func GenerateGoSDK(
 	if !ok {
 		// If not an openapi3.T, try to extract from ExtractedData
 		if extractedData, ok := openAPIDoc.(*ExtractedData); ok {
-			return generateGoSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests)
+			return generateGoSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests, retryConfig)
 		}
 		return fmt.Errorf("invalid OpenAPI document type")
 	}
@@ -47,7 +49,7 @@ func GenerateGoSDK(
 		return fmt.Errorf("failed to extract OpenAPI data: %w", err)
 	}
 
-	return generateGoSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests)
+	return generateGoSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests, retryConfig)
 }
 
 // generateGoSDKFromExtracted generates SDK from extracted data
@@ -57,6 +59,7 @@ func generateGoSDKFromExtracted(
 	version LanguageVersion,
 	sdkVersion string,
 	generateTests bool,
+	retryConfig RetryConfig,
 ) error {
 	// Get HTTP library config
 	libConfig, err := httplib.GetLibraryConfig("go", httpLib)
@@ -84,6 +87,7 @@ func generateGoSDKFromExtracted(
 		HTTPLibConfig:   libConfig,
 		OpenAPIDoc:      extractedData,
 		ClientClassName: getClientClassName(sanitizedName),
+		RetryConfig:     retryConfig,
 	}
 
 	// Determine SDK version using common utility
@@ -302,6 +306,18 @@ func generateGoClient(data TemplateData, version LanguageVersion) string {
 	// Use provided version for type generation
 	goVersion := version
 
+	// Generate retry setup if enabled
+	retryFields := ""
+	retryHelper := ""
+	retryInit := ""
+	if data.RetryConfig.Enabled {
+		retryFields = generateGoRetryFields(data.RetryConfig)
+		retryHelper = generateGoRetryHelper(data.HTTPLib, data.RetryConfig)
+		// Replace template placeholder with actual client class name
+		retryHelper = strings.ReplaceAll(retryHelper, "{{.ClientClassName}}", data.ClientClassName)
+		retryInit = generateGoRetryInit(data.RetryConfig)
+	}
+
 	// Prepare template data
 	type GoClientData struct {
 		PackageName        string
@@ -313,6 +329,10 @@ func generateGoClient(data TemplateData, version LanguageVersion) string {
 		AuthSetup          string
 		APIMethods         string
 		EmptyInterfaceType string
+		RetryEnabled       bool
+		RetryFields        string
+		RetryHelper        string
+		RetryInit          string
 	}
 	templateData := GoClientData{
 		PackageName:        packageName,
@@ -324,6 +344,10 @@ func generateGoClient(data TemplateData, version LanguageVersion) string {
 		AuthSetup:          authSetup,
 		APIMethods:         apiMethods,
 		EmptyInterfaceType: goVersion.GetGoEmptyInterface(),
+		RetryEnabled:       data.RetryConfig.Enabled,
+		RetryFields:        retryFields,
+		RetryHelper:        retryHelper,
+		RetryInit:          retryInit,
 	}
 
 	// Load and render template
@@ -462,7 +486,7 @@ func (c *%s) Request(method, path string, body %s) ([]byte, error) {
 }
 
 // buildGoImports builds the import statement for Go
-func buildGoImports(_ TemplateData) string {
+func buildGoImports(data TemplateData) string {
 	imports := []string{
 		"bytes",
 		"encoding/json",
@@ -472,12 +496,161 @@ func buildGoImports(_ TemplateData) string {
 		"strings",
 	}
 
+	// Add time import if retry is enabled
+	if data.RetryConfig.Enabled {
+		imports = append(imports, "time")
+	}
+
 	var importList strings.Builder
 	for _, imp := range imports {
 		importList.WriteString(fmt.Sprintf("\t\"%s\"\n", imp))
 	}
 
 	return fmt.Sprintf("import (\n%s)", importList.String())
+}
+
+// generateGoRetryFields generates retry configuration fields for client struct
+func generateGoRetryFields(config RetryConfig) string {
+	if !config.Enabled {
+		return ""
+	}
+
+	var buf strings.Builder
+	buf.WriteString("\n\t// Retry configuration\n")
+	buf.WriteString("\tretryMaxAttempts          int\n")
+	buf.WriteString("\tretryInitialDelay         time.Duration\n")
+	buf.WriteString("\tretryMaxDelay             time.Duration\n")
+	buf.WriteString("\tretryBackoffMultiplier    float64\n")
+	buf.WriteString("\tretryStrategy             string\n")
+	buf.WriteString("\tretryableStatusCodes      []int\n")
+	buf.WriteString("\tretryOnNetworkErrors      bool\n")
+
+	return buf.String()
+}
+
+// generateGoRetryHelper generates retry helper functions based on HTTP library
+func generateGoRetryHelper(httpLib string, config RetryConfig) string {
+	if !config.Enabled {
+		return ""
+	}
+
+	var buf strings.Builder
+
+	// Calculate delay helper function - note: template will replace {{.ClientClassName}}
+	buf.WriteString("\n// calculateRetryDelay calculates delay for retry attempt based on strategy\n")
+	buf.WriteString("func (c *{{.ClientClassName}}) calculateRetryDelay(attempt int) time.Duration {\n")
+	buf.WriteString("\tswitch c.retryStrategy {\n")
+	buf.WriteString(fmt.Sprintf("\tcase %q:\n", RetryStrategyExponential))
+	buf.WriteString("\t\t// Exponential backoff: initialDelay * (multiplier ^ attempt)\n")
+	buf.WriteString("\t\tmultiplier := c.retryBackoffMultiplier\n")
+	buf.WriteString("\t\tresult := float64(c.retryInitialDelay)\n")
+	buf.WriteString("\t\tfor i := 0; i < attempt; i++ {\n")
+	buf.WriteString("\t\t\tresult *= multiplier\n")
+	buf.WriteString("\t\t}\n")
+	buf.WriteString("\t\tdelay := time.Duration(result)\n")
+	buf.WriteString("\t\tif delay > c.retryMaxDelay {\n")
+	buf.WriteString("\t\t\treturn c.retryMaxDelay\n")
+	buf.WriteString("\t\t}\n")
+	buf.WriteString("\t\treturn delay\n")
+	buf.WriteString(fmt.Sprintf("\tcase %q:\n", RetryStrategyLinear))
+	buf.WriteString("\t\t// Linear backoff: initialDelay * (attempt + 1)\n")
+	buf.WriteString("\t\tdelay := c.retryInitialDelay * time.Duration(attempt+1)\n")
+	buf.WriteString("\t\tif delay > c.retryMaxDelay {\n")
+	buf.WriteString("\t\t\treturn c.retryMaxDelay\n")
+	buf.WriteString("\t\t}\n")
+	buf.WriteString("\t\treturn delay\n")
+	buf.WriteString(fmt.Sprintf("\tcase %q:\n", RetryStrategyFixed))
+	buf.WriteString("\t\t// Fixed delay: always use initialDelay\n")
+	buf.WriteString("\t\treturn c.retryInitialDelay\n")
+	buf.WriteString("\tdefault:\n")
+	buf.WriteString("\t\t// Default to exponential\n")
+	buf.WriteString("\t\tmultiplier := c.retryBackoffMultiplier\n")
+	buf.WriteString("\t\tresult := float64(c.retryInitialDelay)\n")
+	buf.WriteString("\t\tfor i := 0; i < attempt; i++ {\n")
+	buf.WriteString("\t\t\tresult *= multiplier\n")
+	buf.WriteString("\t\t}\n")
+	buf.WriteString("\t\tdelay := time.Duration(result)\n")
+	buf.WriteString("\t\tif delay > c.retryMaxDelay {\n")
+	buf.WriteString("\t\t\treturn c.retryMaxDelay\n")
+	buf.WriteString("\t\t}\n")
+	buf.WriteString("\t\treturn delay\n")
+	buf.WriteString("\t}\n")
+	buf.WriteString("}\n")
+
+	// isRetryableStatusCode helper
+	buf.WriteString("\n// isRetryableStatusCode checks if a status code should trigger a retry\n")
+	buf.WriteString("func (c *{{.ClientClassName}}) isRetryableStatusCode(statusCode int) bool {\n")
+	buf.WriteString("\tfor _, code := range c.retryableStatusCodes {\n")
+	buf.WriteString("\t\tif statusCode == code {\n")
+	buf.WriteString("\t\t\treturn true\n")
+	buf.WriteString("\t\t}\n")
+	buf.WriteString("\t}\n")
+	buf.WriteString("\treturn false\n")
+	buf.WriteString("}\n")
+
+	// Generate retry logic based on HTTP library - for nethttp (default)
+	buf.WriteString("\n// requestWithRetry makes an HTTP request with retry logic\n")
+	buf.WriteString("func (c *{{.ClientClassName}}) requestWithRetry(req *http.Request) (*http.Response, error) {\n")
+	buf.WriteString("\tvar lastErr error\n")
+	buf.WriteString("\tvar resp *http.Response\n\n")
+	buf.WriteString("\tfor attempt := 0; attempt < c.retryMaxAttempts; attempt++ {\n")
+	buf.WriteString("\t\tresp, err := c.HTTPClient.Do(req)\n")
+	buf.WriteString("\t\tif err != nil {\n")
+	buf.WriteString("\t\t\tif !c.retryOnNetworkErrors {\n")
+	buf.WriteString("\t\t\t\treturn nil, fmt.Errorf(\"failed to execute request: %w\", err)\n")
+	buf.WriteString("\t\t\t}\n")
+	buf.WriteString("\t\t\tlastErr = err\n")
+	buf.WriteString("\t\t\t// Network error - will retry below\n")
+	buf.WriteString("\t\t} else {\n")
+	buf.WriteString("\t\t\t// Check if status code is retryable\n")
+	buf.WriteString("\t\t\tif !c.isRetryableStatusCode(resp.StatusCode) {\n")
+	buf.WriteString("\t\t\t\treturn resp, nil\n")
+	buf.WriteString("\t\t\t}\n")
+	buf.WriteString("\t\t\t// Retryable status code - close response and retry\n")
+	buf.WriteString("\t\t\tresp.Body.Close()\n")
+	buf.WriteString("\t\t}\n\n")
+	buf.WriteString("\t\t// If we get here, we need to retry\n")
+	buf.WriteString("\t\tif attempt < c.retryMaxAttempts-1 {\n")
+	buf.WriteString("\t\t\tdelay := c.calculateRetryDelay(attempt)\n")
+	buf.WriteString("\t\t\ttime.Sleep(delay)\n")
+	buf.WriteString("\t\t} else {\n")
+	buf.WriteString("\t\t\t// Max attempts exceeded\n")
+	buf.WriteString("\t\t\tif lastErr != nil {\n")
+	buf.WriteString("\t\t\t\treturn nil, fmt.Errorf(\"failed after %d attempts: %w\", c.retryMaxAttempts, lastErr)\n")
+	buf.WriteString("\t\t\t}\n")
+	buf.WriteString("\t\t\treturn nil, fmt.Errorf(\"request failed after %d attempts\", c.retryMaxAttempts)\n")
+	buf.WriteString("\t\t}\n")
+	buf.WriteString("\t}\n\n")
+	buf.WriteString("\treturn resp, nil\n")
+	buf.WriteString("}\n")
+
+	return buf.String()
+}
+
+// generateGoRetryInit generates retry configuration initialization code for NewClient
+func generateGoRetryInit(config RetryConfig) string {
+	if !config.Enabled {
+		return ""
+	}
+
+	var buf strings.Builder
+	buf.WriteString("\n\t// Initialize retry configuration\n")
+	buf.WriteString(fmt.Sprintf("\tclient.retryMaxAttempts = %d\n", config.MaxAttempts))
+	buf.WriteString(fmt.Sprintf("\tclient.retryInitialDelay = %d * time.Second\n", int(config.InitialDelay.Seconds())))
+	buf.WriteString(fmt.Sprintf("\tclient.retryMaxDelay = %d * time.Second\n", int(config.MaxDelay.Seconds())))
+	buf.WriteString(fmt.Sprintf("\tclient.retryBackoffMultiplier = %.1f\n", config.BackoffMultiplier))
+	buf.WriteString(fmt.Sprintf("\tclient.retryStrategy = %q\n", config.Strategy))
+	buf.WriteString("\tclient.retryableStatusCodes = []int{")
+	for i, code := range config.RetryableStatusCodes {
+		if i > 0 {
+			buf.WriteString(", ")
+		}
+		buf.WriteString(fmt.Sprintf("%d", code))
+	}
+	buf.WriteString("}\n")
+	buf.WriteString(fmt.Sprintf("\tclient.retryOnNetworkErrors = %v\n", config.RetryOnNetworkErrors))
+
+	return buf.String()
 }
 
 // generateGoAuthSetup generates authentication setup code
