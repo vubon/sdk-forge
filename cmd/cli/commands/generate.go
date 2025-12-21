@@ -358,7 +358,7 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 	if openapiDoc, ok := doc.(*openapi3.T); ok {
 		openAPIRetryConfig := generator.ParseRetryConfigFromOpenAPI(openapiDoc)
 		cliRetryConfig := parseRetryConfig(cmd)
-		
+
 		// Merge: OpenAPI extension provides defaults, CLI flags override
 		if openAPIRetryConfig != nil {
 			retryConfig = generator.MergeRetryConfig(*openAPIRetryConfig, cliRetryConfig)

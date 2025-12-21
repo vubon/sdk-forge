@@ -493,7 +493,7 @@ func buildGoImports(data TemplateData) string {
 		"net/http",
 		"strings",
 	}
-	
+
 	// Add time import if retry is enabled
 	if data.RetryConfig.Enabled {
 		imports = append(imports, "time")

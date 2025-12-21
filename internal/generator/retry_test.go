@@ -45,8 +45,8 @@ func TestDefaultRetryConfig(t *testing.T) {
 func TestCalculateDelay_Exponential(t *testing.T) {
 	config := RetryConfig{
 		Strategy:          RetryStrategyExponential,
-		InitialDelay:     time.Second,
-		MaxDelay:         60 * time.Second,
+		InitialDelay:      time.Second,
+		MaxDelay:          60 * time.Second,
 		BackoffMultiplier: 2.0,
 	}
 
@@ -54,10 +54,10 @@ func TestCalculateDelay_Exponential(t *testing.T) {
 		attempt    int
 		expectedMs int64 // Expected delay in milliseconds (approximate)
 	}{
-		{0, 1000},  // 1s * 2^0 = 1s
-		{1, 2000},  // 1s * 2^1 = 2s
-		{2, 4000},  // 1s * 2^2 = 4s
-		{3, 8000},  // 1s * 2^3 = 8s
+		{0, 1000},   // 1s * 2^0 = 1s
+		{1, 2000},   // 1s * 2^1 = 2s
+		{2, 4000},   // 1s * 2^2 = 4s
+		{3, 8000},   // 1s * 2^3 = 8s
 		{10, 60000}, // Capped at maxDelay (60s)
 	}
 
@@ -73,19 +73,19 @@ func TestCalculateDelay_Exponential(t *testing.T) {
 
 func TestCalculateDelay_Linear(t *testing.T) {
 	config := RetryConfig{
-		Strategy:      RetryStrategyLinear,
+		Strategy:     RetryStrategyLinear,
 		InitialDelay: time.Second,
-		MaxDelay:      60 * time.Second,
+		MaxDelay:     60 * time.Second,
 	}
 
 	tests := []struct {
-		attempt int
+		attempt  int
 		expected time.Duration
 	}{
-		{0, 1 * time.Second},  // 1s * (0+1) = 1s
-		{1, 2 * time.Second},  // 1s * (1+1) = 2s
-		{2, 3 * time.Second},  // 1s * (2+1) = 3s
-		{3, 4 * time.Second},  // 1s * (3+1) = 4s
+		{0, 1 * time.Second},    // 1s * (0+1) = 1s
+		{1, 2 * time.Second},    // 1s * (1+1) = 2s
+		{2, 3 * time.Second},    // 1s * (2+1) = 3s
+		{3, 4 * time.Second},    // 1s * (3+1) = 4s
 		{100, 60 * time.Second}, // Capped at maxDelay
 	}
 
@@ -99,9 +99,9 @@ func TestCalculateDelay_Linear(t *testing.T) {
 
 func TestCalculateDelay_Fixed(t *testing.T) {
 	config := RetryConfig{
-		Strategy:      RetryStrategyFixed,
+		Strategy:     RetryStrategyFixed,
 		InitialDelay: 2 * time.Second,
-		MaxDelay:      60 * time.Second,
+		MaxDelay:     60 * time.Second,
 	}
 
 	// Fixed delay should always return initialDelay
@@ -151,12 +151,12 @@ func TestParseRetryConfigFromOpenAPI(t *testing.T) {
 		Extensions: map[string]interface{}{
 			"x-sdk-forge-retry": map[string]interface{}{
 				"enabled":              true,
-				"maxAttempts":           5.0,
-				"initialDelay":          2.0,
-				"maxDelay":              120.0,
-				"backoffMultiplier":     2.5,
-				"strategy":              "linear",
-				"retryableStatusCodes":  []interface{}{429.0, 500.0, 502.0},
+				"maxAttempts":          5.0,
+				"initialDelay":         2.0,
+				"maxDelay":             120.0,
+				"backoffMultiplier":    2.5,
+				"strategy":             "linear",
+				"retryableStatusCodes": []interface{}{429.0, 500.0, 502.0},
 				"retryOnNetworkErrors": true,
 			},
 		},
@@ -292,9 +292,9 @@ func TestMergeRetryConfig_PartialOverride(t *testing.T) {
 
 	// Partial override (only some fields set)
 	override := RetryConfig{
-		Enabled:    true,
+		Enabled:     true,
 		MaxAttempts: 5,
-		Strategy:   RetryStrategyLinear,
+		Strategy:    RetryStrategyLinear,
 		// Other fields use defaults (zero values)
 	}
 
@@ -316,4 +316,3 @@ func TestMergeRetryConfig_PartialOverride(t *testing.T) {
 		t.Errorf("Expected MaxDelay=60s (from base), got %v", merged.MaxDelay)
 	}
 }
-
