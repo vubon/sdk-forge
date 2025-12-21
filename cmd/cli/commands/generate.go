@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/spf13/cobra"
 	"github.com/vubon/sdk-forge/internal/generator"
 	"github.com/vubon/sdk-forge/internal/parser"
@@ -351,8 +352,23 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 	skipTestsFlag, _ := cmd.Flags().GetBool("skip-tests")
 	generateTests := !skipTestsFlag
 
-	// Parse retry configuration from flags
-	retryConfig := parseRetryConfig(cmd)
+	// Parse retry configuration from flags and OpenAPI extension
+	// First try to get retry config from OpenAPI document
+	var retryConfig generator.RetryConfig
+	if openapiDoc, ok := doc.(*openapi3.T); ok {
+		openAPIRetryConfig := generator.ParseRetryConfigFromOpenAPI(openapiDoc)
+		cliRetryConfig := parseRetryConfig(cmd)
+		
+		// Merge: OpenAPI extension provides defaults, CLI flags override
+		if openAPIRetryConfig != nil {
+			retryConfig = generator.MergeRetryConfig(*openAPIRetryConfig, cliRetryConfig)
+		} else {
+			retryConfig = cliRetryConfig
+		}
+	} else {
+		// If not openapi3.T, just use CLI flags
+		retryConfig = parseRetryConfig(cmd)
+	}
 
 	switch lang {
 	case langPython:
