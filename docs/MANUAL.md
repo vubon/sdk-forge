@@ -258,6 +258,37 @@ Overwrite existing SDK directory.
 - Use to regenerate SDKs without manual cleanup
 - **Warning**: This will delete existing files in the output directory
 
+#### Retry Configuration Flags
+
+Configure retry logic for HTTP requests in generated SDKs. Retry is **disabled by default** for backward compatibility.
+
+**Enable Retry:**
+```bash
+--retry-enabled
+```
+
+**Retry Options:**
+- `--retry-max-attempts`: Maximum retry attempts (default: `3`)
+- `--retry-initial-delay`: Initial retry delay in seconds (default: `1.0`)
+- `--retry-max-delay`: Maximum retry delay in seconds (default: `60.0`)
+- `--retry-backoff-multiplier`: Exponential backoff multiplier (default: `2.0`)
+- `--retry-strategy`: Retry strategy - `exponential`, `linear`, or `fixed` (default: `exponential`)
+- `--retry-status-codes`: Comma-separated HTTP status codes to retry (default: `429,500,502,503,504`)
+
+**Example:**
+```bash
+sdk-forge generate \
+  --schema api.yaml \
+  --lang python \
+  --name my-sdk \
+  --retry-enabled \
+  --retry-max-attempts 5 \
+  --retry-strategy exponential \
+  --retry-status-codes "429,500,502,503,504"
+```
+
+For detailed retry configuration documentation, see the [Retry Configuration](#retry-configuration) section.
+
 ---
 
 ## Interactive Mode

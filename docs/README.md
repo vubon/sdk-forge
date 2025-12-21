@@ -83,6 +83,7 @@ See [Advanced Usage](MANUAL.md#advanced-usage) section in the manual for:
 - Version management
 - Batch generation
 - Remote schema URLs
+- [Retry Configuration](MANUAL.md#retry-configuration) - Automatic retry logic for HTTP requests
 
 ---
 
