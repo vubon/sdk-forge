@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/getkin/kin-openapi/openapi3"
 
 	httplib "github.com/vubon/sdk-forge/pkg/languages/http"
@@ -315,14 +318,339 @@ class ApiException extends \Exception
 
 // generatePHPReadme generates README.md for PHP SDK
 func generatePHPReadme(data TemplateData, sdkVersion string) string {
-	// TODO: Implement PHP README generation
-	return fmt.Sprintf("# %s PHP SDK\n\nAuto-generated from OpenAPI schema\n\nVersion: %s\n", data.SDKName, sdkVersion)
+	extractedData, ok := data.OpenAPIDoc.(*ExtractedData)
+	namespace := getPHPNamespace(data.SDKName)
+	clientClassName := getClientClassName(data.SDKName)
+
+	// Format display name
+	displayName := strings.ReplaceAll(data.SDKName, "_", " ")
+	c := cases.Title(language.English)
+	displayName = c.String(strings.ToLower(displayName))
+
+	// Get base URL
+	baseURL := "https://api.example.com/v1"
+	if ok && extractedData != nil && extractedData.BaseURL != "" {
+		baseURL = extractedData.BaseURL
+	}
+
+	// Get description
+	description := "Auto-generated PHP SDK from OpenAPI schema"
+	if ok && extractedData != nil && extractedData.Description != "" {
+		description = extractedData.Description
+	}
+
+	var readme strings.Builder
+	readme.WriteString(fmt.Sprintf("# %s PHP SDK\n\n", displayName))
+	readme.WriteString(fmt.Sprintf("%s\n\n", description))
+	readme.WriteString(fmt.Sprintf("**Version:** %s\n\n", sdkVersion))
+	readme.WriteString("## Installation\n\n")
+	readme.WriteString("Install via Composer:\n\n")
+	readme.WriteString("```bash\n")
+	readme.WriteString("composer require vendor/" + strings.ToLower(data.SDKName) + "\n")
+	readme.WriteString("```\n\n")
+	readme.WriteString("Or add to your `composer.json`:\n\n")
+	readme.WriteString("```json\n")
+	readme.WriteString(fmt.Sprintf("{\n    \"require\": {\n        \"vendor/%s\": \"%s\"\n    }\n}\n", strings.ToLower(data.SDKName), sdkVersion))
+	readme.WriteString("```\n\n")
+
+	readme.WriteString("## Quick Start\n\n")
+	readme.WriteString("```php\n")
+	readme.WriteString("<?php\n\n")
+	readme.WriteString("require_once __DIR__ . '/vendor/autoload.php';\n\n")
+	readme.WriteString(fmt.Sprintf("use %s\\%s;\n", namespace, clientClassName))
+
+	// Add API namespace if operations exist
+	if ok && extractedData != nil && len(extractedData.Operations) > 0 {
+		operationsByTag := groupOperationsByTag(extractedData.Operations)
+		for tag := range operationsByTag {
+			apiClassName := toPascalCase(tag) + "Api"
+			readme.WriteString(fmt.Sprintf("use %s\\Api\\%s;\n", namespace, apiClassName))
+			break // Just show first one as example
+		}
+	}
+
+	readme.WriteString("\n")
+	readme.WriteString("// Initialize client\n")
+	readme.WriteString(fmt.Sprintf("$client = new %s(\n", clientClassName))
+	readme.WriteString(fmt.Sprintf("    baseUrl: \"%s\"\n", baseURL))
+
+	// Add authentication example if available
+	if ok && extractedData != nil && len(extractedData.SecuritySchemes) > 0 {
+		for name, scheme := range extractedData.SecuritySchemes {
+			switch scheme.Type {
+			case securitySchemeAPIKey:
+				readme.WriteString(fmt.Sprintf("    options: [\n        '%s' => 'your-api-key'\n    ]\n", name))
+			case securitySchemeHTTP:
+				switch scheme.Scheme {
+				case securitySchemeBearer:
+					readme.WriteString("    options: [\n        'bearer_token' => 'your-token'\n    ]\n")
+				case securitySchemeBasic:
+					readme.WriteString("    options: [\n        'username' => 'your-username',\n        'password' => 'your-password'\n    ]\n")
+				}
+			case securitySchemeOAuth2, securitySchemeOpenIDConnect:
+				readme.WriteString(fmt.Sprintf("    options: [\n        '%s_token' => 'your-token'\n    ]\n", name))
+			}
+			break // Just show first one as example
+		}
+	} else {
+		readme.WriteString(")\n")
+	}
+
+	readme.WriteString(");\n\n")
+
+	// Add API usage example if operations exist
+	if ok && extractedData != nil && len(extractedData.Operations) > 0 {
+		operationsByTag := groupOperationsByTag(extractedData.Operations)
+		for tag, operations := range operationsByTag {
+			if len(operations) > 0 {
+				apiClassName := toPascalCase(tag) + "Api"
+				op := operations[0]
+				methodName := GetOperationMethodName(op)
+				if methodName == "" {
+					pathPart := strings.ReplaceAll(strings.Trim(op.Path, "/"), "/", "_")
+					methodName = strings.ToLower(op.Method) + toPascalCase(pathPart)
+				}
+				methodName = toCamelCase(methodName)
+
+				readme.WriteString("// Use API methods\n")
+				readme.WriteString(fmt.Sprintf("$api = new %s($client);\n", apiClassName))
+				readme.WriteString(fmt.Sprintf("$response = $api->%s(", methodName))
+
+				// Add example parameters
+				var params []string
+				for _, param := range op.Parameters {
+					if param.In == paramLocationPath {
+						params = append(params, fmt.Sprintf("\"example-%s\"", param.Name))
+					}
+				}
+				if len(params) > 0 {
+					readme.WriteString(strings.Join(params, ", "))
+				}
+				readme.WriteString(");\n")
+				readme.WriteString("print_r($response);\n")
+				break // Just show first operation as example
+			}
+		}
+	}
+
+	readme.WriteString("```\n\n")
+
+	// HTTP Library section
+	readme.WriteString("## HTTP Library\n\n")
+	readme.WriteString(fmt.Sprintf("This SDK uses **%s** for HTTP requests.\n\n", data.HTTPLib))
+
+	// Authentication section
+	if ok && extractedData != nil && len(extractedData.SecuritySchemes) > 0 {
+		readme.WriteString("## Authentication\n\n")
+		readme.WriteString("Configure authentication when creating the client:\n\n")
+		readme.WriteString("```php\n")
+		for name, scheme := range extractedData.SecuritySchemes {
+			switch scheme.Type {
+			case securitySchemeAPIKey:
+				readme.WriteString(fmt.Sprintf("$client = new %s(\n", clientClassName))
+				readme.WriteString(fmt.Sprintf("    baseUrl: \"%s\",\n", baseURL))
+				readme.WriteString(fmt.Sprintf("    options: ['%s' => 'your-api-key']\n", name))
+				readme.WriteString(");\n")
+			case securitySchemeHTTP:
+				switch scheme.Scheme {
+				case securitySchemeBearer:
+					readme.WriteString(fmt.Sprintf("$client = new %s(\n", clientClassName))
+					readme.WriteString(fmt.Sprintf("    baseUrl: \"%s\",\n", baseURL))
+					readme.WriteString("    options: ['bearer_token' => 'your-token']\n")
+					readme.WriteString(");\n")
+				case securitySchemeBasic:
+					readme.WriteString(fmt.Sprintf("$client = new %s(\n", clientClassName))
+					readme.WriteString(fmt.Sprintf("    baseUrl: \"%s\",\n", baseURL))
+					readme.WriteString("    options: [\n")
+					readme.WriteString("        'username' => 'your-username',\n")
+					readme.WriteString("        'password' => 'your-password'\n")
+					readme.WriteString("    ]\n")
+					readme.WriteString(");\n")
+				}
+			case securitySchemeOAuth2, securitySchemeOpenIDConnect:
+				readme.WriteString(fmt.Sprintf("$client = new %s(\n", clientClassName))
+				readme.WriteString(fmt.Sprintf("    baseUrl: \"%s\",\n", baseURL))
+				readme.WriteString(fmt.Sprintf("    options: ['%s_token' => 'your-token']\n", name))
+				readme.WriteString(");\n")
+			}
+			break // Just show first one
+		}
+		readme.WriteString("```\n\n")
+	}
+
+	// Retry mechanism section (if enabled)
+	if data.RetryConfig.Enabled {
+		readme.WriteString("## Retry Mechanism\n\n")
+		readme.WriteString("This SDK includes automatic retry logic for transient failures.\n\n")
+		readme.WriteString("**Configuration:**\n")
+		readme.WriteString(fmt.Sprintf("- Max attempts: %d\n", data.RetryConfig.MaxAttempts))
+		readme.WriteString(fmt.Sprintf("- Strategy: %s\n", data.RetryConfig.Strategy))
+		readme.WriteString(fmt.Sprintf("- Initial delay: %.1fs\n", data.RetryConfig.InitialDelay.Seconds()))
+		readme.WriteString(fmt.Sprintf("- Max delay: %.1fs\n", data.RetryConfig.MaxDelay.Seconds()))
+		readme.WriteString(fmt.Sprintf("- Backoff multiplier: %.1f\n", data.RetryConfig.BackoffMultiplier))
+		readme.WriteString("\n")
+	}
+
+	// Testing section
+	readme.WriteString("## Testing\n\n")
+	readme.WriteString("Run PHPUnit tests:\n\n")
+	readme.WriteString("```bash\n")
+	readme.WriteString("composer install --dev\n")
+	readme.WriteString("vendor/bin/phpunit\n")
+	readme.WriteString("```\n\n")
+
+	// Code Quality section
+	readme.WriteString("## Code Quality\n\n")
+	readme.WriteString("This SDK includes code quality tools:\n\n")
+	readme.WriteString("- **PHP_CodeSniffer** (PSR-12): `vendor/bin/phpcs`\n")
+	readme.WriteString("- **PHPStan** (static analysis): `vendor/bin/phpstan analyse`\n")
+	readme.WriteString("- **PHP-CS-Fixer** (formatting): `vendor/bin/php-cs-fixer fix`\n\n")
+
+	// License section
+	readme.WriteString("## License\n\n")
+	readme.WriteString("Generated by [SDK Forge](https://github.com/vubon/sdk-forge)\n")
+
+	return readme.String()
 }
 
 // generatePHPExamples generates PHP usage examples
 func generatePHPExamples(data TemplateData) string {
-	// TODO: Implement PHP examples generation
-	return "<?php\n\n// PHP Examples - TODO: Implement\n"
+	extractedData, ok := data.OpenAPIDoc.(*ExtractedData)
+	namespace := getPHPNamespace(data.SDKName)
+	clientClassName := getClientClassName(data.SDKName)
+
+	baseURL := "https://api.example.com/v1"
+	if ok && extractedData != nil && extractedData.BaseURL != "" {
+		baseURL = extractedData.BaseURL
+	}
+
+	var examples strings.Builder
+	examples.WriteString("<?php\n\n")
+	examples.WriteString("/**\n")
+	examples.WriteString(" * Usage examples for PHP SDK\n")
+	examples.WriteString(" * Auto-generated from OpenAPI schema\n")
+	examples.WriteString(" */\n\n")
+	examples.WriteString("require_once __DIR__ . '/../vendor/autoload.php';\n\n")
+	examples.WriteString(fmt.Sprintf("use %s\\%s;\n", namespace, clientClassName))
+
+	// Add API and Models namespaces if they exist
+	if ok && extractedData != nil {
+		if len(extractedData.Operations) > 0 {
+			operationsByTag := groupOperationsByTag(extractedData.Operations)
+			for tag := range operationsByTag {
+				apiClassName := toPascalCase(tag) + "Api"
+				examples.WriteString(fmt.Sprintf("use %s\\Api\\%s;\n", namespace, apiClassName))
+				break // Just show first one
+			}
+		}
+		if len(extractedData.Schemas) > 0 {
+			examples.WriteString(fmt.Sprintf("use %s\\Models\\*;\n", namespace))
+		}
+	}
+
+	examples.WriteString("\n")
+	examples.WriteString("// Example 1: Initialize client\n")
+	examples.WriteString(fmt.Sprintf("$client = new %s(\n", clientClassName))
+	examples.WriteString(fmt.Sprintf("    baseUrl: \"%s\"\n", baseURL))
+
+	// Add authentication example
+	if ok && extractedData != nil && len(extractedData.SecuritySchemes) > 0 {
+		for name, scheme := range extractedData.SecuritySchemes {
+			switch scheme.Type {
+			case securitySchemeAPIKey:
+				examples.WriteString(fmt.Sprintf("    options: [\n        '%s' => 'your-api-key'\n    ]\n", name))
+			case securitySchemeHTTP:
+				switch scheme.Scheme {
+				case securitySchemeBearer:
+					examples.WriteString("    options: [\n        'bearer_token' => 'your-token'\n    ]\n")
+				case securitySchemeBasic:
+					examples.WriteString("    options: [\n        'username' => 'your-username',\n        'password' => 'your-password'\n    ]\n")
+				}
+			case securitySchemeOAuth2, securitySchemeOpenIDConnect:
+				examples.WriteString(fmt.Sprintf("    options: [\n        '%s_token' => 'your-token'\n    ]\n", name))
+			}
+			break
+		}
+	} else {
+		examples.WriteString(")\n")
+	}
+
+	examples.WriteString(");\n\n")
+
+	// Add API usage examples
+	if ok && extractedData != nil && len(extractedData.Operations) > 0 {
+		operationsByTag := groupOperationsByTag(extractedData.Operations)
+		exampleCount := 0
+		for tag, operations := range operationsByTag {
+			if exampleCount >= 3 {
+				break // Limit to 3 examples
+			}
+			if len(operations) > 0 {
+				apiClassName := toPascalCase(tag) + "Api"
+				op := operations[0]
+				methodName := GetOperationMethodName(op)
+				if methodName == "" {
+					pathPart := strings.ReplaceAll(strings.Trim(op.Path, "/"), "/", "_")
+					methodName = strings.ToLower(op.Method) + toPascalCase(pathPart)
+				}
+				methodName = toCamelCase(methodName)
+
+				examples.WriteString(fmt.Sprintf("// Example %d: Use %s API\n", exampleCount+2, tag))
+				examples.WriteString(fmt.Sprintf("$api = new %s($client);\n", apiClassName))
+				examples.WriteString("try {\n")
+				examples.WriteString(fmt.Sprintf("    $response = $api->%s(", methodName))
+
+				// Add example parameters
+				var params []string
+				for _, param := range op.Parameters {
+					if param.In == paramLocationPath {
+						testValue := getPHPTestValue(param.Schema)
+						params = append(params, testValue)
+					}
+				}
+				if len(params) > 0 {
+					examples.WriteString(strings.Join(params, ", "))
+				}
+				examples.WriteString(");\n")
+				examples.WriteString("    print_r($response);\n")
+				examples.WriteString("} catch (\\Exception $e) {\n")
+				examples.WriteString("    echo \"Error: \" . $e->getMessage() . \"\\n\";\n")
+				examples.WriteString("}\n\n")
+				exampleCount++
+			}
+		}
+	}
+
+	// Add model usage example
+	if ok && extractedData != nil && len(extractedData.Schemas) > 0 {
+		examples.WriteString("// Example: Working with models\n")
+		for name, schema := range extractedData.Schemas {
+			className := toPascalCase(name)
+			examples.WriteString("$data = [\n")
+			if schema.Type == "object" && len(schema.Properties) > 0 {
+				requiredSet := make(map[string]bool)
+				for _, req := range schema.Required {
+					requiredSet[req] = true
+				}
+				for propName, propSchema := range schema.Properties {
+					if propSchema == nil {
+						continue
+					}
+					if requiredSet[propName] {
+						testValue := getPHPTestValue(propSchema)
+						examples.WriteString(fmt.Sprintf("    '%s' => %s,\n", propName, testValue))
+					}
+				}
+			}
+			examples.WriteString("];\n")
+			examples.WriteString(fmt.Sprintf("$model = %s::fromArray($data);\n", className))
+			examples.WriteString("$json = json_encode($model->jsonSerialize());\n")
+			examples.WriteString("echo $json . \"\\n\";\n")
+			break // Just show first model
+		}
+	}
+
+	return examples.String()
 }
 
 // generatePHPTests is now implemented in php_tests.go
