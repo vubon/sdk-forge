@@ -224,30 +224,64 @@ func generatePHPSDKFromExtracted(
 
 // generatePHPComposerJSON generates composer.json file
 func generatePHPComposerJSON(sdkName, sdkVersion, httpLib string, version LanguageVersion, libConfig *httplib.LibraryConfig) string {
-	// TODO: Implement composer.json generation
+	// Parse dependency string (format: "package:version" or "package")
+	dependency := libConfig.Dependency
+	if dependency == "" {
+		// Default to guzzle if no dependency specified
+		dependency = "guzzlehttp/guzzle:^7.0"
+	}
+
+	// Split dependency into package and version if needed
+	parts := strings.Split(dependency, ":")
+	packageName := parts[0]
+	packageVersion := ""
+	if len(parts) > 1 {
+		packageVersion = parts[1]
+	}
+
+	// Build require section
+	requireSection := fmt.Sprintf(`        "php": "%s"`, version.GetPHPVersionString())
+	if packageName != "" {
+		if packageVersion != "" {
+			requireSection += fmt.Sprintf(",\n        \"%s\": \"%s\"", packageName, packageVersion)
+		} else {
+			requireSection += fmt.Sprintf(",\n        \"%s\"", packageName)
+		}
+	}
+
+	// Add PHPUnit for dev dependencies if tests will be generated
+	requireDevSection := `        "phpunit/phpunit": "^10.0"`
+
+	namespace := fmt.Sprintf("Vendor\\%s", sdkName)
+
 	return fmt.Sprintf(`{
     "name": "vendor/%s",
-    "description": "PHP SDK - Auto-generated from OpenAPI schema",
+    "description": "PHP SDK for %s - Auto-generated from OpenAPI schema",
     "type": "library",
     "license": "MIT",
+    "version": "%s",
     "require": {
-        "php": "%s",
-        "%s": "%s"
+%s
+    },
+    "require-dev": {
+%s
     },
     "autoload": {
         "psr-4": {
-            "Vendor\\%s\\": "src/"
+            "%s\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "%s\\Tests\\": "tests/"
         }
     }
 }
-`, strings.ToLower(sdkName), version.GetPHPVersionString(), libConfig.Dependency, libConfig.Dependency, sdkName)
+`, strings.ToLower(sdkName), sdkName, sdkVersion, requireSection, requireDevSection, namespace, namespace)
 }
 
 // generatePHPClient generates PHP client class
-func generatePHPClient(data TemplateData, version LanguageVersion) string {
-	// TODO: Implement PHP client generation
-	return "<?php\n\n// PHP Client - TODO: Implement\n"
-}
+// Implementation moved to php_client.go
 
 // generatePHPModel generates a PHP model class
 func generatePHPModel(name string, schema *Schema, allSchemas map[string]*Schema, version LanguageVersion) string {
