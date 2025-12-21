@@ -11,10 +11,10 @@ import (
 )
 
 // setFlag is a helper function to set command flags and fail the test on error
-func setFlag(t *testing.T, cmd *cobra.Command, name, value string) {
+func setFlag(t *testing.T, cmd *cobra.Command, flagName, flagValue string) {
 	t.Helper()
-	if err := setFlag(t, cmd, name, value); err != nil {
-		t.Fatalf("failed to set flag %s=%s: %v", name, value, err)
+	if err := cmd.Flags().Set(flagName, flagValue); err != nil {
+		t.Fatalf("failed to set flag %s=%s: %v", flagName, flagValue, err)
 	}
 }
 
