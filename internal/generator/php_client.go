@@ -117,7 +117,7 @@ func generatePHPClient(data TemplateData, version LanguageVersion) string {
 		client.WriteString("\n")
 	}
 
-	// Request method
+	// Request method (public for use by API classes)
 	client.WriteString("    /**\n")
 	client.WriteString("     * Make an HTTP request\n")
 	if data.RetryConfig.Enabled {
@@ -130,7 +130,7 @@ func generatePHPClient(data TemplateData, version LanguageVersion) string {
 	client.WriteString("     * @return array<string, mixed> Response data\n")
 	client.WriteString("     * @throws ApiException\n")
 	client.WriteString("     */\n")
-	client.WriteString("    private function request(string $method, string $path, array $options = []): array\n")
+	client.WriteString("    public function request(string $method, string $path, array $options = []): array\n")
 	client.WriteString("    {\n")
 	client.WriteString("        $url = $this->baseUrl . $path;\n\n")
 	client.WriteString("        // Apply authentication\n")

@@ -286,11 +286,7 @@ func generatePHPComposerJSON(sdkName, sdkVersion, httpLib string, version Langua
 
 // generatePHPModel is now generatePHPModelWithNamespace in php_models.go
 
-// generatePHPAPIModule generates PHP API module
-func generatePHPAPIModule(tag string, operations []APIOperation, data TemplateData, version LanguageVersion) string {
-	// TODO: Implement PHP API module generation
-	return fmt.Sprintf("<?php\n\n// PHP API Module %s - TODO: Implement\n", tag)
-}
+// generatePHPAPIModule is now implemented in php_api.go
 
 // generatePHPException generates PHP exception class
 func generatePHPException() string {
