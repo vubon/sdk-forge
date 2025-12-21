@@ -1,5 +1,5 @@
-// Package generator provides PHP client generation functionality.
-package generator
+// Package php provides PHP client generation functionality.
+package php
 
 import (
 	"fmt"

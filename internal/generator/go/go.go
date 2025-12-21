@@ -1,5 +1,5 @@
-// Package generator provides code generation functionality for SDKs.
-package generator
+// Package go provides Go SDK generation functionality.
+package go
 
 import (
 	"bytes"

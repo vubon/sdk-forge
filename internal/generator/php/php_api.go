@@ -1,5 +1,5 @@
-// Package generator provides PHP API module generation functionality.
-package generator
+// Package php provides PHP API module generation functionality.
+package php
 
 import (
 	"fmt"

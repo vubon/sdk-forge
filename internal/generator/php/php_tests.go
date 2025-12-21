@@ -1,5 +1,5 @@
-// Package generator provides PHP test generation functionality.
-package generator
+// Package php provides PHP test generation functionality.
+package php
 
 import (
 	"fmt"

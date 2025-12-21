@@ -1,5 +1,5 @@
-// Package generator provides PHP model generation functionality.
-package generator
+// Package php provides PHP model generation functionality.
+package php
 
 import (
 	"fmt"

@@ -1,5 +1,5 @@
-// Package generator provides code generation functionality for SDKs.
-package generator
+// Package python provides Python SDK generation functionality.
+package python
 
 import (
 	"bytes"

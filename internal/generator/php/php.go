@@ -1,5 +1,5 @@
-// Package generator provides code generation functionality for SDKs.
-package generator
+// Package php provides PHP SDK generation functionality.
+package php
 
 import (
 	"fmt"
