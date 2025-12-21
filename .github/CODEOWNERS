@@ -1,0 +1,3 @@
+# Default owner for all files
+# This ensures that @vubon is always a required reviewer
+* @vubon
