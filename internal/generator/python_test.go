@@ -47,7 +47,7 @@ func TestGeneratePythonSDK(t *testing.T) {
 
 	// Use ExtractedData for testing
 	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -73,7 +73,7 @@ func TestGeneratePythonSDK_InvalidHTTPLib(t *testing.T) {
 	httpLib := "invalid-lib"
 
 	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err == nil {
 		t.Error("GeneratePythonSDK() with invalid HTTP library should return error")
 	}
@@ -85,7 +85,7 @@ func TestGeneratePythonSDK_CustomHTTPLib(t *testing.T) {
 	httpLib := "httpx"
 
 	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -110,7 +110,7 @@ func TestGeneratePythonSDK_RequirementsTxt(t *testing.T) {
 	httpLib := "requests"
 
 	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -145,7 +145,7 @@ func TestGeneratePythonSDK_SDKNameSanitization(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
 			extractedData := createTestExtractedData()
-			err := GeneratePythonSDK(tmpDir, tt.sdkName, "requests", extractedData, nil, "", true)
+			err := GeneratePythonSDK(tmpDir, tt.sdkName, "requests", extractedData, nil, "", true, DefaultRetryConfig())
 			if err != nil {
 				t.Fatalf("GeneratePythonSDK() error = %v", err)
 			}
@@ -165,7 +165,7 @@ func TestGeneratePythonSDK_WithTests(t *testing.T) {
 	httpLib := "requests"
 
 	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -196,7 +196,7 @@ func TestGeneratePythonSDK_WithoutTests(t *testing.T) {
 	httpLib := "requests"
 
 	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", false)
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", false, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -231,7 +231,7 @@ func TestGeneratePythonSDK_ModelTests(t *testing.T) {
 		},
 	}
 
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -283,7 +283,7 @@ func TestGeneratePythonSDK_APITests(t *testing.T) {
 		},
 	}
 
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -348,7 +348,7 @@ func TestGeneratePythonSDK_AuthTests(t *testing.T) {
 		},
 	}
 
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -515,7 +515,7 @@ func TestGeneratePythonSDK_Phase3_Examples(t *testing.T) {
 		},
 	}
 
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -582,7 +582,7 @@ func TestGeneratePythonSDK_Phase3_ErrorTests(t *testing.T) {
 		},
 	}
 
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -630,7 +630,7 @@ func TestGeneratePythonSDK_Phase3_Fixtures(t *testing.T) {
 		},
 	}
 
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}

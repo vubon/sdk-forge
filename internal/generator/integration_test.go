@@ -38,7 +38,7 @@ func TestIntegration_PythonSDKGeneration(t *testing.T) {
 	})
 	doc.Paths.Set("/items", pathItem)
 
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, doc, nil, "", true)
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, doc, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -98,7 +98,7 @@ func TestIntegration_PythonSDKWithCustomHTTPLib(t *testing.T) {
 	httpLib := "httpx"
 
 	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true)
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -157,7 +157,7 @@ func TestIntegration_GoSDKGeneration(t *testing.T) {
 	// outputPath should include the SDK name (like CLI does)
 	const expectedGoSDKName = "myapisdk" // "my-api-sdk" -> "myapisdk"
 	outputPath := filepath.Join(tmpDir, expectedGoSDKName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, doc, nil, "", true)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, doc, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -217,7 +217,7 @@ func TestIntegration_GoSDKWithCustomHTTPLib(t *testing.T) {
 	// outputPath should include the SDK name (like CLI does)
 	const expectedGoSDKName = "testsdk"
 	outputPath := filepath.Join(tmpDir, expectedGoSDKName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}

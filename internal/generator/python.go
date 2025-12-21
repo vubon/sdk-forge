@@ -21,12 +21,14 @@ import (
 // GeneratePythonSDK generates a Python SDK
 // If version is nil, uses the default Python version
 // If sdkVersion is empty, extracts from OpenAPI schema or defaults to "1.0.0"
+// retryConfig specifies retry behavior for HTTP requests (can be disabled)
 func GeneratePythonSDK(
 	outputPath, sdkName, httpLib string,
 	openAPIDoc interface{},
 	version *LanguageVersion,
 	sdkVersion string,
 	generateTests bool,
+	retryConfig RetryConfig,
 ) error {
 	// Use default version if not provided
 	if version == nil {
@@ -39,7 +41,7 @@ func GeneratePythonSDK(
 	if !ok {
 		// If not an openapi3.T, try to extract from ExtractedData
 		if extractedData, ok := openAPIDoc.(*ExtractedData); ok {
-			return generatePythonSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests)
+			return generatePythonSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests, retryConfig)
 		}
 		return fmt.Errorf("invalid OpenAPI document type")
 	}
@@ -50,7 +52,7 @@ func GeneratePythonSDK(
 		return fmt.Errorf("failed to extract OpenAPI data: %w", err)
 	}
 
-	return generatePythonSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests)
+	return generatePythonSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests, retryConfig)
 }
 
 // generatePythonSDKFromExtracted generates SDK from extracted data
@@ -60,6 +62,7 @@ func generatePythonSDKFromExtracted(
 	version LanguageVersion,
 	sdkVersion string,
 	generateTests bool,
+	retryConfig RetryConfig,
 ) error {
 	// Get HTTP library config
 	libConfig, err := httplib.GetLibraryConfig("python", httpLib)
@@ -85,6 +88,7 @@ func generatePythonSDKFromExtracted(
 		HTTPLibConfig:   libConfig,
 		OpenAPIDoc:      extractedData,
 		ClientClassName: getClientClassName(sanitizedName),
+		RetryConfig:     retryConfig,
 	}
 
 	// Determine SDK version using common utility

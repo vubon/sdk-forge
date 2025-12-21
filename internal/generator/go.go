@@ -18,12 +18,14 @@ import (
 // GenerateGoSDK generates a Go SDK
 // If version is nil, uses the default Go version
 // If sdkVersion is empty, extracts from OpenAPI schema or defaults to "1.0.0"
+// retryConfig specifies retry behavior for HTTP requests (can be disabled)
 func GenerateGoSDK(
 	outputPath, sdkName, httpLib string,
 	openAPIDoc interface{},
 	version *LanguageVersion,
 	sdkVersion string,
 	generateTests bool,
+	retryConfig RetryConfig,
 ) error {
 	// Use default version if not provided
 	if version == nil {
@@ -36,7 +38,7 @@ func GenerateGoSDK(
 	if !ok {
 		// If not an openapi3.T, try to extract from ExtractedData
 		if extractedData, ok := openAPIDoc.(*ExtractedData); ok {
-			return generateGoSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests)
+			return generateGoSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests, retryConfig)
 		}
 		return fmt.Errorf("invalid OpenAPI document type")
 	}
@@ -47,7 +49,7 @@ func GenerateGoSDK(
 		return fmt.Errorf("failed to extract OpenAPI data: %w", err)
 	}
 
-	return generateGoSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests)
+	return generateGoSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests, retryConfig)
 }
 
 // generateGoSDKFromExtracted generates SDK from extracted data
@@ -57,6 +59,7 @@ func generateGoSDKFromExtracted(
 	version LanguageVersion,
 	sdkVersion string,
 	generateTests bool,
+	retryConfig RetryConfig,
 ) error {
 	// Get HTTP library config
 	libConfig, err := httplib.GetLibraryConfig("go", httpLib)
@@ -84,6 +87,7 @@ func generateGoSDKFromExtracted(
 		HTTPLibConfig:   libConfig,
 		OpenAPIDoc:      extractedData,
 		ClientClassName: getClientClassName(sanitizedName),
+		RetryConfig:     retryConfig,
 	}
 
 	// Determine SDK version using common utility

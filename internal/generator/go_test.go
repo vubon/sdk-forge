@@ -17,7 +17,7 @@ func TestGenerateGoSDK(t *testing.T) {
 	extractedData := createTestExtractedData()
 	// outputPath should include the SDK name (like CLI does)
 	outputPath := filepath.Join(tmpDir, testGoSDKName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -46,7 +46,7 @@ func TestGenerateGoSDK_InvalidHTTPLib(t *testing.T) {
 	extractedData := createTestExtractedData()
 	// outputPath should include the SDK name (like CLI does)
 	outputPath := filepath.Join(tmpDir, testGoSDKName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err == nil {
 		t.Error("GenerateGoSDK() with invalid HTTP library should return error")
 	}
@@ -60,7 +60,7 @@ func TestGenerateGoSDK_CustomHTTPLib(t *testing.T) {
 	extractedData := createTestExtractedData()
 	// outputPath should include the SDK name (like CLI does)
 	outputPath := filepath.Join(tmpDir, testGoSDKName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -98,7 +98,7 @@ func TestGenerateGoSDK_SDKNameSanitization(t *testing.T) {
 			extractedData := createTestExtractedData()
 			// outputPath should include the SDK name (like CLI does)
 			outputPath := filepath.Join(tmpDir, tt.expected)
-			err := GenerateGoSDK(outputPath, tt.sdkName, "nethttp", extractedData, nil, "", true)
+			err := GenerateGoSDK(outputPath, tt.sdkName, "nethttp", extractedData, nil, "", true, DefaultRetryConfig())
 			if err != nil {
 				t.Fatalf("GenerateGoSDK() error = %v", err)
 			}
@@ -364,7 +364,7 @@ func TestGenerateGoSDK_WithTests(t *testing.T) {
 
 	extractedData := createTestExtractedData()
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -388,7 +388,7 @@ func TestGenerateGoSDK_WithoutTests(t *testing.T) {
 
 	extractedData := createTestExtractedData()
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", false)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", false, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -424,7 +424,7 @@ func TestGenerateGoSDK_ModelTests(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -474,7 +474,7 @@ func TestGenerateGoSDK_APITests(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -540,7 +540,7 @@ func TestGenerateGoSDK_AuthTests(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -619,7 +619,7 @@ func TestGenerateGoSDK_Phase3_Examples(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -687,7 +687,7 @@ func TestGenerateGoSDK_Phase3_ErrorTests(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -736,7 +736,7 @@ func TestGenerateGoSDK_Phase3_Fixtures(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
