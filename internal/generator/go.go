@@ -313,6 +313,8 @@ func generateGoClient(data TemplateData, version LanguageVersion) string {
 	if data.RetryConfig.Enabled {
 		retryFields = generateGoRetryFields(data.RetryConfig)
 		retryHelper = generateGoRetryHelper(data.HTTPLib, data.RetryConfig)
+		// Replace template placeholder with actual client class name
+		retryHelper = strings.ReplaceAll(retryHelper, "{{.ClientClassName}}", data.ClientClassName)
 		retryInit = generateGoRetryInit(data.RetryConfig)
 	}
 

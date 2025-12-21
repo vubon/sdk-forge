@@ -481,6 +481,7 @@ func generatePythonRetrySetup(config RetryConfig) string {
 
 	var buf strings.Builder
 	buf.WriteString("        # Retry configuration\n")
+	buf.WriteString("        self.retry_enabled = True\n")
 	buf.WriteString(fmt.Sprintf("        self.retry_max_attempts = %d\n", config.MaxAttempts))
 	buf.WriteString(fmt.Sprintf("        self.retry_initial_delay = %.1f\n", config.InitialDelay.Seconds()))
 	buf.WriteString(fmt.Sprintf("        self.retry_max_delay = %.1f\n", config.MaxDelay.Seconds()))
@@ -494,7 +495,12 @@ func generatePythonRetrySetup(config RetryConfig) string {
 		buf.WriteString(fmt.Sprintf("%d", code))
 	}
 	buf.WriteString("]\n")
-	buf.WriteString(fmt.Sprintf("        self.retry_on_network_errors = %v\n", config.RetryOnNetworkErrors))
+	// Use Python boolean values (True/False) instead of Go boolean values (true/false)
+	retryOnNetworkErrors := "False"
+	if config.RetryOnNetworkErrors {
+		retryOnNetworkErrors = "True"
+	}
+	buf.WriteString(fmt.Sprintf("        self.retry_on_network_errors = %s\n", retryOnNetworkErrors))
 
 	return buf.String()
 }
