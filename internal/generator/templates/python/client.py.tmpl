@@ -2,6 +2,9 @@
 
 import {{.HTTPLibImport}}
 from typing import Optional, Dict, Any
+{{- if .RetryEnabled}}
+import time
+{{- end}}
 
 
 class {{.ClientClassName}}:
@@ -19,11 +22,22 @@ class {{.ClientClassName}}:
         self.session = {{.ClientClass}}()
         
 {{.AuthSetup}}
+{{- if .RetryEnabled}}
+{{.RetrySetup}}
+{{- end}}
+{{- if .RetryEnabled}}
+{{.RetryHelper}}
+{{- end}}
     
     def _request(self, method: str, path: str, **kwargs):
-        """Make an HTTP request"""
+        """Make an HTTP request{{- if .RetryEnabled}} with retry logic{{- end}}"""
         url = f"{self.base_url}{path}"
+{{- if .RetryEnabled}}
+        # Use retry logic if enabled
+        response = self._request_with_retry(method, url, **kwargs)
+{{- else}}
         response = self.session.request(method, url, **kwargs)
+{{- end}}
         response.raise_for_status()
         return response.json()
     

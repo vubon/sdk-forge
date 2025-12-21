@@ -347,6 +347,14 @@ func generatePythonClient(data TemplateData) string {
 	// Generate API methods
 	apiMethods := generatePythonAPIMethods(extractedData.Operations)
 
+	// Generate retry setup if enabled
+	retrySetup := ""
+	retryHelper := ""
+	if data.RetryConfig.Enabled {
+		retrySetup = generatePythonRetrySetup(data.RetryConfig)
+		retryHelper = generatePythonRetryHelper(data.HTTPLib, data.RetryConfig)
+	}
+
 	// Prepare template data
 	type PythonClientData struct {
 		DisplayName     string
@@ -356,6 +364,9 @@ func generatePythonClient(data TemplateData) string {
 		ClientClass     string
 		AuthSetup       string
 		APIMethods      string
+		RetryEnabled    bool
+		RetrySetup      string
+		RetryHelper     string
 	}
 	templateData := PythonClientData{
 		DisplayName:     displayName,
@@ -365,6 +376,9 @@ func generatePythonClient(data TemplateData) string {
 		ClientClass:     clientClass,
 		AuthSetup:       authSetup,
 		APIMethods:      apiMethods,
+		RetryEnabled:    data.RetryConfig.Enabled,
+		RetrySetup:      retrySetup,
+		RetryHelper:     retryHelper,
 	}
 
 	// Load and render template
@@ -454,6 +468,215 @@ class %s:
 			clientClass,
 			authSetup,
 			apiMethods)
+	}
+
+	return buf.String()
+}
+
+// generatePythonRetrySetup generates retry configuration setup code for __init__
+func generatePythonRetrySetup(config RetryConfig) string {
+	if !config.Enabled {
+		return ""
+	}
+
+	var buf strings.Builder
+	buf.WriteString("        # Retry configuration\n")
+	buf.WriteString(fmt.Sprintf("        self.retry_max_attempts = %d\n", config.MaxAttempts))
+	buf.WriteString(fmt.Sprintf("        self.retry_initial_delay = %.1f\n", config.InitialDelay.Seconds()))
+	buf.WriteString(fmt.Sprintf("        self.retry_max_delay = %.1f\n", config.MaxDelay.Seconds()))
+	buf.WriteString(fmt.Sprintf("        self.retry_backoff_multiplier = %.1f\n", config.BackoffMultiplier))
+	buf.WriteString(fmt.Sprintf("        self.retry_strategy = %q\n", config.Strategy))
+	buf.WriteString("        self.retryable_status_codes = [")
+	for i, code := range config.RetryableStatusCodes {
+		if i > 0 {
+			buf.WriteString(", ")
+		}
+		buf.WriteString(fmt.Sprintf("%d", code))
+	}
+	buf.WriteString("]\n")
+	buf.WriteString(fmt.Sprintf("        self.retry_on_network_errors = %v\n", config.RetryOnNetworkErrors))
+
+	return buf.String()
+}
+
+// generatePythonRetryHelper generates retry helper function based on HTTP library
+func generatePythonRetryHelper(httpLib string, config RetryConfig) string {
+	if !config.Enabled {
+		return ""
+	}
+
+	var buf strings.Builder
+	buf.WriteString("\n    def _calculate_retry_delay(self, attempt: int) -> float:\n")
+	buf.WriteString("        \"\"\"Calculate delay for retry attempt based on strategy\"\"\"\n")
+	buf.WriteString(fmt.Sprintf("        if self.retry_strategy == %q:\n", RetryStrategyExponential))
+	buf.WriteString("            # Exponential backoff: initial_delay * (multiplier ^ attempt)\n")
+	buf.WriteString("            delay = self.retry_initial_delay * (self.retry_backoff_multiplier ** attempt)\n")
+	buf.WriteString(fmt.Sprintf("        elif self.retry_strategy == %q:\n", RetryStrategyLinear))
+	buf.WriteString("            # Linear backoff: initial_delay * (attempt + 1)\n")
+	buf.WriteString("            delay = self.retry_initial_delay * (attempt + 1)\n")
+	buf.WriteString(fmt.Sprintf("        elif self.retry_strategy == %q:\n", RetryStrategyFixed))
+	buf.WriteString("            # Fixed delay: always use initial_delay\n")
+	buf.WriteString("            delay = self.retry_initial_delay\n")
+	buf.WriteString("        else:\n")
+	buf.WriteString("            # Default to exponential\n")
+	buf.WriteString("            delay = self.retry_initial_delay * (self.retry_backoff_multiplier ** attempt)\n")
+	buf.WriteString("        return min(delay, self.retry_max_delay)\n")
+
+	// Generate retry logic based on HTTP library
+	switch httpLib {
+	case "requests":
+		buf.WriteString("\n    def _request_with_retry(self, method: str, url: str, **kwargs):\n")
+		buf.WriteString("        \"\"\"Make HTTP request with retry logic\"\"\"\n")
+		buf.WriteString("        import time\n")
+		buf.WriteString("        last_exception = None\n\n")
+		buf.WriteString("        for attempt in range(self.retry_max_attempts):\n")
+		buf.WriteString("            try:\n")
+		buf.WriteString("                response = self.session.request(method, url, **kwargs)\n")
+		buf.WriteString("                # Check if status code is retryable\n")
+		buf.WriteString("                if response.status_code not in self.retryable_status_codes:\n")
+		buf.WriteString("                    return response\n")
+		buf.WriteString("                # Retryable status code - will retry below\n")
+		buf.WriteString("            except (requests.exceptions.RequestException,\n")
+		buf.WriteString("                    requests.exceptions.Timeout,\n")
+		buf.WriteString("                    requests.exceptions.ConnectionError) as e:\n")
+		buf.WriteString("                if not self.retry_on_network_errors:\n")
+		buf.WriteString("                    raise\n")
+		buf.WriteString("                last_exception = e\n")
+		buf.WriteString("                # Network error - will retry below\n\n")
+		buf.WriteString("            # If we get here, we need to retry\n")
+		buf.WriteString("            if attempt < self.retry_max_attempts - 1:\n")
+		buf.WriteString("                delay = self._calculate_retry_delay(attempt)\n")
+		buf.WriteString("                time.sleep(delay)\n")
+		buf.WriteString("            else:\n")
+		buf.WriteString("                # Max attempts exceeded\n")
+		buf.WriteString("                if last_exception:\n")
+		buf.WriteString("                    raise last_exception\n")
+		buf.WriteString("                response.raise_for_status()\n")
+		buf.WriteString("                raise Exception(f\"Request failed after {self.retry_max_attempts} attempts\")\n\n")
+		buf.WriteString("        return response\n")
+
+	case "httpx":
+		buf.WriteString("\n    def _request_with_retry(self, method: str, url: str, **kwargs):\n")
+		buf.WriteString("        \"\"\"Make HTTP request with retry logic\"\"\"\n")
+		buf.WriteString("        import time\n")
+		buf.WriteString("        last_exception = None\n\n")
+		buf.WriteString("        for attempt in range(self.retry_max_attempts):\n")
+		buf.WriteString("            try:\n")
+		buf.WriteString("                response = self.session.request(method, url, **kwargs)\n")
+		buf.WriteString("                # Check if status code is retryable\n")
+		buf.WriteString("                if response.status_code not in self.retryable_status_codes:\n")
+		buf.WriteString("                    return response\n")
+		buf.WriteString("                # Retryable status code - will retry below\n")
+		buf.WriteString("            except (httpx.RequestError, httpx.TimeoutException,\n")
+		buf.WriteString("                    httpx.ConnectError, httpx.NetworkError) as e:\n")
+		buf.WriteString("                if not self.retry_on_network_errors:\n")
+		buf.WriteString("                    raise\n")
+		buf.WriteString("                last_exception = e\n")
+		buf.WriteString("                # Network error - will retry below\n\n")
+		buf.WriteString("            # If we get here, we need to retry\n")
+		buf.WriteString("            if attempt < self.retry_max_attempts - 1:\n")
+		buf.WriteString("                delay = self._calculate_retry_delay(attempt)\n")
+		buf.WriteString("                time.sleep(delay)\n")
+		buf.WriteString("            else:\n")
+		buf.WriteString("                # Max attempts exceeded\n")
+		buf.WriteString("                if last_exception:\n")
+		buf.WriteString("                    raise last_exception\n")
+		buf.WriteString("                response.raise_for_status()\n")
+		buf.WriteString("                raise Exception(f\"Request failed after {self.retry_max_attempts} attempts\")\n\n")
+		buf.WriteString("        return response\n")
+
+	case "aiohttp":
+		// Note: aiohttp requires async/await, but the current _request method is synchronous
+		// For now, we'll generate a synchronous wrapper that won't work perfectly with aiohttp
+		// Full aiohttp support would require making _request async, which is a larger change
+		buf.WriteString("\n    async def _request_with_retry_async(self, method: str, url: str, **kwargs):\n")
+		buf.WriteString("        \"\"\"Make async HTTP request with retry logic (for aiohttp)\"\"\"\n")
+		buf.WriteString("        import asyncio\n")
+		buf.WriteString("        last_exception = None\n")
+		buf.WriteString("        response_data = None\n\n")
+		buf.WriteString("        for attempt in range(self.retry_max_attempts):\n")
+		buf.WriteString("            try:\n")
+		buf.WriteString("                async with self.session.request(method, url, **kwargs) as response:\n")
+		buf.WriteString("                    # Check if status code is retryable\n")
+		buf.WriteString("                    if response.status not in self.retryable_status_codes:\n")
+		buf.WriteString("                        response_data = await response.json()\n")
+		buf.WriteString("                        return response_data\n")
+		buf.WriteString("                    # Retryable status code - will retry below\n")
+		buf.WriteString("                    response_data = await response.text()\n")
+		buf.WriteString("            except (aiohttp.ClientError, asyncio.TimeoutError) as e:\n")
+		buf.WriteString("                if not self.retry_on_network_errors:\n")
+		buf.WriteString("                    raise\n")
+		buf.WriteString("                last_exception = e\n")
+		buf.WriteString("                # Network error - will retry below\n\n")
+		buf.WriteString("            # If we get here, we need to retry\n")
+		buf.WriteString("            if attempt < self.retry_max_attempts - 1:\n")
+		buf.WriteString("                delay = self._calculate_retry_delay(attempt)\n")
+		buf.WriteString("                await asyncio.sleep(delay)\n")
+		buf.WriteString("            else:\n")
+		buf.WriteString("                # Max attempts exceeded\n")
+		buf.WriteString("                if last_exception:\n")
+		buf.WriteString("                    raise last_exception\n")
+		buf.WriteString("                raise Exception(f\"Request failed after {self.retry_max_attempts} attempts\")\n\n")
+		buf.WriteString("        return response_data\n")
+
+	case "urllib3":
+		buf.WriteString("\n    def _request_with_retry(self, method: str, url: str, **kwargs):\n")
+		buf.WriteString("        \"\"\"Make HTTP request with retry logic\"\"\"\n")
+		buf.WriteString("        import time\n")
+		buf.WriteString("        from urllib3.exceptions import HTTPError, MaxRetryError, TimeoutError\n")
+		buf.WriteString("        last_exception = None\n\n")
+		buf.WriteString("        for attempt in range(self.retry_max_attempts):\n")
+		buf.WriteString("            try:\n")
+		buf.WriteString("                response = self.session.request(method, url, **kwargs)\n")
+		buf.WriteString("                # Check if status code is retryable\n")
+		buf.WriteString("                if response.status not in self.retryable_status_codes:\n")
+		buf.WriteString("                    return response\n")
+		buf.WriteString("                # Retryable status code - will retry below\n")
+		buf.WriteString("            except (HTTPError, MaxRetryError, TimeoutError) as e:\n")
+		buf.WriteString("                if not self.retry_on_network_errors:\n")
+		buf.WriteString("                    raise\n")
+		buf.WriteString("                last_exception = e\n")
+		buf.WriteString("                # Network error - will retry below\n\n")
+		buf.WriteString("            # If we get here, we need to retry\n")
+		buf.WriteString("            if attempt < self.retry_max_attempts - 1:\n")
+		buf.WriteString("                delay = self._calculate_retry_delay(attempt)\n")
+		buf.WriteString("                time.sleep(delay)\n")
+		buf.WriteString("            else:\n")
+		buf.WriteString("                # Max attempts exceeded\n")
+		buf.WriteString("                if last_exception:\n")
+		buf.WriteString("                    raise last_exception\n")
+		buf.WriteString("                raise Exception(f\"Request failed after {self.retry_max_attempts} attempts\")\n\n")
+		buf.WriteString("        return response\n")
+
+	default:
+		// Default to requests-like behavior
+		buf.WriteString("\n    def _request_with_retry(self, method: str, url: str, **kwargs):\n")
+		buf.WriteString("        \"\"\"Make HTTP request with retry logic\"\"\"\n")
+		buf.WriteString("        import time\n")
+		buf.WriteString("        last_exception = None\n\n")
+		buf.WriteString("        for attempt in range(self.retry_max_attempts):\n")
+		buf.WriteString("            try:\n")
+		buf.WriteString("                response = self.session.request(method, url, **kwargs)\n")
+		buf.WriteString("                # Check if status code is retryable\n")
+		buf.WriteString("                if response.status_code not in self.retryable_status_codes:\n")
+		buf.WriteString("                    return response\n")
+		buf.WriteString("                # Retryable status code - will retry below\n")
+		buf.WriteString("            except Exception as e:\n")
+		buf.WriteString("                if not self.retry_on_network_errors:\n")
+		buf.WriteString("                    raise\n")
+		buf.WriteString("                last_exception = e\n")
+		buf.WriteString("                # Network error - will retry below\n\n")
+		buf.WriteString("            # If we get here, we need to retry\n")
+		buf.WriteString("            if attempt < self.retry_max_attempts - 1:\n")
+		buf.WriteString("                delay = self._calculate_retry_delay(attempt)\n")
+		buf.WriteString("                time.sleep(delay)\n")
+		buf.WriteString("            else:\n")
+		buf.WriteString("                # Max attempts exceeded\n")
+		buf.WriteString("                if last_exception:\n")
+		buf.WriteString("                    raise last_exception\n")
+		buf.WriteString("                response.raise_for_status()\n")
+		buf.WriteString("                raise Exception(f\"Request failed after {self.retry_max_attempts} attempts\")\n\n")
+		buf.WriteString("        return response\n")
 	}
 
 	return buf.String()
