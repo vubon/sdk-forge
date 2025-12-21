@@ -225,8 +225,21 @@ jobs:
              \`\`\`bash
              chmod +x sdk-forge-$VERSION-<platform>
              \`\`\`
-
-          4. Move to PATH:
+             
+          4. Remove macOS quarantine (macOS only):
+             
+             If macOS shows a security warning when running the binary, remove the quarantine attribute:
+             \`\`\`bash
+             # Check if file has quarantine attribute
+             xattr -l sdk-forge-$VERSION-<platform>
+             
+             # If you see "com.apple.quarantine", remove it:
+             xattr -d com.apple.quarantine sdk-forge-$VERSION-<platform>
+             \`\`\`
+             
+             **Alternative:** Right-click the file → Select "Open" → Click "Open" in the security dialog (first time only).
+             
+          5. Move to PATH:
              \`\`\`bash
              # Linux/macOS
              sudo mv sdk-forge-$VERSION-<platform> /usr/local/bin/sdk-forge

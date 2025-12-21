@@ -679,6 +679,30 @@ sdk-forge generate \
 
 ## Troubleshooting
 
+### macOS Security Warning (Quarantine)
+
+If macOS shows a security warning when running the downloaded binary (e.g., "sdk-forge cannot be opened because it is from an unidentified developer"), you need to remove the quarantine attribute:
+
+```bash
+# Check if file has quarantine attribute
+xattr -l ~/bin/sdk-forge
+# Or if the file is in a different location:
+xattr -l /path/to/sdk-forge-0.3.0-darwin-arm64
+
+# If you see "com.apple.quarantine", remove it:
+xattr -d com.apple.quarantine ~/bin/sdk-forge
+# Or:
+xattr -d com.apple.quarantine /path/to/sdk-forge-0.3.0-darwin-arm64
+```
+
+**Alternative method:**
+1. Right-click the binary file
+2. Select **"Open"** (not double-click)
+3. Click **"Open"** in the security dialog (first time only)
+4. After this, you can run it normally from the terminal
+
+**Note:** This is a macOS security feature (Gatekeeper) that applies to all unsigned binaries downloaded from the internet. The binary is safe - it's just not signed with an Apple Developer certificate.
+
 ### Common Issues
 
 #### 1. "Schema file not found"
