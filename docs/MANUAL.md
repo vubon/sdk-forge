@@ -16,6 +16,7 @@ A comprehensive guide to using SDK Forge to generate production-ready SDKs from 
 5. [Generating SDKs](#generating-sdks)
 6. [Language-Specific Guides](#language-specific-guides)
 7. [Advanced Usage](#advanced-usage)
+   - [Retry Configuration](#retry-configuration)
 8. [Troubleshooting](#troubleshooting)
 9. [Best Practices](#best-practices)
 10. [Examples](#examples)
@@ -144,6 +145,10 @@ sdk-forge generate [flags]
 | `--skip-tests` | Skip test generation | Tests generated | `--skip-tests` |
 | `--ignore-minor-issues` | Ignore minor validation issues | false | `--ignore-minor-issues` |
 | `--force` | `-f` | Overwrite existing SDK | false | `--force` |
+| `--retry-enabled` | Enable retry logic for HTTP requests | false | `--retry-enabled` |
+| `--retry-max-attempts` | Maximum retry attempts | 3 | `--retry-max-attempts 5` |
+| `--retry-strategy` | Retry strategy (exponential, linear, fixed) | exponential | `--retry-strategy linear` |
+| `--retry-status-codes` | Comma-separated status codes to retry | 429,500,502,503,504 | `--retry-status-codes "429,500"` |
 
 ### Flag Details
 
