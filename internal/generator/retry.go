@@ -1,4 +1,8 @@
 // Package generator provides retry mechanism configuration and utilities.
+//
+// The retry mechanism allows generated SDKs to automatically retry failed HTTP requests
+// with configurable strategies (exponential backoff, linear backoff, or fixed delay).
+// Retry can be configured via CLI flags or OpenAPI extensions (x-sdk-forge-retry).
 package generator
 
 import (
@@ -8,28 +12,95 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
-// RetryStrategy represents different retry delay strategies
+// RetryStrategy represents different retry delay strategies.
+//
+// Strategies determine how the delay between retry attempts is calculated:
+//   - Exponential: Delay increases exponentially (1s, 2s, 4s, 8s...)
+//   - Linear: Delay increases linearly (1s, 2s, 3s, 4s...)
+//   - Fixed: Constant delay between retries (1s, 1s, 1s...)
 type RetryStrategy string
 
 const (
+	// RetryStrategyExponential uses exponential backoff: initialDelay * (multiplier ^ attempt)
+	// Best for rate-limited APIs or high-load scenarios
 	RetryStrategyExponential RetryStrategy = "exponential"
-	RetryStrategyLinear      RetryStrategy = "linear"
-	RetryStrategyFixed        RetryStrategy = "fixed"
+	
+	// RetryStrategyLinear uses linear backoff: initialDelay * (attempt + 1)
+	// Best for predictable retry patterns
+	RetryStrategyLinear RetryStrategy = "linear"
+	
+	// RetryStrategyFixed uses constant delay: always initialDelay
+	// Best for simple retry scenarios
+	RetryStrategyFixed RetryStrategy = "fixed"
 )
 
-// RetryConfig holds configuration for retry mechanism
+// RetryConfig holds configuration for retry mechanism in generated SDKs.
+//
+// This configuration is used to generate retry logic in Python and Go SDKs.
+// When Enabled is false, no retry logic is generated (backward compatible).
+//
+// Example usage:
+//   config := DefaultRetryConfig()
+//   config.Enabled = true
+//   config.MaxAttempts = 5
+//   config.Strategy = RetryStrategyExponential
 type RetryConfig struct {
-	Enabled              bool          // Whether retry is enabled (default: false)
-	MaxAttempts          int           // Maximum retry attempts (default: 3)
-	InitialDelay         time.Duration // Initial delay (default: 1s)
-	MaxDelay             time.Duration // Maximum delay (default: 60s)
-	BackoffMultiplier    float64       // Exponential multiplier (default: 2.0)
-	RetryableStatusCodes []int         // HTTP status codes to retry (default: [429, 500, 502, 503, 504])
-	RetryOnNetworkErrors bool          // Retry on network errors (default: true)
-	Strategy             RetryStrategy // Retry strategy (exponential, linear, fixed)
+	// Enabled controls whether retry logic is generated in SDKs.
+	// Default: false (disabled for backward compatibility)
+	Enabled bool
+	
+	// MaxAttempts is the maximum number of retry attempts (including initial request).
+	// Default: 3 (1 initial + 2 retries)
+	MaxAttempts int
+	
+	// InitialDelay is the delay before the first retry attempt.
+	// Default: 1 second
+	InitialDelay time.Duration
+	
+	// MaxDelay is the maximum delay between retry attempts (caps exponential/linear backoff).
+	// Default: 60 seconds
+	MaxDelay time.Duration
+	
+	// BackoffMultiplier is used for exponential backoff strategy.
+	// Formula: delay = initialDelay * (multiplier ^ attempt)
+	// Default: 2.0
+	BackoffMultiplier float64
+	
+	// RetryableStatusCodes are HTTP status codes that trigger a retry.
+	// Default: [429, 500, 502, 503, 504]
+	// Common codes:
+	//   - 429: Too Many Requests (rate limit)
+	//   - 500: Internal Server Error
+	//   - 502: Bad Gateway
+	//   - 503: Service Unavailable
+	//   - 504: Gateway Timeout
+	RetryableStatusCodes []int
+	
+	// RetryOnNetworkErrors controls whether to retry on network errors
+	// (connection refused, timeouts, DNS errors, etc.).
+	// Default: true
+	RetryOnNetworkErrors bool
+	
+	// Strategy determines how delay is calculated between retry attempts.
+	// Default: RetryStrategyExponential
+	Strategy RetryStrategy
 }
 
-// DefaultRetryConfig returns a retry configuration with sensible defaults
+// DefaultRetryConfig returns a retry configuration with sensible defaults.
+//
+// The default configuration has retry disabled (Enabled=false) for backward compatibility.
+// When enabled, it uses exponential backoff with 3 max attempts and retries on
+// common server errors (429, 5xx) and network errors.
+//
+// Returns:
+//   - Enabled: false (must be explicitly enabled)
+//   - MaxAttempts: 3
+//   - InitialDelay: 1 second
+//   - MaxDelay: 60 seconds
+//   - BackoffMultiplier: 2.0
+//   - Strategy: exponential
+//   - RetryableStatusCodes: [429, 500, 502, 503, 504]
+//   - RetryOnNetworkErrors: true
 func DefaultRetryConfig() RetryConfig {
 	return RetryConfig{
 		Enabled:              false, // Disabled by default for backward compatibility
@@ -43,7 +114,31 @@ func DefaultRetryConfig() RetryConfig {
 	}
 }
 
-// CalculateDelay calculates the delay for a given attempt based on the strategy
+// CalculateDelay calculates the delay for a given retry attempt based on the configured strategy.
+//
+// The delay is calculated as follows:
+//   - Exponential: initialDelay * (backoffMultiplier ^ attempt)
+//   - Linear: initialDelay * (attempt + 1)
+//   - Fixed: always initialDelay
+//
+// The result is capped at MaxDelay to prevent excessively long waits.
+//
+// Parameters:
+//   - attempt: The retry attempt number (0-based, where 0 is the first retry)
+//
+// Returns:
+//   - The calculated delay duration, capped at MaxDelay
+//
+// Example:
+//   config := RetryConfig{
+//       Strategy: RetryStrategyExponential,
+//       InitialDelay: time.Second,
+//       BackoffMultiplier: 2.0,
+//       MaxDelay: 60 * time.Second,
+//   }
+//   delay1 := config.CalculateDelay(0) // Returns 1s
+//   delay2 := config.CalculateDelay(1) // Returns 2s
+//   delay3 := config.CalculateDelay(2) // Returns 4s
 func (rc RetryConfig) CalculateDelay(attempt int) time.Duration {
 	if attempt < 0 {
 		attempt = 0
@@ -74,7 +169,23 @@ func (rc RetryConfig) CalculateDelay(attempt int) time.Duration {
 	return delay
 }
 
-// IsRetryableStatusCode checks if a status code should trigger a retry
+// IsRetryableStatusCode checks if an HTTP status code should trigger a retry.
+//
+// This method checks if the given status code is in the RetryableStatusCodes list.
+// Common retryable codes include:
+//   - 429: Too Many Requests (rate limit - may succeed after delay)
+//   - 5xx: Server errors (may be transient)
+//
+// Non-retryable codes typically include:
+//   - 2xx: Success (no retry needed)
+//   - 3xx: Redirects (no retry needed)
+//   - 4xx (except 429): Client errors (won't succeed on retry)
+//
+// Parameters:
+//   - statusCode: The HTTP status code to check
+//
+// Returns:
+//   - true if the status code should trigger a retry, false otherwise
 func (rc RetryConfig) IsRetryableStatusCode(statusCode int) bool {
 	for _, code := range rc.RetryableStatusCodes {
 		if statusCode == code {
@@ -93,8 +204,36 @@ func pow(x, y float64) float64 {
 	return result
 }
 
-// ParseRetryConfigFromOpenAPI extracts retry configuration from OpenAPI document extensions
-// Returns nil if no retry extension is found
+// ParseRetryConfigFromOpenAPI extracts retry configuration from OpenAPI document extensions.
+//
+// This function looks for the `x-sdk-forge-retry` extension in the OpenAPI document.
+// The extension should be a map with the following optional fields:
+//   - enabled: bool
+//   - maxAttempts: number
+//   - initialDelay: number (seconds)
+//   - maxDelay: number (seconds)
+//   - backoffMultiplier: number
+//   - strategy: string ("exponential", "linear", or "fixed")
+//   - retryableStatusCodes: array of numbers
+//   - retryOnNetworkErrors: bool
+//
+// Example OpenAPI extension:
+//   x-sdk-forge-retry:
+//     enabled: true
+//     maxAttempts: 3
+//     initialDelay: 1
+//     maxDelay: 60
+//     strategy: exponential
+//     retryableStatusCodes: [429, 500, 502, 503, 504]
+//
+// Parameters:
+//   - doc: The OpenAPI document (must be *openapi3.T)
+//
+// Returns:
+//   - *RetryConfig if extension is found and valid, nil otherwise
+//
+// Note: CLI flags take priority over OpenAPI extension values. Use MergeRetryConfig
+// to combine OpenAPI extension (base) with CLI flags (override).
 func ParseRetryConfigFromOpenAPI(doc interface{}) *RetryConfig {
 	// Try to access Extensions from openapi3.T
 	var extensions map[string]interface{}
@@ -184,8 +323,27 @@ func ParseRetryConfigFromOpenAPI(doc interface{}) *RetryConfig {
 	return &config
 }
 
-// MergeRetryConfig merges two retry configs, with config2 taking priority over config1
-// This allows CLI flags to override OpenAPI extension values
+// MergeRetryConfig merges two retry configurations, with config2 taking priority over config1.
+//
+// This function is used to combine OpenAPI extension values (config1) with CLI flag values (config2).
+// CLI flags override OpenAPI extension values when both are provided.
+//
+// Merge rules:
+//   - If config2 has a non-zero/non-empty value, it overrides config1
+//   - If config2 has a zero/empty value, config1's value is kept
+//   - For boolean fields, config2's value is used if config2.Enabled is true
+//
+// Typical usage:
+//   openAPIConfig := ParseRetryConfigFromOpenAPI(doc)  // Base from OpenAPI
+//   cliConfig := parseRetryConfigFromFlags(cmd)        // Override from CLI
+//   finalConfig := MergeRetryConfig(*openAPIConfig, cliConfig)
+//
+// Parameters:
+//   - config1: Base configuration (typically from OpenAPI extension)
+//   - config2: Override configuration (typically from CLI flags)
+//
+// Returns:
+//   - Merged RetryConfig with config2 values taking priority
 func MergeRetryConfig(config1, config2 RetryConfig) RetryConfig {
 	result := config1
 	
