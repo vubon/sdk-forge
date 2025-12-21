@@ -76,4 +76,3 @@ func TestGetGenerateCmd(t *testing.T) {
 		}
 	}
 }
-

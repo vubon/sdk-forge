@@ -334,4 +334,3 @@ func buildTestBinary(t *testing.T) string {
 
 	return binaryPath
 }
-
