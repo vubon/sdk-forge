@@ -700,6 +700,200 @@ sdk-forge generate \
   --skip-tests
 ```
 
+### Retry Configuration
+
+SDK Forge can generate SDKs with automatic retry logic for handling transient network errors and rate limits. Retry is **disabled by default** but can be enabled via CLI flags or OpenAPI extensions.
+
+#### Overview
+
+When retry is enabled, generated SDKs will automatically retry failed HTTP requests based on:
+- **HTTP Status Codes**: Configurable status codes that trigger retries (default: 429, 500, 502, 503, 504)
+- **Network Errors**: Connection timeouts, DNS errors, and other network-related failures
+- **Retry Strategies**: Exponential backoff, linear backoff, or fixed delay
+
+#### Retry Strategies
+
+**1. Exponential Backoff (Default)**
+- Delay increases exponentially: 1s, 2s, 4s, 8s, 16s...
+- Formula: `initialDelay * (multiplier ^ attempt)`
+- Best for: APIs with rate limits or high load
+
+**2. Linear Backoff**
+- Delay increases linearly: 1s, 2s, 3s, 4s, 5s...
+- Formula: `initialDelay * (attempt + 1)`
+- Best for: Predictable retry patterns
+
+**3. Fixed Delay**
+- Constant delay between retries: 1s, 1s, 1s, 1s...
+- Formula: Always `initialDelay`
+- Best for: Simple retry scenarios
+
+#### Configuration via CLI Flags
+
+**Basic Example:**
+```bash
+sdk-forge generate \
+  --schema api.yaml \
+  --lang python \
+  --name my-sdk \
+  --retry-enabled \
+  --retry-max-attempts 3 \
+  --retry-strategy exponential
+```
+
+**Advanced Example:**
+```bash
+sdk-forge generate \
+  --schema api.yaml \
+  --lang go \
+  --name my-sdk \
+  --retry-enabled \
+  --retry-max-attempts 5 \
+  --retry-initial-delay 2.0 \
+  --retry-max-delay 120.0 \
+  --retry-backoff-multiplier 2.5 \
+  --retry-strategy exponential \
+  --retry-status-codes "429,500,502,503,504,408"
+```
+
+#### Configuration via OpenAPI Extension
+
+You can define retry configuration directly in your OpenAPI schema using the `x-sdk-forge-retry` extension:
+
+```yaml
+openapi: 3.0.0
+info:
+  title: My API
+  version: 1.0.0
+
+x-sdk-forge-retry:
+  enabled: true
+  maxAttempts: 3
+  initialDelay: 1
+  maxDelay: 60
+  strategy: exponential
+  backoffMultiplier: 2.0
+  retryableStatusCodes: [429, 500, 502, 503, 504]
+  retryOnNetworkErrors: true
+
+paths:
+  /users:
+    get:
+      summary: List users
+      responses:
+        '200':
+          description: Success
+```
+
+**Configuration Priority:**
+1. CLI flags (highest priority - override OpenAPI extension)
+2. OpenAPI extension (`x-sdk-forge-retry`)
+3. Default values (if neither is provided)
+
+#### Using Retry in Generated SDKs
+
+**Python SDK Example:**
+```python
+from my_sdk import MySdkClient
+
+# Client is initialized with retry configuration
+client = MySdkClient(
+    base_url="https://api.example.com/v1",
+    api_key="your-key"
+)
+
+# Retry happens automatically on retryable errors
+try:
+    users = client.list_users()
+except Exception as e:
+    # Retry exhausted - handle final error
+    print(f"Request failed after retries: {e}")
+```
+
+**Go SDK Example:**
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/example/my-sdk"
+)
+
+func main() {
+    // Client is initialized with retry configuration
+    client := mysdk.NewMySdkClient("https://api.example.com/v1")
+    client.ApiKey = "your-key"
+    
+    // Retry happens automatically on retryable errors
+    data, err := client.ListUsers()
+    if err != nil {
+        // Retry exhausted - handle final error
+        fmt.Printf("Request failed after retries: %v\n", err)
+        return
+    }
+    
+    fmt.Println(string(data))
+}
+```
+
+#### Retry Behavior
+
+**When Retries Occur:**
+- HTTP status codes in `retryableStatusCodes` list (default: 429, 500, 502, 503, 504)
+- Network errors (connection refused, timeouts, DNS errors) if `retryOnNetworkErrors` is `true`
+- Transient failures that may succeed on retry
+
+**When Retries Don't Occur:**
+- HTTP 4xx errors (except 429) - client errors that won't succeed on retry
+- HTTP 2xx, 3xx - successful responses
+- Non-retryable network errors (if `retryOnNetworkErrors` is `false`)
+- After `maxAttempts` is reached
+
+**Retry Flow:**
+1. Make HTTP request
+2. If error/retryable status → wait for calculated delay
+3. Retry request (up to `maxAttempts` times)
+4. If all retries fail → return final error
+
+#### Best Practices
+
+1. **Choose Appropriate Strategy:**
+   - Use **exponential backoff** for rate-limited APIs (429 errors)
+   - Use **linear backoff** for predictable retry patterns
+   - Use **fixed delay** for simple scenarios
+
+2. **Set Reasonable Limits:**
+   - `maxAttempts`: 3-5 attempts is usually sufficient
+   - `maxDelay`: Cap delays to avoid long waits (60-120 seconds)
+   - `initialDelay`: Start with 1-2 seconds
+
+3. **Configure Status Codes:**
+   - Include `429` (Too Many Requests) for rate-limited APIs
+   - Include `5xx` codes (500, 502, 503, 504) for server errors
+   - Exclude `4xx` codes (except 429) - client errors won't succeed
+
+4. **Test Retry Behavior:**
+   - Test with mock servers that simulate failures
+   - Verify retry attempts and delays
+   - Ensure final errors are properly handled
+
+#### Troubleshooting Retry
+
+**Retry Not Working:**
+- Ensure `--retry-enabled` flag is set
+- Check that status codes are in `retryableStatusCodes`
+- Verify `retryOnNetworkErrors` is `true` for network errors
+
+**Too Many Retries:**
+- Reduce `maxAttempts`
+- Check if non-retryable errors are being retried
+- Review retryable status codes list
+
+**Retries Taking Too Long:**
+- Reduce `maxDelay`
+- Use `linear` or `fixed` strategy instead of `exponential`
+- Reduce `initialDelay` and `backoffMultiplier`
+
 ### Remote Schema URLs
 
 **Generate from remote OpenAPI schema:**
