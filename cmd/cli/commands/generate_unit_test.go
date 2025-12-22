@@ -7,7 +7,7 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/spf13/cobra"
-	"github.com/vubon/sdk-forge/internal/generator"
+	"github.com/vubon/sdk-forge/internal/generator/common"
 )
 
 // setFlag is a helper function to set command flags and fail the test on error
@@ -334,7 +334,7 @@ func TestParseRetryConfig_AllStrategies(t *testing.T) {
 		setFlag(t, cmd, "retry-strategy", strategy)
 		config := parseRetryConfig(cmd)
 
-		expectedStrategy := generator.RetryStrategy(strategy)
+		expectedStrategy := common.RetryStrategy(strategy)
 		if config.Strategy != expectedStrategy {
 			t.Errorf("expected strategy %s, got %s", expectedStrategy, config.Strategy)
 		}

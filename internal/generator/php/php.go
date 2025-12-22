@@ -2,6 +2,7 @@
 package php
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,8 +14,23 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 
+	"github.com/vubon/sdk-forge/internal/generator/common"
 	httplib "github.com/vubon/sdk-forge/pkg/languages/http"
 )
+
+//go:embed templates/composer.json.tmpl
+var phpComposerTemplate string
+
+//go:embed templates/README.md.tmpl
+var phpReadmeTemplate string
+
+func getPHPComposerTemplateContent() string {
+	return phpComposerTemplate
+}
+
+func getPHPReadmeTemplateContent() string {
+	return phpReadmeTemplate
+}
 
 // GeneratePHPSDK generates a PHP SDK
 // If version is nil, uses the default PHP version
@@ -23,14 +39,14 @@ import (
 func GeneratePHPSDK(
 	outputPath, sdkName, httpLib string,
 	openAPIDoc interface{},
-	version *LanguageVersion,
+	version *common.LanguageVersion,
 	sdkVersion string,
 	generateTests bool,
-	retryConfig RetryConfig,
+	retryConfig common.RetryConfig,
 ) error {
 	// Use default version if not provided
 	if version == nil {
-		defaultVersion := GetPHPDefaultVersion()
+		defaultVersion := common.GetPHPDefaultVersion()
 		version = &defaultVersion
 	}
 
@@ -38,14 +54,14 @@ func GeneratePHPSDK(
 	doc, ok := openAPIDoc.(*openapi3.T)
 	if !ok {
 		// If not an openapi3.T, try to extract from ExtractedData
-		if extractedData, ok := openAPIDoc.(*ExtractedData); ok {
+		if extractedData, ok := openAPIDoc.(*common.ExtractedData); ok {
 			return generatePHPSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests, retryConfig)
 		}
 		return fmt.Errorf("invalid OpenAPI document type")
 	}
 
 	// Extract data from OpenAPI document
-	extractedData, err := ExtractOpenAPIData(doc)
+	extractedData, err := common.ExtractOpenAPIData(doc)
 	if err != nil {
 		return fmt.Errorf("failed to extract OpenAPI data: %w", err)
 	}
@@ -56,11 +72,11 @@ func GeneratePHPSDK(
 // generatePHPSDKFromExtracted generates SDK from extracted data
 func generatePHPSDKFromExtracted(
 	outputPath, sdkName, httpLib string,
-	extractedData *ExtractedData,
-	version LanguageVersion,
+	extractedData *common.ExtractedData,
+	version common.LanguageVersion,
 	sdkVersion string,
 	generateTests bool,
-	retryConfig RetryConfig,
+	retryConfig common.RetryConfig,
 ) error {
 	// Get HTTP library config
 	libConfig, err := httplib.GetLibraryConfig("php", httpLib)
@@ -69,7 +85,7 @@ func generatePHPSDKFromExtracted(
 	}
 
 	// Sanitize SDK name for PHP (PascalCase for namespace, but lowercase for directory)
-	sanitizedName := toPascalCase(sdkName)
+	sanitizedName := common.ToPascalCase(sdkName)
 	packageDir := filepath.Join(outputPath, sanitizedName)
 
 	// Create package directory
@@ -78,19 +94,19 @@ func generatePHPSDKFromExtracted(
 	}
 
 	// Template data
-	data := TemplateData{
+	data := common.TemplateData{
 		SDKName:         sanitizedName,
 		Language:        "php",
 		HTTPLib:         httpLib,
 		HTTPLibImport:   libConfig.Import,
 		HTTPLibConfig:   libConfig,
 		OpenAPIDoc:      extractedData,
-		ClientClassName: getClientClassName(sanitizedName),
+		ClientClassName: common.GetClientClassName(sanitizedName),
 		RetryConfig:     retryConfig,
 	}
 
 	// Determine SDK version using common utility
-	finalSDKVersion := determineSDKVersion(extractedData, sdkVersion)
+	finalSDKVersion := common.DetermineSDKVersion(extractedData, sdkVersion)
 
 	// Generate composer.json using template
 	composerContent, err := generatePHPComposerJSON(sdkName, finalSDKVersion, httpLib, version, libConfig)
@@ -136,7 +152,7 @@ func generatePHPSDKFromExtracted(
 		for name, schema := range extractedData.Schemas {
 			// Pass SDK name for namespace generation
 			modelContent := generatePHPModelWithNamespace(name, schema, extractedData.Schemas, data.SDKName, version)
-			modelFileName := fmt.Sprintf("%s.php", toPascalCase(name))
+			modelFileName := fmt.Sprintf("%s.php", common.ToPascalCase(name))
 			modelPath := filepath.Join(modelsDir, modelFileName)
 			// #nosec G306 -- 0644 is appropriate for PHP source files
 			if err := os.WriteFile(modelPath, []byte(modelContent), 0644); err != nil {
@@ -157,10 +173,10 @@ func generatePHPSDKFromExtracted(
 		}
 
 		// Group operations by tags
-		operationsByTag := groupOperationsByTag(extractedData.Operations)
+		operationsByTag := common.GroupOperationsByTag(extractedData.Operations)
 		for tag, operations := range operationsByTag {
 			apiContent := generatePHPAPIModule(tag, operations, data, version)
-			apiFileName := fmt.Sprintf("%sApi.php", toPascalCase(tag))
+			apiFileName := fmt.Sprintf("%sApi.php", common.ToPascalCase(tag))
 			apiPath := filepath.Join(apiDir, apiFileName)
 			// #nosec G306 -- 0644 is appropriate for PHP source files
 			if err := os.WriteFile(apiPath, []byte(apiContent), 0644); err != nil {
@@ -236,7 +252,7 @@ func generatePHPSDKFromExtracted(
 }
 
 // generatePHPComposerJSON generates composer.json file using template
-func generatePHPComposerJSON(sdkName, sdkVersion, httpLib string, version LanguageVersion, libConfig *httplib.LibraryConfig) (string, error) {
+func generatePHPComposerJSON(sdkName, sdkVersion, httpLib string, version common.LanguageVersion, libConfig *httplib.LibraryConfig) (string, error) {
 	// Parse dependency string (format: "package:version" or "package")
 	dependency := libConfig.Dependency
 	if dependency == "" {
@@ -263,7 +279,7 @@ func generatePHPComposerJSON(sdkName, sdkVersion, httpLib string, version Langua
 		}
 	}
 
-	namespace := fmt.Sprintf("Vendor\\%s", toPascalCase(sdkName))
+	namespace := fmt.Sprintf("Vendor\\%s", common.ToPascalCase(sdkName))
 
 	// Prepare template data
 	type ComposerData struct {
@@ -282,7 +298,7 @@ func generatePHPComposerJSON(sdkName, sdkVersion, httpLib string, version Langua
 	}
 
 	// Load and render template
-	tmpl, err := LoadTemplate(GetPHPComposerTemplate())
+	tmpl, err := common.LoadTemplate(getPHPComposerTemplateContent())
 	if err != nil {
 		return "", fmt.Errorf("failed to load composer template: %w", err)
 	}
@@ -328,10 +344,10 @@ class ApiException extends \Exception
 }
 
 // generatePHPReadme generates README.md for PHP SDK using template
-func generatePHPReadme(data TemplateData, sdkVersion string) (string, error) {
-	extractedData, ok := data.OpenAPIDoc.(*ExtractedData)
-	namespace := getPHPNamespace(data.SDKName)
-	clientClassName := getClientClassName(data.SDKName)
+func generatePHPReadme(data common.TemplateData, sdkVersion string) (string, error) {
+	extractedData, ok := data.OpenAPIDoc.(*common.ExtractedData)
+	namespace := fmt.Sprintf("Vendor\\%s", common.ToPascalCase(data.SDKName))
+	clientClassName := common.GetClientClassName(data.SDKName)
 
 	// Format display name
 	displayName := strings.ReplaceAll(data.SDKName, "_", " ")
@@ -356,16 +372,16 @@ func generatePHPReadme(data TemplateData, sdkVersion string) (string, error) {
 	if hasAuth {
 		for name, scheme := range extractedData.SecuritySchemes {
 			switch scheme.Type {
-			case securitySchemeAPIKey:
+			case "apiKey":
 				authExample = fmt.Sprintf("        '%s' => 'your-api-key'", name)
-			case securitySchemeHTTP:
+			case "http":
 				switch scheme.Scheme {
-				case securitySchemeBearer:
+				case "bearer", "Bearer":
 					authExample = "        'bearer_token' => 'your-token'"
-				case securitySchemeBasic:
+				case "basic", "Basic":
 					authExample = "        'username' => 'your-username',\n        'password' => 'your-password'"
 				}
-			case securitySchemeOAuth2, securitySchemeOpenIDConnect:
+			case "oauth2", "OAuth2", "openIdConnect", "OpenIDConnect":
 				authExample = fmt.Sprintf("        '%s_token' => 'your-token'", name)
 			}
 			break // Just show first one
@@ -376,9 +392,9 @@ func generatePHPReadme(data TemplateData, sdkVersion string) (string, error) {
 	apiImports := ""
 	hasAPI := ok && extractedData != nil && len(extractedData.Operations) > 0
 	if hasAPI {
-		operationsByTag := groupOperationsByTag(extractedData.Operations)
+		operationsByTag := common.GroupOperationsByTag(extractedData.Operations)
 		for tag := range operationsByTag {
-			apiClassName := toPascalCase(tag) + "Api"
+			apiClassName := common.ToPascalCase(tag) + "Api"
 			apiImports = fmt.Sprintf("use %s\\Api\\%s;", namespace, apiClassName)
 			break // Just show first one
 		}
@@ -388,21 +404,21 @@ func generatePHPReadme(data TemplateData, sdkVersion string) (string, error) {
 	usageExample := ""
 	hasOperations := ok && extractedData != nil && len(extractedData.Operations) > 0
 	if hasOperations {
-		operationsByTag := groupOperationsByTag(extractedData.Operations)
+		operationsByTag := common.GroupOperationsByTag(extractedData.Operations)
 		for tag, operations := range operationsByTag {
 			if len(operations) > 0 {
-				apiClassName := toPascalCase(tag) + "Api"
+				apiClassName := common.ToPascalCase(tag) + "Api"
 				op := operations[0]
-				methodName := GetOperationMethodName(op)
+				methodName := common.GetOperationMethodName(op)
 				if methodName == "" {
 					pathPart := strings.ReplaceAll(strings.Trim(op.Path, "/"), "/", "_")
-					methodName = strings.ToLower(op.Method) + toPascalCase(pathPart)
+					methodName = strings.ToLower(op.Method) + common.ToPascalCase(pathPart)
 				}
-				methodName = toCamelCase(methodName)
+				methodName = common.ToCamelCase(methodName)
 
 				var params []string
 				for _, param := range op.Parameters {
-					if param.In == paramLocationPath {
+					if param.In == "path" {
 						params = append(params, fmt.Sprintf("\"example-%s\"", param.Name))
 					}
 				}
@@ -422,16 +438,16 @@ func generatePHPReadme(data TemplateData, sdkVersion string) (string, error) {
 	if hasAuth {
 		for name, scheme := range extractedData.SecuritySchemes {
 			switch scheme.Type {
-			case securitySchemeAPIKey:
+			case "apiKey":
 				authExampleCode = fmt.Sprintf("$client = new %s(\n    baseUrl: \"%s\",\n    options: ['%s' => 'your-api-key']\n);", clientClassName, baseURL, name)
-			case securitySchemeHTTP:
+			case "http":
 				switch scheme.Scheme {
-				case securitySchemeBearer:
+				case "bearer":
 					authExampleCode = fmt.Sprintf("$client = new %s(\n    baseUrl: \"%s\",\n    options: ['bearer_token' => 'your-token']\n);", clientClassName, baseURL)
-				case securitySchemeBasic:
+				case "basic":
 					authExampleCode = fmt.Sprintf("$client = new %s(\n    baseUrl: \"%s\",\n    options: [\n        'username' => 'your-username',\n        'password' => 'your-password'\n    ]\n);", clientClassName, baseURL)
 				}
-			case securitySchemeOAuth2, securitySchemeOpenIDConnect:
+			case "oauth2", "openIdConnect":
 				authExampleCode = fmt.Sprintf("$client = new %s(\n    baseUrl: \"%s\",\n    options: ['%s_token' => 'your-token']\n);", clientClassName, baseURL, name)
 			}
 			break
@@ -487,7 +503,7 @@ func generatePHPReadme(data TemplateData, sdkVersion string) (string, error) {
 	}
 
 	// Load and render template
-	tmpl, err := LoadTemplate(GetPHPReadmeTemplate())
+	tmpl, err := common.LoadTemplate(getPHPReadmeTemplateContent())
 	if err != nil {
 		return "", fmt.Errorf("failed to load PHP README template: %w", err)
 	}
@@ -501,10 +517,10 @@ func generatePHPReadme(data TemplateData, sdkVersion string) (string, error) {
 }
 
 // generatePHPExamples generates PHP usage examples
-func generatePHPExamples(data TemplateData) string {
-	extractedData, ok := data.OpenAPIDoc.(*ExtractedData)
-	namespace := getPHPNamespace(data.SDKName)
-	clientClassName := getClientClassName(data.SDKName)
+func generatePHPExamples(data common.TemplateData) string {
+	extractedData, ok := data.OpenAPIDoc.(*common.ExtractedData)
+	namespace := fmt.Sprintf("Vendor\\%s", common.ToPascalCase(data.SDKName))
+	clientClassName := common.GetClientClassName(data.SDKName)
 
 	baseURL := "https://api.example.com/v1"
 	if ok && extractedData != nil && extractedData.BaseURL != "" {
@@ -523,9 +539,9 @@ func generatePHPExamples(data TemplateData) string {
 	// Add API and Models namespaces if they exist
 	if ok && extractedData != nil {
 		if len(extractedData.Operations) > 0 {
-			operationsByTag := groupOperationsByTag(extractedData.Operations)
+			operationsByTag := common.GroupOperationsByTag(extractedData.Operations)
 			for tag := range operationsByTag {
-				apiClassName := toPascalCase(tag) + "Api"
+				apiClassName := common.ToPascalCase(tag) + "Api"
 				examples.WriteString(fmt.Sprintf("use %s\\Api\\%s;\n", namespace, apiClassName))
 				break // Just show first one
 			}
@@ -544,16 +560,16 @@ func generatePHPExamples(data TemplateData) string {
 	if ok && extractedData != nil && len(extractedData.SecuritySchemes) > 0 {
 		for name, scheme := range extractedData.SecuritySchemes {
 			switch scheme.Type {
-			case securitySchemeAPIKey:
+			case "apiKey":
 				examples.WriteString(fmt.Sprintf("    options: [\n        '%s' => 'your-api-key'\n    ]\n", name))
-			case securitySchemeHTTP:
+			case "http":
 				switch scheme.Scheme {
-				case securitySchemeBearer:
+				case "bearer":
 					examples.WriteString("    options: [\n        'bearer_token' => 'your-token'\n    ]\n")
-				case securitySchemeBasic:
+				case "basic":
 					examples.WriteString("    options: [\n        'username' => 'your-username',\n        'password' => 'your-password'\n    ]\n")
 				}
-			case securitySchemeOAuth2, securitySchemeOpenIDConnect:
+			case "oauth2", "openIdConnect":
 				examples.WriteString(fmt.Sprintf("    options: [\n        '%s_token' => 'your-token'\n    ]\n", name))
 			}
 			break
@@ -566,21 +582,21 @@ func generatePHPExamples(data TemplateData) string {
 
 	// Add API usage examples
 	if ok && extractedData != nil && len(extractedData.Operations) > 0 {
-		operationsByTag := groupOperationsByTag(extractedData.Operations)
+		operationsByTag := common.GroupOperationsByTag(extractedData.Operations)
 		exampleCount := 0
 		for tag, operations := range operationsByTag {
 			if exampleCount >= 3 {
 				break // Limit to 3 examples
 			}
 			if len(operations) > 0 {
-				apiClassName := toPascalCase(tag) + "Api"
+				apiClassName := common.ToPascalCase(tag) + "Api"
 				op := operations[0]
-				methodName := GetOperationMethodName(op)
+				methodName := common.GetOperationMethodName(op)
 				if methodName == "" {
 					pathPart := strings.ReplaceAll(strings.Trim(op.Path, "/"), "/", "_")
-					methodName = strings.ToLower(op.Method) + toPascalCase(pathPart)
+					methodName = strings.ToLower(op.Method) + common.ToPascalCase(pathPart)
 				}
-				methodName = toCamelCase(methodName)
+				methodName = common.ToCamelCase(methodName)
 
 				examples.WriteString(fmt.Sprintf("// Example %d: Use %s API\n", exampleCount+2, tag))
 				examples.WriteString(fmt.Sprintf("$api = new %s($client);\n", apiClassName))
@@ -590,7 +606,7 @@ func generatePHPExamples(data TemplateData) string {
 				// Add example parameters
 				var params []string
 				for _, param := range op.Parameters {
-					if param.In == paramLocationPath {
+					if param.In == "path" {
 						testValue := getPHPTestValue(param.Schema)
 						params = append(params, testValue)
 					}
@@ -612,7 +628,7 @@ func generatePHPExamples(data TemplateData) string {
 	if ok && extractedData != nil && len(extractedData.Schemas) > 0 {
 		examples.WriteString("// Example: Working with models\n")
 		for name, schema := range extractedData.Schemas {
-			className := toPascalCase(name)
+			className := common.ToPascalCase(name)
 			examples.WriteString("$data = [\n")
 			if schema.Type == "object" && len(schema.Properties) > 0 {
 				requiredSet := make(map[string]bool)
@@ -739,8 +755,15 @@ return $config
 
 // formatPHPFile formats a PHP source file using PHP-CS-Fixer (if available)
 func formatPHPFile(filePath string) error {
+	// Skip formatting in tests to improve performance
+	if os.Getenv("SKIP_FORMATTING") == "true" || os.Getenv("TESTING") == "true" {
+		return nil
+	}
+
 	// Try PHP-CS-Fixer first
 	cmd := exec.Command("php-cs-fixer", "fix", "--quiet", filePath)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
 	if err := cmd.Run(); err == nil {
 		return nil
 	}

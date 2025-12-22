@@ -1,8 +1,9 @@
-// Package go provides Go SDK generation functionality.
-package go
+// Package gogen provides Go SDK generation functionality.
+package gogen
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,8 +13,30 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 
+	"github.com/vubon/sdk-forge/internal/generator/common"
 	httplib "github.com/vubon/sdk-forge/pkg/languages/http"
 )
+
+//go:embed templates/client.go.tmpl
+var goClientTemplate string
+
+//go:embed templates/go.mod.tmpl
+var goModTemplate string
+
+//go:embed templates/README.md.tmpl
+var goReadmeTemplate string
+
+func getGoModTemplateContent() string {
+	return goModTemplate
+}
+
+func getGoClientTemplateContent() string {
+	return goClientTemplate
+}
+
+func getGoReadmeTemplateContent() string {
+	return goReadmeTemplate
+}
 
 // GenerateGoSDK generates a Go SDK
 // If version is nil, uses the default Go version
@@ -22,14 +45,14 @@ import (
 func GenerateGoSDK(
 	outputPath, sdkName, httpLib string,
 	openAPIDoc interface{},
-	version *LanguageVersion,
+	version *common.LanguageVersion,
 	sdkVersion string,
 	generateTests bool,
-	retryConfig RetryConfig,
+	retryConfig common.RetryConfig,
 ) error {
 	// Use default version if not provided
 	if version == nil {
-		defaultVersion := GetGoDefaultVersion()
+		defaultVersion := common.GetGoDefaultVersion()
 		version = &defaultVersion
 	}
 
@@ -37,14 +60,14 @@ func GenerateGoSDK(
 	doc, ok := openAPIDoc.(*openapi3.T)
 	if !ok {
 		// If not an openapi3.T, try to extract from ExtractedData
-		if extractedData, ok := openAPIDoc.(*ExtractedData); ok {
+		if extractedData, ok := openAPIDoc.(*common.ExtractedData); ok {
 			return generateGoSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests, retryConfig)
 		}
 		return fmt.Errorf("invalid OpenAPI document type")
 	}
 
 	// Extract data from OpenAPI document
-	extractedData, err := ExtractOpenAPIData(doc)
+	extractedData, err := common.ExtractOpenAPIData(doc)
 	if err != nil {
 		return fmt.Errorf("failed to extract OpenAPI data: %w", err)
 	}
@@ -55,11 +78,11 @@ func GenerateGoSDK(
 // generateGoSDKFromExtracted generates SDK from extracted data
 func generateGoSDKFromExtracted(
 	outputPath, sdkName, httpLib string,
-	extractedData *ExtractedData,
-	version LanguageVersion,
+	extractedData *common.ExtractedData,
+	version common.LanguageVersion,
 	sdkVersion string,
 	generateTests bool,
-	retryConfig RetryConfig,
+	retryConfig common.RetryConfig,
 ) error {
 	// Get HTTP library config
 	libConfig, err := httplib.GetLibraryConfig("go", httpLib)
@@ -70,7 +93,7 @@ func generateGoSDKFromExtracted(
 	// Sanitize SDK name for Go (PascalCase for package name, but lowercase for directory)
 	// Note: outputPath already includes the SDK name (output/language/sdk-name)
 	// So we use it directly as packageDir, similar to Python
-	sanitizedName := strings.ToLower(toPascalCase(sdkName))
+	sanitizedName := strings.ToLower(common.ToPascalCase(sdkName))
 	packageDir := outputPath
 
 	// Create package directory
@@ -79,19 +102,19 @@ func generateGoSDKFromExtracted(
 	}
 
 	// Template data
-	data := TemplateData{
+	data := common.TemplateData{
 		SDKName:         sanitizedName,
 		Language:        "go",
 		HTTPLib:         httpLib,
 		HTTPLibImport:   libConfig.Import,
 		HTTPLibConfig:   libConfig,
 		OpenAPIDoc:      extractedData,
-		ClientClassName: getClientClassName(sanitizedName),
+		ClientClassName: common.GetClientClassName(sanitizedName),
 		RetryConfig:     retryConfig,
 	}
 
 	// Determine SDK version using common utility
-	finalSDKVersion := determineSDKVersion(extractedData, sdkVersion)
+	finalSDKVersion := common.DetermineSDKVersion(extractedData, sdkVersion)
 
 	// Generate go.mod
 	goModContent := generateGoMod(sdkName, extractedData, version)
@@ -164,10 +187,10 @@ func generateGoSDKFromExtracted(
 		}
 
 		// Group operations by tags
-		operationsByTag := groupOperationsByTag(extractedData.Operations)
+		operationsByTag := common.GroupOperationsByTag(extractedData.Operations)
 		for tag, operations := range operationsByTag {
 			// Generate api/{tag}.go
-			tagFileName := toSnakeCase(tag) + ".go"
+			tagFileName := common.ToSnakeCase(tag) + ".go"
 			tagContent := generateGoAPIModule(tag, operations, data, version)
 			tagPath := filepath.Join(apiDir, tagFileName)
 			// #nosec G306 -- 0644 is appropriate for Go source files
@@ -213,7 +236,14 @@ func generateGoSDKFromExtracted(
 
 // formatGoFile formats a Go source file using gofmt
 func formatGoFile(filePath string) error {
+	// Skip formatting in tests to improve performance
+	if os.Getenv("SKIP_FORMATTING") == "true" || os.Getenv("TESTING") == "true" {
+		return nil
+	}
+
 	cmd := exec.Command("gofmt", "-w", filePath)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
 	if err := cmd.Run(); err != nil {
 		// If gofmt is not available, that's okay - just skip formatting
 		return fmt.Errorf("gofmt failed (may not be installed): %w", err)
@@ -234,8 +264,8 @@ const Version = "%s"
 }
 
 // generateGoMod generates go.mod file
-func generateGoMod(sdkName string, extractedData *ExtractedData, version LanguageVersion) string {
-	packageName := strings.ToLower(toPascalCase(sdkName))
+func generateGoMod(sdkName string, extractedData *common.ExtractedData, version common.LanguageVersion) string {
+	packageName := strings.ToLower(common.ToPascalCase(sdkName))
 	moduleName := fmt.Sprintf("github.com/example/%s", packageName)
 	goVersion := version
 
@@ -252,7 +282,7 @@ func generateGoMod(sdkName string, extractedData *ExtractedData, version Languag
 	}
 
 	// Load and render template
-	tmpl, err := LoadTemplate(GetGoModTemplate())
+	tmpl, err := common.LoadTemplate(getGoModTemplateContent())
 	if err != nil {
 		// Fallback to old method
 		return fmt.Sprintf("module %s\n\n%s\n\nrequire (\n\t%s\n)\n",
@@ -270,17 +300,17 @@ func generateGoMod(sdkName string, extractedData *ExtractedData, version Languag
 }
 
 // getGoHTTPLibDependency returns the Go dependency for the HTTP library
-func getGoHTTPLibDependency(_ *ExtractedData) string {
+func getGoHTTPLibDependency(_ *common.ExtractedData) string {
 	// Default to net/http (standard library, no dependency needed)
 	return "\t// HTTP client: net/http (standard library)"
 }
 
 // generateGoClient generates Go client code
-func generateGoClient(data TemplateData, version LanguageVersion) string {
+func generateGoClient(data common.TemplateData, version common.LanguageVersion) string {
 	// Extract OpenAPI data
-	extractedData, ok := data.OpenAPIDoc.(*ExtractedData)
+	extractedData, ok := data.OpenAPIDoc.(*common.ExtractedData)
 	if !ok {
-		extractedData = &ExtractedData{BaseURL: "https://api.example.com/v1"}
+		extractedData = &common.ExtractedData{BaseURL: "https://api.example.com/v1"}
 	}
 
 	// Generate base URL default
@@ -297,7 +327,7 @@ func generateGoClient(data TemplateData, version LanguageVersion) string {
 	apiMethods := generateGoAPIMethods(extractedData.Operations, data.ClientClassName, version)
 
 	// Format SDK name for display
-	displayName := toPascalCase(data.SDKName)
+	displayName := common.ToPascalCase(data.SDKName)
 	packageName := strings.ToLower(data.SDKName)
 
 	// Build imports
@@ -351,7 +381,7 @@ func generateGoClient(data TemplateData, version LanguageVersion) string {
 	}
 
 	// Load and render template
-	tmpl, err := LoadTemplate(GetGoClientTemplate())
+	tmpl, err := common.LoadTemplate(getGoClientTemplateContent())
 	if err != nil {
 		// Fallback to old method (keep original implementation as fallback)
 		return generateGoClientFallback(
@@ -372,11 +402,11 @@ func generateGoClient(data TemplateData, version LanguageVersion) string {
 
 // generateGoClientFallback is the original implementation kept as fallback
 func generateGoClientFallback(
-	data TemplateData,
-	extractedData *ExtractedData,
+	data common.TemplateData,
+	extractedData *common.ExtractedData,
 	baseURLDefault, authSetup, apiMethods, displayName, packageName, imports string,
 ) string {
-	goVersion := GetGoDefaultVersion()
+	goVersion := common.GetGoDefaultVersion()
 	emptyInterface := goVersion.GetGoEmptyInterface()
 
 	return fmt.Sprintf(`// Package %s provides a client for %s API
@@ -486,7 +516,7 @@ func (c *%s) Request(method, path string, body %s) ([]byte, error) {
 }
 
 // buildGoImports builds the import statement for Go
-func buildGoImports(data TemplateData) string {
+func buildGoImports(data common.TemplateData) string {
 	imports := []string{
 		"bytes",
 		"encoding/json",
@@ -510,7 +540,7 @@ func buildGoImports(data TemplateData) string {
 }
 
 // generateGoRetryFields generates retry configuration fields for client struct
-func generateGoRetryFields(config RetryConfig) string {
+func generateGoRetryFields(config common.RetryConfig) string {
 	if !config.Enabled {
 		return ""
 	}
@@ -529,7 +559,7 @@ func generateGoRetryFields(config RetryConfig) string {
 }
 
 // generateGoRetryHelper generates retry helper functions based on HTTP library
-func generateGoRetryHelper(httpLib string, config RetryConfig) string {
+func generateGoRetryHelper(httpLib string, config common.RetryConfig) string {
 	if !config.Enabled {
 		return ""
 	}
@@ -540,7 +570,7 @@ func generateGoRetryHelper(httpLib string, config RetryConfig) string {
 	buf.WriteString("\n// calculateRetryDelay calculates delay for retry attempt based on strategy\n")
 	buf.WriteString("func (c *{{.ClientClassName}}) calculateRetryDelay(attempt int) time.Duration {\n")
 	buf.WriteString("\tswitch c.retryStrategy {\n")
-	buf.WriteString(fmt.Sprintf("\tcase %q:\n", RetryStrategyExponential))
+	buf.WriteString(fmt.Sprintf("\tcase %q:\n", common.RetryStrategyExponential))
 	buf.WriteString("\t\t// Exponential backoff: initialDelay * (multiplier ^ attempt)\n")
 	buf.WriteString("\t\tmultiplier := c.retryBackoffMultiplier\n")
 	buf.WriteString("\t\tresult := float64(c.retryInitialDelay)\n")
@@ -552,14 +582,14 @@ func generateGoRetryHelper(httpLib string, config RetryConfig) string {
 	buf.WriteString("\t\t\treturn c.retryMaxDelay\n")
 	buf.WriteString("\t\t}\n")
 	buf.WriteString("\t\treturn delay\n")
-	buf.WriteString(fmt.Sprintf("\tcase %q:\n", RetryStrategyLinear))
+	buf.WriteString(fmt.Sprintf("\tcase %q:\n", common.RetryStrategyLinear))
 	buf.WriteString("\t\t// Linear backoff: initialDelay * (attempt + 1)\n")
 	buf.WriteString("\t\tdelay := c.retryInitialDelay * time.Duration(attempt+1)\n")
 	buf.WriteString("\t\tif delay > c.retryMaxDelay {\n")
 	buf.WriteString("\t\t\treturn c.retryMaxDelay\n")
 	buf.WriteString("\t\t}\n")
 	buf.WriteString("\t\treturn delay\n")
-	buf.WriteString(fmt.Sprintf("\tcase %q:\n", RetryStrategyFixed))
+	buf.WriteString(fmt.Sprintf("\tcase %q:\n", common.RetryStrategyFixed))
 	buf.WriteString("\t\t// Fixed delay: always use initialDelay\n")
 	buf.WriteString("\t\treturn c.retryInitialDelay\n")
 	buf.WriteString("\tdefault:\n")
@@ -628,7 +658,7 @@ func generateGoRetryHelper(httpLib string, config RetryConfig) string {
 }
 
 // generateGoRetryInit generates retry configuration initialization code for NewClient
-func generateGoRetryInit(config RetryConfig) string {
+func generateGoRetryInit(config common.RetryConfig) string {
 	if !config.Enabled {
 		return ""
 	}
@@ -654,7 +684,7 @@ func generateGoRetryInit(config RetryConfig) string {
 }
 
 // generateGoAuthSetup generates authentication setup code
-func generateGoAuthSetup(securitySchemes map[string]SecurityScheme, clientClassName string) string {
+func generateGoAuthSetup(securitySchemes map[string]common.SecurityScheme, clientClassName string) string {
 	if len(securitySchemes) == 0 {
 		return "// No authentication configured"
 	}
@@ -665,32 +695,32 @@ func generateGoAuthSetup(securitySchemes map[string]SecurityScheme, clientClassN
 
 	for name, scheme := range securitySchemes {
 		switch scheme.Type {
-		case securitySchemeAPIKey:
+		case "apiKey":
 			switch scheme.In {
-			case paramLocationHeader:
-				setupCode.WriteString(fmt.Sprintf("\tif c.%s != \"\" {\n", toPascalCase(name)))
-				setupCode.WriteString(fmt.Sprintf("\t\treq.Header.Set(\"%s\", c.%s)\n", scheme.Name, toPascalCase(name)))
+			case "header":
+				setupCode.WriteString(fmt.Sprintf("\tif c.%s != \"\" {\n", common.ToPascalCase(name)))
+				setupCode.WriteString(fmt.Sprintf("\t\treq.Header.Set(\"%s\", c.%s)\n", scheme.Name, common.ToPascalCase(name)))
 				setupCode.WriteString("\t}\n")
-			case paramLocationQuery:
-				setupCode.WriteString(fmt.Sprintf("\tif c.%s != \"\" {\n", toPascalCase(name)))
+			case "query":
+				setupCode.WriteString(fmt.Sprintf("\tif c.%s != \"\" {\n", common.ToPascalCase(name)))
 				setupCode.WriteString("\t\tq := req.URL.Query()\n")
-				setupCode.WriteString(fmt.Sprintf("\t\tq.Set(\"%s\", c.%s)\n", scheme.Name, toPascalCase(name)))
+				setupCode.WriteString(fmt.Sprintf("\t\tq.Set(\"%s\", c.%s)\n", scheme.Name, common.ToPascalCase(name)))
 				setupCode.WriteString("\t\treq.URL.RawQuery = q.Encode()\n")
 				setupCode.WriteString("\t}\n")
 			}
-		case securitySchemeHTTP:
+		case "http":
 			switch scheme.Scheme {
-			case securitySchemeBearer:
+			case "bearer", "Bearer":
 				setupCode.WriteString("\tif c.BearerToken != \"\" {\n")
 				setupCode.WriteString("\t\treq.Header.Set(\"Authorization\", \"Bearer \"+c.BearerToken)\n")
 				setupCode.WriteString("\t}\n")
-			case securitySchemeBasic:
+			case "basic", "Basic":
 				setupCode.WriteString("\tif c.Username != \"\" && c.Password != \"\" {\n")
 				setupCode.WriteString("\t\treq.SetBasicAuth(c.Username, c.Password)\n")
 				setupCode.WriteString("\t}\n")
 			}
-		case securitySchemeOAuth2:
-			tokenName := toPascalCase(name)
+		case "oauth2", "OAuth2":
+			tokenName := common.ToPascalCase(name)
 			setupCode.WriteString(fmt.Sprintf("\tif c.%sToken != \"\" {\n", tokenName))
 			setupCode.WriteString(fmt.Sprintf("\t\ttokenType := c.%sTokenType\n", tokenName))
 			setupCode.WriteString("\t\tif tokenType == \"\" {\n")
@@ -699,8 +729,8 @@ func generateGoAuthSetup(securitySchemes map[string]SecurityScheme, clientClassN
 			authHeader := fmt.Sprintf("\t\treq.Header.Set(\"Authorization\", tokenType+\" \"+c.%sToken)\n", tokenName)
 			setupCode.WriteString(authHeader)
 			setupCode.WriteString("\t}\n")
-		case securitySchemeOpenIDConnect:
-			tokenName := toPascalCase(name)
+		case "openIdConnect", "OpenIDConnect":
+			tokenName := common.ToPascalCase(name)
 			setupCode.WriteString(fmt.Sprintf("\tif c.%sToken != \"\" {\n", tokenName))
 			bearerAuth := fmt.Sprintf("\t\treq.Header.Set(\"Authorization\", \"Bearer \"+c.%sToken)\n", tokenName)
 			setupCode.WriteString(bearerAuth)
@@ -714,7 +744,7 @@ func generateGoAuthSetup(securitySchemes map[string]SecurityScheme, clientClassN
 
 // generateGoClientAuthFields generates authentication fields for the Client struct
 // Fields are generated with consistent formatting - gofmt will align them properly
-func generateGoClientAuthFields(securitySchemes map[string]SecurityScheme) string {
+func generateGoClientAuthFields(securitySchemes map[string]common.SecurityScheme) string {
 	if len(securitySchemes) == 0 {
 		return ""
 	}
@@ -724,23 +754,23 @@ func generateGoClientAuthFields(securitySchemes map[string]SecurityScheme) strin
 	fields.WriteString("\n")
 	for name, scheme := range securitySchemes {
 		switch scheme.Type {
-		case securitySchemeAPIKey:
+		case "apiKey":
 			// Use consistent tab + field name + type format
-			fields.WriteString(fmt.Sprintf("\t%s string\n", toPascalCase(name)))
-		case securitySchemeHTTP:
+			fields.WriteString(fmt.Sprintf("\t%s string\n", common.ToPascalCase(name)))
+		case "http":
 			switch scheme.Scheme {
-			case securitySchemeBearer:
+			case "bearer", "Bearer":
 				fields.WriteString("\tBearerToken string\n")
-			case securitySchemeBasic:
+			case "basic", "Basic":
 				fields.WriteString("\tUsername string\n")
 				fields.WriteString("\tPassword string\n")
 			}
-		case securitySchemeOAuth2:
+		case "oauth2", "OAuth2":
 			// Generate fields with consistent formatting
-			fields.WriteString(fmt.Sprintf("\t%sToken string\n", toPascalCase(name)))
-			fields.WriteString(fmt.Sprintf("\t%sTokenType string\n", toPascalCase(name)))
-		case securitySchemeOpenIDConnect:
-			fields.WriteString(fmt.Sprintf("\t%sToken string\n", toPascalCase(name)))
+			fields.WriteString(fmt.Sprintf("\t%sToken string\n", common.ToPascalCase(name)))
+			fields.WriteString(fmt.Sprintf("\t%sTokenType string\n", common.ToPascalCase(name)))
+		case "openIdConnect", "OpenIDConnect":
+			fields.WriteString(fmt.Sprintf("\t%sToken string\n", common.ToPascalCase(name)))
 		}
 	}
 
@@ -748,7 +778,7 @@ func generateGoClientAuthFields(securitySchemes map[string]SecurityScheme) strin
 }
 
 // generateGoAPIMethods generates API methods from operations
-func generateGoAPIMethods(operations []APIOperation, clientClassName string, version LanguageVersion) string {
+func generateGoAPIMethods(operations []common.APIOperation, clientClassName string, version common.LanguageVersion) string {
 	if len(operations) == 0 {
 		return "// No API methods defined in OpenAPI schema"
 	}
@@ -756,14 +786,14 @@ func generateGoAPIMethods(operations []APIOperation, clientClassName string, ver
 	var methods strings.Builder
 
 	for _, op := range operations {
-		methodName := GetOperationMethodName(op)
+		methodName := common.GetOperationMethodName(op)
 		if methodName == "" {
 			// Fallback naming
 			pathPart := strings.ReplaceAll(strings.Trim(op.Path, "/"), "/", "_")
-			methodName = toPascalCase(strings.ToLower(op.Method)) + toPascalCase(pathPart)
+			methodName = common.ToPascalCase(strings.ToLower(op.Method)) + common.ToPascalCase(pathPart)
 		} else {
 			// Convert snake_case to PascalCase for Go
-			methodName = toPascalCase(methodName)
+			methodName = common.ToPascalCase(methodName)
 		}
 
 		// Generate method signature
@@ -785,10 +815,10 @@ func generateGoAPIMethods(operations []APIOperation, clientClassName string, ver
 		var queryParams []string
 		for _, param := range op.Parameters {
 			switch param.In {
-			case paramLocationPath:
+			case "path":
 				pathParams = append(pathParams, param.Name)
 				methods.WriteString(fmt.Sprintf("%s %s, ", param.Name, getGoType(param.Schema, version)))
-			case paramLocationQuery:
+			case "query":
 				queryParams = append(queryParams, param.Name)
 				methods.WriteString(fmt.Sprintf("%s *%s, ", param.Name, getGoType(param.Schema, version)))
 			}
@@ -815,9 +845,9 @@ func generateGoAPIMethods(operations []APIOperation, clientClassName string, ver
 			// Replace {param} with appropriate format specifier based on parameter type
 			for _, param := range pathParams {
 				// Find the parameter schema to determine type
-				var paramSchema *Schema
+				var paramSchema *common.Schema
 				for _, p := range op.Parameters {
-					if p.Name == param && p.In == paramLocationPath {
+					if p.Name == param && p.In == "path" {
 						paramSchema = p.Schema
 						break
 					}
@@ -877,7 +907,7 @@ func generateGoAPIMethods(operations []APIOperation, clientClassName string, ver
 }
 
 // getGoType converts OpenAPI schema type to Go type
-func getGoType(schema *Schema, version LanguageVersion) string {
+func getGoType(schema *common.Schema, version common.LanguageVersion) string {
 	emptyInterface := version.GetGoEmptyInterface()
 
 	if schema == nil {
@@ -885,20 +915,20 @@ func getGoType(schema *Schema, version LanguageVersion) string {
 	}
 
 	switch schema.Type {
-	case pythonTypeString:
+	case "string":
 		return "string"
-	case pythonTypeInteger:
+	case "integer":
 		return "int"
-	case pythonTypeNumber:
+	case "number":
 		return "float64"
-	case pythonTypeBoolean:
+	case "boolean":
 		return "bool"
-	case pythonTypeArray:
+	case "array":
 		if schema.Items != nil {
 			return "[]" + getGoType(schema.Items, version)
 		}
 		return "[]" + emptyInterface
-	case pythonTypeObject:
+	case "object":
 		return "map[string]" + emptyInterface
 	default:
 		return emptyInterface
@@ -906,7 +936,7 @@ func getGoType(schema *Schema, version LanguageVersion) string {
 }
 
 // generateGoModels generates Go data models from OpenAPI schemas
-func generateGoModels(schemas map[string]*Schema, version LanguageVersion) string {
+func generateGoModels(schemas map[string]*common.Schema, version common.LanguageVersion) string {
 	if len(schemas) == 0 {
 		return "// No data models defined in OpenAPI schema\n"
 	}
@@ -925,11 +955,11 @@ func generateGoModels(schemas map[string]*Schema, version LanguageVersion) strin
 }
 
 // generateGoModel generates a single Go model struct
-func generateGoModel(name string, schema *Schema, allSchemas map[string]*Schema, version LanguageVersion) string {
+func generateGoModel(name string, schema *common.Schema, allSchemas map[string]*common.Schema, version common.LanguageVersion) string {
 	var code strings.Builder
 
 	// Convert schema name to PascalCase for struct name
-	structName := toPascalCase(name)
+	structName := common.ToPascalCase(name)
 
 	// Generate struct
 	code.WriteString(fmt.Sprintf("// %s %s\n", structName, schema.Description))
@@ -937,9 +967,9 @@ func generateGoModel(name string, schema *Schema, allSchemas map[string]*Schema,
 
 	// Handle different schema types
 	switch schema.Type {
-	case pythonTypeObject:
+	case "object":
 		code.WriteString(generateGoObjectFields(schema, allSchemas, version))
-	case pythonTypeArray:
+	case "array":
 		// Arrays are handled as slices in Go
 		code.WriteString(fmt.Sprintf("\tItems []%s\n", version.GetGoEmptyInterface()))
 	default:
@@ -951,7 +981,7 @@ func generateGoModel(name string, schema *Schema, allSchemas map[string]*Schema,
 }
 
 // generateGoObjectFields generates fields for an object schema
-func generateGoObjectFields(schema *Schema, _ map[string]*Schema, version LanguageVersion) string {
+func generateGoObjectFields(schema *common.Schema, _ map[string]*common.Schema, version common.LanguageVersion) string {
 	var fields strings.Builder
 
 	if schema.Properties == nil {
@@ -965,7 +995,7 @@ func generateGoObjectFields(schema *Schema, _ map[string]*Schema, version Langua
 	}
 
 	for propName, propSchema := range schema.Properties {
-		fieldName := toPascalCase(propName)
+		fieldName := common.ToPascalCase(propName)
 		goType := getGoType(propSchema, version)
 
 		// Check if field is required
@@ -986,8 +1016,8 @@ func generateGoObjectFields(schema *Schema, _ map[string]*Schema, version Langua
 }
 
 // generateGoREADME generates README.md for Go SDK
-func generateGoREADME(data TemplateData) string {
-	displayName := toPascalCase(data.SDKName)
+func generateGoREADME(data common.TemplateData) string {
+	displayName := common.ToPascalCase(data.SDKName)
 	packageName := strings.ToLower(data.SDKName)
 
 	// Prepare template data
@@ -1003,7 +1033,7 @@ func generateGoREADME(data TemplateData) string {
 	}
 
 	// Load and render template
-	tmpl, err := LoadTemplate(GetGoReadmeTemplate())
+	tmpl, err := common.LoadTemplate(getGoReadmeTemplateContent())
 	if err != nil {
 		// Fallback to old method
 		readme := fmt.Sprintf("# %s Go SDK\n\n", displayName)
@@ -1056,7 +1086,7 @@ func generateGoREADME(data TemplateData) string {
 
 // generateGoAPIModule generates api/{tag}.go with operations for that tag
 // Note: This creates a separate package 'api' that contains methods on the client
-func generateGoAPIModule(tag string, operations []APIOperation, data TemplateData, version LanguageVersion) string {
+func generateGoAPIModule(tag string, operations []common.APIOperation, data common.TemplateData, version common.LanguageVersion) string {
 	packageName := strings.ToLower(data.SDKName)
 	clientClassName := data.ClientClassName
 
@@ -1069,7 +1099,7 @@ func generateGoAPIModule(tag string, operations []APIOperation, data TemplateDat
 	needsFmt := false
 	for _, op := range operations {
 		for _, param := range op.Parameters {
-			if param.In == paramLocationPath {
+			if param.In == "path" {
 				needsFmt = true
 				break
 			}
@@ -1088,14 +1118,14 @@ func generateGoAPIModule(tag string, operations []APIOperation, data TemplateDat
 
 	// Generate methods for each operation
 	for _, op := range operations {
-		methodName := GetOperationMethodName(op)
+		methodName := common.GetOperationMethodName(op)
 		if methodName == "" {
 			// Fallback naming
 			pathPart := strings.ReplaceAll(strings.Trim(op.Path, "/"), "/", "_")
-			methodName = toPascalCase(strings.ToLower(op.Method)) + toPascalCase(pathPart)
+			methodName = common.ToPascalCase(strings.ToLower(op.Method)) + common.ToPascalCase(pathPart)
 		} else {
 			// Convert snake_case to PascalCase for Go
-			methodName = toPascalCase(methodName)
+			methodName = common.ToPascalCase(methodName)
 		}
 
 		// Method signature - methods are on the client from the parent package
@@ -1117,10 +1147,10 @@ func generateGoAPIModule(tag string, operations []APIOperation, data TemplateDat
 		var queryParams []string
 		for _, param := range op.Parameters {
 			switch param.In {
-			case paramLocationPath:
+			case "path":
 				pathParams = append(pathParams, param.Name)
 				module.WriteString(fmt.Sprintf("%s %s, ", param.Name, getGoType(param.Schema, version)))
-			case paramLocationQuery:
+			case "query":
 				queryParams = append(queryParams, param.Name)
 				module.WriteString(fmt.Sprintf("%s *%s, ", param.Name, getGoType(param.Schema, version)))
 			}
@@ -1147,9 +1177,9 @@ func generateGoAPIModule(tag string, operations []APIOperation, data TemplateDat
 			// Replace {param} with appropriate format specifier based on parameter type
 			for _, param := range pathParams {
 				// Find the parameter schema to determine type
-				var paramSchema *Schema
+				var paramSchema *common.Schema
 				for _, p := range op.Parameters {
-					if p.Name == param && p.In == paramLocationPath {
+					if p.Name == param && p.In == "path" {
 						paramSchema = p.Schema
 						break
 					}
@@ -1210,8 +1240,8 @@ func generateGoAPIModule(tag string, operations []APIOperation, data TemplateDat
 }
 
 // generateGoExamples generates examples/basic_usage.go
-func generateGoExamples(data TemplateData) string {
-	extractedData, ok := data.OpenAPIDoc.(*ExtractedData)
+func generateGoExamples(data common.TemplateData) string {
+	extractedData, ok := data.OpenAPIDoc.(*common.ExtractedData)
 	packageName := strings.ToLower(data.SDKName)
 	clientClassName := data.ClientClassName
 
@@ -1241,15 +1271,15 @@ func generateGoExamples(data TemplateData) string {
 	if ok && extractedData != nil && len(extractedData.SecuritySchemes) > 0 {
 		for name, scheme := range extractedData.SecuritySchemes {
 			switch scheme.Type {
-			case securitySchemeAPIKey:
+			case "apiKey":
 				examples.WriteString("\t// Set API key authentication\n")
-				examples.WriteString(fmt.Sprintf("\tclient.%s = \"your-%s\"\n\n", toPascalCase(name), name))
-			case securitySchemeHTTP:
+				examples.WriteString(fmt.Sprintf("\tclient.%s = \"your-%s\"\n\n", common.ToPascalCase(name), name))
+			case "http":
 				switch scheme.Scheme {
-				case securitySchemeBearer:
+				case "bearer", "Bearer":
 					examples.WriteString("\t// Set Bearer token authentication\n")
 					examples.WriteString("\tclient.BearerToken = \"your-bearer-token\"\n\n")
-				case securitySchemeBasic:
+				case "basic", "Basic":
 					examples.WriteString("\t// Set Basic authentication\n")
 					examples.WriteString("\tclient.Username = \"your-username\"\n")
 					examples.WriteString("\tclient.Password = \"your-password\"\n\n")
@@ -1289,7 +1319,7 @@ func generateGoExamples(data TemplateData) string {
 }
 
 // generateGoTests generates test files for Go SDK
-func generateGoTests(packageDir string, data TemplateData, extractedData *ExtractedData, version LanguageVersion) error {
+func generateGoTests(packageDir string, data common.TemplateData, extractedData *common.ExtractedData, version common.LanguageVersion) error {
 	// Generate client_test.go
 	clientTestContent := generateGoClientTest(data, extractedData, version)
 	clientTestPath := filepath.Join(packageDir, "client_test.go")
@@ -1353,7 +1383,7 @@ func generateGoTests(packageDir string, data TemplateData, extractedData *Extrac
 }
 
 // generateGoTestFixtures generates test fixture files from OpenAPI examples
-func generateGoTestFixtures(packageDir string, extractedData *ExtractedData) error {
+func generateGoTestFixtures(packageDir string, extractedData *common.ExtractedData) error {
 	fixturesDir := filepath.Join(packageDir, "testdata")
 	if err := os.MkdirAll(fixturesDir, 0750); err != nil {
 		return fmt.Errorf("failed to create testdata directory: %w", err)
@@ -1401,7 +1431,7 @@ func generateGoFixturesFile(fixtures map[string]interface{}) string {
 
 	for key, example := range fixtures {
 		// Convert key to valid Go variable name
-		varName := toPascalCase(key)
+		varName := common.ToPascalCase(key)
 		exampleJSON := formatExampleForGo(example)
 		fmt.Fprintf(&buf, "var %s = %s\n\n", varName, exampleJSON)
 	}
@@ -1410,7 +1440,7 @@ func generateGoFixturesFile(fixtures map[string]interface{}) string {
 }
 
 // generateGoClientTest generates client_test.go
-func generateGoClientTest(data TemplateData, extractedData *ExtractedData, version LanguageVersion) string {
+func generateGoClientTest(data common.TemplateData, extractedData *common.ExtractedData, version common.LanguageVersion) string {
 	var test bytes.Buffer
 	test.WriteString(fmt.Sprintf("package %s\n\n", data.SDKName))
 	test.WriteString("import (\n")
@@ -1436,7 +1466,7 @@ func generateGoClientTest(data TemplateData, extractedData *ExtractedData, versi
 }
 
 // generateGoModelsTest generates models_test.go with schema-based tests
-func generateGoModelsTest(data TemplateData, schemas map[string]*Schema, version LanguageVersion) string {
+func generateGoModelsTest(data common.TemplateData, schemas map[string]*common.Schema, version common.LanguageVersion) string {
 	var test bytes.Buffer
 	test.WriteString(fmt.Sprintf("package %s\n\n", data.SDKName))
 	test.WriteString("import (\n")
@@ -1446,7 +1476,7 @@ func generateGoModelsTest(data TemplateData, schemas map[string]*Schema, version
 
 	// Generate tests for each schema
 	for name, schema := range schemas {
-		structName := toPascalCase(name)
+		structName := common.ToPascalCase(name)
 
 		// Test struct creation
 		test.WriteString(fmt.Sprintf("func Test%s_Creation(t *testing.T) {\n", structName))
@@ -1467,7 +1497,7 @@ func generateGoModelsTest(data TemplateData, schemas map[string]*Schema, version
 					continue
 				}
 
-				fieldName := toPascalCase(propName)
+				fieldName := common.ToPascalCase(propName)
 				isRequired := requiredSet[propName]
 				isPointer := !isRequired // Optional fields are pointers
 
@@ -1504,7 +1534,7 @@ func generateGoModelsTest(data TemplateData, schemas map[string]*Schema, version
 				if propSchema == nil {
 					continue
 				}
-				fieldName := toPascalCase(propName)
+				fieldName := common.ToPascalCase(propName)
 				isRequired := requiredSet2[propName]
 				isPointer := !isRequired
 				testValue := generateGoTestValue(propSchema, propName, version, isPointer)
@@ -1535,7 +1565,7 @@ func generateGoModelsTest(data TemplateData, schemas map[string]*Schema, version
 
 // generateGoTestValue generates a test value for a schema property in Go
 // isPointer indicates if the field is a pointer type (for optional fields)
-func generateGoTestValue(schema *Schema, propName string, version LanguageVersion, isPointer bool) string {
+func generateGoTestValue(schema *common.Schema, propName string, version common.LanguageVersion, isPointer bool) string {
 	if schema == nil {
 		if isPointer {
 			return "nil"
@@ -1556,7 +1586,7 @@ func generateGoTestValue(schema *Schema, propName string, version LanguageVersio
 		case "email":
 			value = "\"test@example.com\""
 		default:
-			value = fmt.Sprintf("%q", "test_"+toSnakeCase(propName))
+			value = fmt.Sprintf("%q", "test_"+common.ToSnakeCase(propName))
 		}
 	case "integer", "number":
 		value = "42"
@@ -1635,7 +1665,7 @@ func generateGoTestValue(schema *Schema, propName string, version LanguageVersio
 }
 
 // generateGoAPITest generates api_test.go with operation-based tests
-func generateGoAPITest(data TemplateData, operations []APIOperation, extractedData *ExtractedData, version LanguageVersion) string {
+func generateGoAPITest(data common.TemplateData, operations []common.APIOperation, extractedData *common.ExtractedData, version common.LanguageVersion) string {
 	var test bytes.Buffer
 	test.WriteString(fmt.Sprintf("package %s\n\n", data.SDKName))
 	test.WriteString("import (\n")
@@ -1645,19 +1675,19 @@ func generateGoAPITest(data TemplateData, operations []APIOperation, extractedDa
 	test.WriteString(")\n\n")
 
 	// Group operations by tag for better organization
-	operationsByTag := groupOperationsByTag(operations)
+	operationsByTag := common.GroupOperationsByTag(operations)
 
 	// Generate tests for each tag/group
 	for tag, tagOperations := range operationsByTag {
-		test.WriteString(fmt.Sprintf("// Test%sAPI tests for %s API methods\n", toPascalCase(tag), tag))
-		test.WriteString(fmt.Sprintf("func Test%sAPI(t *testing.T) {\n", toPascalCase(tag)))
+		test.WriteString(fmt.Sprintf("// Test%sAPI tests for %s API methods\n", common.ToPascalCase(tag), tag))
+		test.WriteString(fmt.Sprintf("func Test%sAPI(t *testing.T) {\n", common.ToPascalCase(tag)))
 		test.WriteString("\tt.Skip(\"TODO: Implement tests for this API group\")\n")
 		test.WriteString("}\n\n")
 
 		// Generate test for each operation
 		for _, op := range tagOperations {
-			methodName := GetOperationMethodName(op)
-			testMethodName := fmt.Sprintf("Test%s_%s", toPascalCase(tag), toPascalCase(methodName))
+			methodName := common.GetOperationMethodName(op)
+			testMethodName := fmt.Sprintf("Test%s_%s", common.ToPascalCase(tag), common.ToPascalCase(methodName))
 
 			test.WriteString(fmt.Sprintf("func %s(t *testing.T) {\n", testMethodName))
 			test.WriteString(fmt.Sprintf("\t// Test %s %s operation\n", op.Method, op.Path))
@@ -1695,7 +1725,7 @@ func generateGoAPITest(data TemplateData, operations []APIOperation, extractedDa
 			// Generate method call with parameters
 			test.WriteString("\t// Call API method\n")
 			test.WriteString("\t// TODO: Uncomment and implement based on your API method signature\n")
-			test.WriteString(fmt.Sprintf("\t// result, err := client.%s(", toPascalCase(methodName)))
+			test.WriteString(fmt.Sprintf("\t// result, err := client.%s(", common.ToPascalCase(methodName)))
 
 			// Add path parameters
 			hasParams := false
@@ -1704,7 +1734,7 @@ func generateGoAPITest(data TemplateData, operations []APIOperation, extractedDa
 					if hasParams {
 						test.WriteString(", ")
 					}
-					paramName := toPascalCase(param.Name)
+					paramName := common.ToPascalCase(param.Name)
 					testValue := generateGoTestValueFromParam(param, version)
 					test.WriteString(fmt.Sprintf("%s: %s", paramName, testValue))
 					hasParams = true
@@ -1717,7 +1747,7 @@ func generateGoAPITest(data TemplateData, operations []APIOperation, extractedDa
 					if hasParams {
 						test.WriteString(", ")
 					}
-					paramName := toPascalCase(param.Name)
+					paramName := common.ToPascalCase(param.Name)
 					testValue := generateGoTestValueFromParam(param, version)
 					test.WriteString(fmt.Sprintf("%s: %s", paramName, testValue))
 					hasParams = true
@@ -1742,7 +1772,7 @@ func generateGoAPITest(data TemplateData, operations []APIOperation, extractedDa
 }
 
 // generateGoErrorTests generates error handling tests for 4xx/5xx responses
-func generateGoErrorTests(test *bytes.Buffer, op APIOperation, data TemplateData, extractedData *ExtractedData) {
+func generateGoErrorTests(test *bytes.Buffer, op common.APIOperation, data common.TemplateData, extractedData *common.ExtractedData) {
 	// Find error responses (4xx, 5xx)
 	var errorStatuses []string
 	for statusCode := range op.Responses {
@@ -1758,7 +1788,7 @@ func generateGoErrorTests(test *bytes.Buffer, op APIOperation, data TemplateData
 		return // No error responses to test
 	}
 
-	methodName := GetOperationMethodName(op)
+	methodName := common.GetOperationMethodName(op)
 
 	// Generate test for each error status
 	for _, statusCode := range errorStatuses {
@@ -1767,7 +1797,7 @@ func generateGoErrorTests(test *bytes.Buffer, op APIOperation, data TemplateData
 			continue
 		}
 
-		testMethodName := fmt.Sprintf("Test%s_%s_%sError", toPascalCase(op.Tags[0]), toPascalCase(methodName), statusCode)
+		testMethodName := fmt.Sprintf("Test%s_%s_%sError", common.ToPascalCase(op.Tags[0]), common.ToPascalCase(methodName), statusCode)
 		fmt.Fprintf(test, "func %s(t *testing.T) {\n", testMethodName)
 		fmt.Fprintf(test, "\t// Test %s %s operation returns %s error\n", op.Method, op.Path, statusCode)
 		fmt.Fprintf(test, "\tserver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n")
@@ -1786,7 +1816,7 @@ func generateGoErrorTests(test *bytes.Buffer, op APIOperation, data TemplateData
 		test.WriteString("\t}\n\n")
 
 		test.WriteString("\t// Call API method and expect error\n")
-		fmt.Fprintf(test, "\t// result, err := client.%s(...)\n", toPascalCase(methodName))
+		fmt.Fprintf(test, "\t// result, err := client.%s(...)\n", common.ToPascalCase(methodName))
 		test.WriteString("\t// if err == nil {\n")
 		test.WriteString("\t//     t.Error(\"Expected error but got nil\")\n")
 		test.WriteString("\t// }\n")
@@ -1795,7 +1825,7 @@ func generateGoErrorTests(test *bytes.Buffer, op APIOperation, data TemplateData
 }
 
 // generateGoTestValueFromParam generates a test value from a parameter in Go
-func generateGoTestValueFromParam(param Parameter, version LanguageVersion) string {
+func generateGoTestValueFromParam(param common.Parameter, version common.LanguageVersion) string {
 	if param.Schema == nil {
 		return "\"test_value\""
 	}
@@ -1804,7 +1834,7 @@ func generateGoTestValueFromParam(param Parameter, version LanguageVersion) stri
 }
 
 // generateGoAuthTest generates auth_test.go with authentication tests
-func generateGoAuthTest(data TemplateData, securitySchemes map[string]SecurityScheme, extractedData *ExtractedData, version LanguageVersion) string {
+func generateGoAuthTest(data common.TemplateData, securitySchemes map[string]common.SecurityScheme, extractedData *common.ExtractedData, version common.LanguageVersion) string {
 	var test bytes.Buffer
 	test.WriteString(fmt.Sprintf("package %s\n\n", data.SDKName))
 	test.WriteString("import (\n")
@@ -1824,7 +1854,7 @@ func generateGoAuthTest(data TemplateData, securitySchemes map[string]SecuritySc
 
 	// Generate tests for each security scheme
 	for name, scheme := range securitySchemes {
-		schemeName := toPascalCase(name)
+		schemeName := common.ToPascalCase(name)
 
 		switch scheme.Type {
 		case "apiKey":
@@ -1835,7 +1865,7 @@ func generateGoAuthTest(data TemplateData, securitySchemes map[string]SecuritySc
 			test.WriteString("\t\tt.Fatal(\"Client is nil\")\n")
 			test.WriteString("\t}\n")
 			// Use the security scheme name (not the header name) to match client field
-			apiKeyField := toPascalCase(name)
+			apiKeyField := common.ToPascalCase(name)
 			test.WriteString(fmt.Sprintf("\tclient.%s = \"test-api-key\"\n", apiKeyField))
 			test.WriteString(fmt.Sprintf("\tif client.%s != \"test-api-key\" {\n", apiKeyField))
 			test.WriteString("\t\tt.Error(\"API key should be set\")\n")
@@ -1844,7 +1874,7 @@ func generateGoAuthTest(data TemplateData, securitySchemes map[string]SecuritySc
 
 		case "http":
 			switch scheme.Scheme {
-			case "bearer":
+			case "bearer", "Bearer":
 				test.WriteString(fmt.Sprintf("func Test%s_BearerAuth(t *testing.T) {\n", schemeName))
 				test.WriteString(fmt.Sprintf("\t// Test %s Bearer token authentication\n", name))
 				test.WriteString(fmt.Sprintf("\tclient := New%s(%q)\n", data.ClientClassName, baseURL))
@@ -1934,7 +1964,7 @@ func generateGoAuthTest(data TemplateData, securitySchemes map[string]SecuritySc
 }
 
 // getGoExampleFromResponse extracts example from response for Go test
-func getGoExampleFromResponse(response Response) string {
+func getGoExampleFromResponse(response common.Response) string {
 	// Look for JSON content type first
 	if jsonContent, ok := response.Content["application/json"]; ok {
 		if len(jsonContent.Examples) > 0 {
@@ -1970,7 +2000,7 @@ func formatExampleForGo(example interface{}) string {
 }
 
 // generateGoExampleFromSchema generates a Go example from schema
-func generateGoExampleFromSchema(schema *Schema) string {
+func generateGoExampleFromSchema(schema *common.Schema) string {
 	if schema == nil {
 		return "`{}`"
 	}

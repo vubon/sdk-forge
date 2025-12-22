@@ -1,5 +1,5 @@
-// Package generator provides template rendering and string transformation utilities.
-package generator
+// Package common provides template rendering and string transformation utilities.
+package common
 
 import (
 	"bytes"
@@ -28,10 +28,10 @@ type TemplateData struct {
 // FuncMap returns custom template functions
 func FuncMap() template.FuncMap {
 	return template.FuncMap{
-		"camelCase":  toCamelCase,
-		"snakeCase":  toSnakeCase,
-		"pascalCase": toPascalCase,
-		"kebabCase":  toKebabCase,
+		"camelCase":  ToCamelCase,
+		"snakeCase":  ToSnakeCase,
+		"pascalCase": ToPascalCase,
+		"kebabCase":  ToKebabCase,
 		"lower":      strings.ToLower,
 		"upper":      strings.ToUpper,
 		"title":      toTitleCase,
@@ -43,11 +43,20 @@ func FuncMap() template.FuncMap {
 	}
 }
 
-// RenderTemplate renders a template with the given data
-func RenderTemplate(tmplContent string, data TemplateData) (string, error) {
+// LoadTemplate loads and parses a template string with custom functions
+func LoadTemplate(tmplContent string) (*template.Template, error) {
 	tmpl, err := template.New("sdk").Funcs(FuncMap()).Parse(tmplContent)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse template: %w", err)
+		return nil, fmt.Errorf("failed to parse template: %w", err)
+	}
+	return tmpl, nil
+}
+
+// RenderTemplate renders a template with the given data
+func RenderTemplate(tmplContent string, data TemplateData) (string, error) {
+	tmpl, err := LoadTemplate(tmplContent)
+	if err != nil {
+		return "", err
 	}
 
 	var buf bytes.Buffer
@@ -59,7 +68,7 @@ func RenderTemplate(tmplContent string, data TemplateData) (string, error) {
 }
 
 // String transformation functions
-func toCamelCase(s string) string {
+func ToCamelCase(s string) string {
 	if s == "" {
 		return s
 	}
@@ -76,7 +85,7 @@ func toCamelCase(s string) string {
 	return result
 }
 
-func toPascalCase(s string) string {
+func ToPascalCase(s string) string {
 	if s == "" {
 		return s
 	}
@@ -89,7 +98,7 @@ func toPascalCase(s string) string {
 	return result
 }
 
-func toSnakeCase(s string) string {
+func ToSnakeCase(s string) string {
 	if s == "" {
 		return s
 	}
@@ -98,7 +107,7 @@ func toSnakeCase(s string) string {
 	return strings.ToLower(strings.Join(parts, "_"))
 }
 
-func toKebabCase(s string) string {
+func ToKebabCase(s string) string {
 	if s == "" {
 		return s
 	}

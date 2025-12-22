@@ -5,15 +5,17 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/vubon/sdk-forge/internal/generator/common"
 )
 
 // generatePHPModelWithNamespace generates a PHP model class with namespace
-func generatePHPModelWithNamespace(name string, schema *Schema, allSchemas map[string]*Schema, sdkName string, version LanguageVersion) string {
+func generatePHPModelWithNamespace(name string, schema *common.Schema, allSchemas map[string]*common.Schema, sdkName string, version common.LanguageVersion) string {
 	var code strings.Builder
 
 	// Convert schema name to PascalCase for class name
-	className := toPascalCase(name)
-	namespace := getPHPNamespace(sdkName)
+	className := common.ToPascalCase(name)
+	namespace := fmt.Sprintf("Vendor\\%s", common.ToPascalCase(sdkName))
 
 	// Generate class header
 	code.WriteString("<?php\n\n")
@@ -63,7 +65,7 @@ func generatePHPModelWithNamespace(name string, schema *Schema, allSchemas map[s
 }
 
 // generatePHPObjectFields generates typed properties for an object schema
-func generatePHPObjectFields(schema *Schema, allSchemas map[string]*Schema, version LanguageVersion) string {
+func generatePHPObjectFields(schema *common.Schema, allSchemas map[string]*common.Schema, version common.LanguageVersion) string {
 	var fields strings.Builder
 
 	if len(schema.Properties) == 0 {
@@ -80,7 +82,7 @@ func generatePHPObjectFields(schema *Schema, allSchemas map[string]*Schema, vers
 	// Separate required and optional fields for consistent ordering
 	type fieldInfo struct {
 		name        string
-		schema      *Schema
+		schema      *common.Schema
 		isRequired  bool
 		description string
 	}
@@ -123,13 +125,13 @@ func generatePHPObjectFields(schema *Schema, allSchemas map[string]*Schema, vers
 		if info.description != "" {
 			fields.WriteString(fmt.Sprintf("    /**\n     * %s\n     */\n", info.description))
 		}
-		fields.WriteString(fmt.Sprintf("    public %s $%s;\n\n", fieldType, toCamelCase(info.name)))
+		fields.WriteString(fmt.Sprintf("    public %s $%s;\n\n", fieldType, common.ToCamelCase(info.name)))
 	}
 
 	// Generate optional fields second (nullable)
 	for _, info := range optionalFields {
 		fieldType := getPHPTypeFromSchema(info.schema, allSchemas, version)
-		fieldName := toCamelCase(info.name)
+		fieldName := common.ToCamelCase(info.name)
 		if info.description != "" {
 			fields.WriteString(fmt.Sprintf("    /**\n     * %s\n     */\n", info.description))
 		}
@@ -144,7 +146,7 @@ func generatePHPObjectFields(schema *Schema, allSchemas map[string]*Schema, vers
 }
 
 // generatePHPObjectConstructor generates constructor for object model
-func generatePHPObjectConstructor(className string, schema *Schema, allSchemas map[string]*Schema, version LanguageVersion) string {
+func generatePHPObjectConstructor(className string, schema *common.Schema, allSchemas map[string]*common.Schema, version common.LanguageVersion) string {
 	var constructor strings.Builder
 
 	requiredSet := make(map[string]bool)
@@ -166,7 +168,7 @@ func generatePHPObjectConstructor(className string, schema *Schema, allSchemas m
 			continue
 		}
 		fieldType := getPHPTypeFromSchema(propSchema, allSchemas, version)
-		fieldName := toCamelCase(propName)
+		fieldName := common.ToCamelCase(propName)
 		param := fmt.Sprintf("        %s $%s", fieldType, fieldName)
 		if requiredSet[propName] {
 			requiredParams = append(requiredParams, param)
@@ -190,7 +192,7 @@ func generatePHPObjectConstructor(className string, schema *Schema, allSchemas m
 
 	// Assign properties
 	for propName := range schema.Properties {
-		fieldName := toCamelCase(propName)
+		fieldName := common.ToCamelCase(propName)
 		constructor.WriteString(fmt.Sprintf("        $this->%s = $%s;\n", fieldName, fieldName))
 	}
 
@@ -200,7 +202,7 @@ func generatePHPObjectConstructor(className string, schema *Schema, allSchemas m
 }
 
 // generatePHPFromArray generates fromArray static method for object model
-func generatePHPFromArray(className string, schema *Schema, allSchemas map[string]*Schema, version LanguageVersion) string {
+func generatePHPFromArray(className string, schema *common.Schema, allSchemas map[string]*common.Schema, version common.LanguageVersion) string {
 	var method strings.Builder
 
 	method.WriteString("    /**\n")
@@ -242,7 +244,7 @@ func generatePHPFromArray(className string, schema *Schema, allSchemas map[strin
 		} else if propSchema.Ref != "" {
 			// Reference to another model - need to call fromArray
 			refName := extractRefName(propSchema.Ref)
-			refClassName := toPascalCase(refName)
+			refClassName := common.ToPascalCase(refName)
 			if requiredSet[propName] {
 				params = append(params, fmt.Sprintf("            %s::fromArray($data['%s']),", refClassName, propName))
 			} else {
@@ -261,7 +263,7 @@ func generatePHPFromArray(className string, schema *Schema, allSchemas map[strin
 }
 
 // generatePHPJsonSerialize generates jsonSerialize method for object model
-func generatePHPJsonSerialize(schema *Schema, allSchemas map[string]*Schema, version LanguageVersion) string {
+func generatePHPJsonSerialize(schema *common.Schema, allSchemas map[string]*common.Schema, version common.LanguageVersion) string {
 	var method strings.Builder
 
 	method.WriteString("    /**\n")
@@ -274,7 +276,7 @@ func generatePHPJsonSerialize(schema *Schema, allSchemas map[string]*Schema, ver
 	method.WriteString("        return array_filter([\n")
 
 	for propName := range schema.Properties {
-		fieldName := toCamelCase(propName)
+		fieldName := common.ToCamelCase(propName)
 		method.WriteString(fmt.Sprintf("            '%s' => $this->%s,\n", propName, fieldName))
 	}
 
@@ -285,7 +287,7 @@ func generatePHPJsonSerialize(schema *Schema, allSchemas map[string]*Schema, ver
 }
 
 // generatePHPArrayFields generates fields for array schema
-func generatePHPArrayFields(schema *Schema, allSchemas map[string]*Schema, version LanguageVersion) string {
+func generatePHPArrayFields(schema *common.Schema, allSchemas map[string]*common.Schema, version common.LanguageVersion) string {
 	var fields strings.Builder
 
 	fields.WriteString("    /**\n     * Array items\n     */\n")
@@ -295,7 +297,7 @@ func generatePHPArrayFields(schema *Schema, allSchemas map[string]*Schema, versi
 }
 
 // generatePHPArrayConstructor generates constructor for array model
-func generatePHPArrayConstructor(className string, schema *Schema, allSchemas map[string]*Schema, version LanguageVersion) string {
+func generatePHPArrayConstructor(className string, schema *common.Schema, allSchemas map[string]*common.Schema, version common.LanguageVersion) string {
 	var constructor strings.Builder
 
 	constructor.WriteString("    /**\n")
@@ -310,7 +312,7 @@ func generatePHPArrayConstructor(className string, schema *Schema, allSchemas ma
 }
 
 // generatePHPArrayFromArray generates fromArray for array model
-func generatePHPArrayFromArray(className string, schema *Schema, allSchemas map[string]*Schema, version LanguageVersion) string {
+func generatePHPArrayFromArray(className string, schema *common.Schema, allSchemas map[string]*common.Schema, version common.LanguageVersion) string {
 	var method strings.Builder
 
 	method.WriteString("    /**\n")
@@ -328,7 +330,7 @@ func generatePHPArrayFromArray(className string, schema *Schema, allSchemas map[
 }
 
 // generatePHPArrayJsonSerialize generates jsonSerialize for array model
-func generatePHPArrayJsonSerialize(schema *Schema, allSchemas map[string]*Schema, version LanguageVersion) string {
+func generatePHPArrayJsonSerialize(schema *common.Schema, allSchemas map[string]*common.Schema, version common.LanguageVersion) string {
 	var method strings.Builder
 
 	method.WriteString("    /**\n")
@@ -345,7 +347,7 @@ func generatePHPArrayJsonSerialize(schema *Schema, allSchemas map[string]*Schema
 }
 
 // generatePHPPrimitiveFields generates fields for primitive schema
-func generatePHPPrimitiveFields(schema *Schema, version LanguageVersion) string {
+func generatePHPPrimitiveFields(schema *common.Schema, version common.LanguageVersion) string {
 	var fields strings.Builder
 
 	fieldType := getPHPType(schema, version)
@@ -356,7 +358,7 @@ func generatePHPPrimitiveFields(schema *Schema, version LanguageVersion) string 
 }
 
 // generatePHPPrimitiveConstructor generates constructor for primitive model
-func generatePHPPrimitiveConstructor(className string, schema *Schema, version LanguageVersion) string {
+func generatePHPPrimitiveConstructor(className string, schema *common.Schema, version common.LanguageVersion) string {
 	var constructor strings.Builder
 
 	fieldType := getPHPType(schema, version)
@@ -372,7 +374,7 @@ func generatePHPPrimitiveConstructor(className string, schema *Schema, version L
 }
 
 // generatePHPPrimitiveFromArray generates fromArray for primitive model
-func generatePHPPrimitiveFromArray(className string, schema *Schema, version LanguageVersion) string {
+func generatePHPPrimitiveFromArray(className string, schema *common.Schema, version common.LanguageVersion) string {
 	var method strings.Builder
 
 	method.WriteString("    /**\n")
@@ -390,7 +392,7 @@ func generatePHPPrimitiveFromArray(className string, schema *Schema, version Lan
 }
 
 // generatePHPPrimitiveJsonSerialize generates jsonSerialize for primitive model
-func generatePHPPrimitiveJsonSerialize(schema *Schema, version LanguageVersion) string {
+func generatePHPPrimitiveJsonSerialize(schema *common.Schema, version common.LanguageVersion) string {
 	var method strings.Builder
 
 	method.WriteString("    /**\n")
@@ -407,7 +409,7 @@ func generatePHPPrimitiveJsonSerialize(schema *Schema, version LanguageVersion) 
 }
 
 // getPHPTypeFromSchema converts a schema to PHP type, handling refs
-func getPHPTypeFromSchema(schema *Schema, allSchemas map[string]*Schema, version LanguageVersion) string {
+func getPHPTypeFromSchema(schema *common.Schema, allSchemas map[string]*common.Schema, version common.LanguageVersion) string {
 	if schema == nil {
 		return "mixed"
 	}
@@ -415,7 +417,7 @@ func getPHPTypeFromSchema(schema *Schema, allSchemas map[string]*Schema, version
 	// Handle $ref
 	if schema.Ref != "" {
 		refName := extractRefName(schema.Ref)
-		return toPascalCase(refName)
+		return common.ToPascalCase(refName)
 	}
 
 	// Handle array type
@@ -442,7 +444,7 @@ func getPHPTypeFromSchema(schema *Schema, allSchemas map[string]*Schema, version
 }
 
 // getPHPType converts a schema to PHP primitive type
-func getPHPType(schema *Schema, version LanguageVersion) string {
+func getPHPType(schema *common.Schema, version common.LanguageVersion) string {
 	if schema == nil {
 		return "mixed"
 	}

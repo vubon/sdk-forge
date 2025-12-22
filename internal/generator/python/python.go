@@ -3,6 +3,7 @@ package python
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,8 +16,37 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 
+	"github.com/vubon/sdk-forge/internal/generator/common"
 	httplib "github.com/vubon/sdk-forge/pkg/languages/http"
 )
+
+//go:embed templates/__init__.py.tmpl
+var pythonInitTemplate string
+
+//go:embed templates/client.py.tmpl
+var pythonClientTemplate string
+
+//go:embed templates/setup.py.tmpl
+var pythonSetupTemplate string
+
+//go:embed templates/README.md.tmpl
+var pythonReadmeTemplate string
+
+func getPythonInitTemplateContent() string {
+	return pythonInitTemplate
+}
+
+func getPythonClientTemplateContent() string {
+	return pythonClientTemplate
+}
+
+func getPythonSetupTemplateContent() string {
+	return pythonSetupTemplate
+}
+
+func getPythonReadmeTemplateContent() string {
+	return pythonReadmeTemplate
+}
 
 // GeneratePythonSDK generates a Python SDK
 // If version is nil, uses the default Python version
@@ -25,14 +55,14 @@ import (
 func GeneratePythonSDK(
 	outputPath, sdkName, httpLib string,
 	openAPIDoc interface{},
-	version *LanguageVersion,
+	version *common.LanguageVersion,
 	sdkVersion string,
 	generateTests bool,
-	retryConfig RetryConfig,
+	retryConfig common.RetryConfig,
 ) error {
 	// Use default version if not provided
 	if version == nil {
-		defaultVersion := GetPythonDefaultVersion()
+		defaultVersion := common.GetPythonDefaultVersion()
 		version = &defaultVersion
 	}
 
@@ -40,14 +70,14 @@ func GeneratePythonSDK(
 	doc, ok := openAPIDoc.(*openapi3.T)
 	if !ok {
 		// If not an openapi3.T, try to extract from ExtractedData
-		if extractedData, ok := openAPIDoc.(*ExtractedData); ok {
+		if extractedData, ok := openAPIDoc.(*common.ExtractedData); ok {
 			return generatePythonSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, *version, sdkVersion, generateTests, retryConfig)
 		}
 		return fmt.Errorf("invalid OpenAPI document type")
 	}
 
 	// Extract data from OpenAPI document
-	extractedData, err := ExtractOpenAPIData(doc)
+	extractedData, err := common.ExtractOpenAPIData(doc)
 	if err != nil {
 		return fmt.Errorf("failed to extract OpenAPI data: %w", err)
 	}
@@ -58,11 +88,11 @@ func GeneratePythonSDK(
 // generatePythonSDKFromExtracted generates SDK from extracted data
 func generatePythonSDKFromExtracted(
 	outputPath, sdkName, httpLib string,
-	extractedData *ExtractedData,
-	version LanguageVersion,
+	extractedData *common.ExtractedData,
+	version common.LanguageVersion,
 	sdkVersion string,
 	generateTests bool,
-	retryConfig RetryConfig,
+	retryConfig common.RetryConfig,
 ) error {
 	// Get HTTP library config
 	libConfig, err := httplib.GetLibraryConfig("python", httpLib)
@@ -71,7 +101,7 @@ func generatePythonSDKFromExtracted(
 	}
 
 	// Sanitize SDK name for Python (snake_case)
-	sanitizedName := toSnakeCase(sdkName)
+	sanitizedName := common.ToSnakeCase(sdkName)
 	packageDir := filepath.Join(outputPath, sanitizedName)
 
 	// Create package directory
@@ -80,19 +110,19 @@ func generatePythonSDKFromExtracted(
 	}
 
 	// Template data
-	data := TemplateData{
+	data := common.TemplateData{
 		SDKName:         sanitizedName,
 		Language:        "python",
 		HTTPLib:         httpLib,
 		HTTPLibImport:   libConfig.Import,
 		HTTPLibConfig:   libConfig,
 		OpenAPIDoc:      extractedData,
-		ClientClassName: getClientClassName(sanitizedName),
+		ClientClassName: common.GetClientClassName(sanitizedName),
 		RetryConfig:     retryConfig,
 	}
 
 	// Determine SDK version using common utility
-	finalSDKVersion := determineSDKVersion(extractedData, sdkVersion)
+	finalSDKVersion := common.DetermineSDKVersion(extractedData, sdkVersion)
 
 	// Generate __init__.py
 	initContent := generatePythonInit(data, finalSDKVersion)
@@ -180,10 +210,10 @@ func generatePythonSDKFromExtracted(
 		}
 
 		// Group operations by tags
-		operationsByTag := groupOperationsByTag(extractedData.Operations)
+		operationsByTag := common.GroupOperationsByTag(extractedData.Operations)
 		for tag, operations := range operationsByTag {
 			// Generate api/{tag}.py
-			tagFileName := toSnakeCase(tag) + ".py"
+			tagFileName := common.ToSnakeCase(tag) + ".py"
 			tagContent := generatePythonAPIModule(tag, operations, data)
 			tagPath := filepath.Join(apiDir, tagFileName)
 			// #nosec G306 -- 0644 is appropriate for Python source files
@@ -229,14 +259,23 @@ func generatePythonSDKFromExtracted(
 
 // formatPythonFile formats a Python source file using black (if available)
 func formatPythonFile(filePath string) error {
+	// Skip formatting in tests to improve performance
+	if os.Getenv("SKIP_FORMATTING") == "true" || os.Getenv("TESTING") == "true" {
+		return nil
+	}
+
 	// Try black first (most common Python formatter)
 	cmd := exec.Command("black", "--quiet", filePath)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
 	if err := cmd.Run(); err == nil {
 		return nil
 	}
 
 	// Fallback to autopep8 if black is not available
 	cmd = exec.Command("autopep8", "--in-place", "--aggressive", "--aggressive", filePath)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
 	if err := cmd.Run(); err == nil {
 		return nil
 	}
@@ -245,9 +284,9 @@ func formatPythonFile(filePath string) error {
 	return fmt.Errorf("no Python formatter available (black or autopep8)")
 }
 
-func generatePythonInit(data TemplateData, sdkVersion string) string {
+func generatePythonInit(data common.TemplateData, sdkVersion string) string {
 	// Check if we have models
-	extractedData, ok := data.OpenAPIDoc.(*ExtractedData)
+	extractedData, ok := data.OpenAPIDoc.(*common.ExtractedData)
 	hasModels := ok && extractedData != nil && len(extractedData.Schemas) > 0
 
 	// Format SDK name for display
@@ -265,30 +304,30 @@ func generatePythonInit(data TemplateData, sdkVersion string) string {
 	}
 	templateData := PythonInitData{
 		DisplayName:     displayName,
-		ClientClassName: getClientClassName(data.SDKName),
+		ClientClassName: common.GetClientClassName(data.SDKName),
 		HasModels:       hasModels,
 		Version:         sdkVersion,
 	}
 	if hasModels {
 		for name := range extractedData.Schemas {
-			templateData.ModelNames = append(templateData.ModelNames, toPascalCase(name))
+			templateData.ModelNames = append(templateData.ModelNames, common.ToPascalCase(name))
 		}
 	}
 
 	// Load and render template
-	tmpl, err := LoadTemplate(GetPythonInitTemplate())
+	tmpl, err := common.LoadTemplate(getPythonInitTemplateContent())
 	if err != nil {
 		// Fallback to old method
 		var initContent strings.Builder
 		initContent.WriteString(fmt.Sprintf("\"\"\"%s SDK - Auto-generated from OpenAPI schema\"\"\"\n\n", displayName))
-		initContent.WriteString(fmt.Sprintf("from .client import %s\n", getClientClassName(data.SDKName)))
+		initContent.WriteString(fmt.Sprintf("from .client import %s\n", common.GetClientClassName(data.SDKName)))
 		if hasModels {
 			initContent.WriteString("from .models import *\n")
 		}
-		initContent.WriteString(fmt.Sprintf("\n__all__ = [\"%s\"", getClientClassName(data.SDKName)))
+		initContent.WriteString(fmt.Sprintf("\n__all__ = [\"%s\"", common.GetClientClassName(data.SDKName)))
 		if hasModels {
 			for name := range extractedData.Schemas {
-				initContent.WriteString(fmt.Sprintf(", \"%s\"", toPascalCase(name)))
+				initContent.WriteString(fmt.Sprintf(", \"%s\"", common.ToPascalCase(name)))
 			}
 		}
 		initContent.WriteString(fmt.Sprintf("]\n__version__ = \"%s\"\n", sdkVersion))
@@ -300,14 +339,14 @@ func generatePythonInit(data TemplateData, sdkVersion string) string {
 		// Fallback to old method
 		var initContent strings.Builder
 		initContent.WriteString(fmt.Sprintf("\"\"\"%s SDK - Auto-generated from OpenAPI schema\"\"\"\n\n", displayName))
-		initContent.WriteString(fmt.Sprintf("from .client import %s\n", getClientClassName(data.SDKName)))
+		initContent.WriteString(fmt.Sprintf("from .client import %s\n", common.GetClientClassName(data.SDKName)))
 		if hasModels {
 			initContent.WriteString("from .models import *\n")
 		}
-		initContent.WriteString(fmt.Sprintf("\n__all__ = [\"%s\"", getClientClassName(data.SDKName)))
+		initContent.WriteString(fmt.Sprintf("\n__all__ = [\"%s\"", common.GetClientClassName(data.SDKName)))
 		if hasModels {
 			for name := range extractedData.Schemas {
-				initContent.WriteString(fmt.Sprintf(", \"%s\"", toPascalCase(name)))
+				initContent.WriteString(fmt.Sprintf(", \"%s\"", common.ToPascalCase(name)))
 			}
 		}
 		initContent.WriteString(fmt.Sprintf("]\n__version__ = \"%s\"\n", sdkVersion))
@@ -317,7 +356,7 @@ func generatePythonInit(data TemplateData, sdkVersion string) string {
 	return buf.String()
 }
 
-func generatePythonClient(data TemplateData) string {
+func generatePythonClient(data common.TemplateData) string {
 	// Build template with proper replacements
 	clientClass := "requests.Session"
 	if data.HTTPLibConfig != nil {
@@ -330,9 +369,9 @@ func generatePythonClient(data TemplateData) string {
 	displayName = c.String(strings.ToLower(displayName))
 
 	// Extract OpenAPI data
-	extractedData, ok := data.OpenAPIDoc.(*ExtractedData)
+	extractedData, ok := data.OpenAPIDoc.(*common.ExtractedData)
 	if !ok {
-		extractedData = &ExtractedData{BaseURL: "https://api.example.com/v1"}
+		extractedData = &common.ExtractedData{BaseURL: "https://api.example.com/v1"}
 	}
 
 	// Generate base URL default
@@ -371,7 +410,7 @@ func generatePythonClient(data TemplateData) string {
 	templateData := PythonClientData{
 		DisplayName:     displayName,
 		HTTPLibImport:   data.HTTPLibImport,
-		ClientClassName: getClientClassName(data.SDKName),
+		ClientClassName: common.GetClientClassName(data.SDKName),
 		BaseURLDefault:  baseURLDefault,
 		ClientClass:     clientClass,
 		AuthSetup:       authSetup,
@@ -382,7 +421,7 @@ func generatePythonClient(data TemplateData) string {
 	}
 
 	// Load and render template
-	tmpl, err := LoadTemplate(GetPythonClientTemplate())
+	tmpl, err := common.LoadTemplate(getPythonClientTemplateContent())
 	if err != nil {
 		// Fallback to old method
 		return fmt.Sprintf(`"""%s API Client - Auto-generated from OpenAPI schema"""
@@ -418,7 +457,7 @@ class %s:
 `,
 			displayName,
 			data.HTTPLibImport,
-			getClientClassName(data.SDKName),
+			common.GetClientClassName(data.SDKName),
 			displayName,
 			baseURLDefault,
 			clientClass,
@@ -462,7 +501,7 @@ class %s:
 `,
 			displayName,
 			data.HTTPLibImport,
-			getClientClassName(data.SDKName),
+			common.GetClientClassName(data.SDKName),
 			displayName,
 			baseURLDefault,
 			clientClass,
@@ -474,7 +513,7 @@ class %s:
 }
 
 // generatePythonRetrySetup generates retry configuration setup code for __init__
-func generatePythonRetrySetup(config RetryConfig) string {
+func generatePythonRetrySetup(config common.RetryConfig) string {
 	if !config.Enabled {
 		return ""
 	}
@@ -506,7 +545,7 @@ func generatePythonRetrySetup(config RetryConfig) string {
 }
 
 // generatePythonRetryHelper generates retry helper function based on HTTP library
-func generatePythonRetryHelper(httpLib string, config RetryConfig) string {
+func generatePythonRetryHelper(httpLib string, config common.RetryConfig) string {
 	if !config.Enabled {
 		return ""
 	}
@@ -514,13 +553,13 @@ func generatePythonRetryHelper(httpLib string, config RetryConfig) string {
 	var buf strings.Builder
 	buf.WriteString("\n    def _calculate_retry_delay(self, attempt: int) -> float:\n")
 	buf.WriteString("        \"\"\"Calculate delay for retry attempt based on strategy\"\"\"\n")
-	buf.WriteString(fmt.Sprintf("        if self.retry_strategy == %q:\n", RetryStrategyExponential))
+	buf.WriteString(fmt.Sprintf("        if self.retry_strategy == %q:\n", common.RetryStrategyExponential))
 	buf.WriteString("            # Exponential backoff: initial_delay * (multiplier ^ attempt)\n")
 	buf.WriteString("            delay = self.retry_initial_delay * (self.retry_backoff_multiplier ** attempt)\n")
-	buf.WriteString(fmt.Sprintf("        elif self.retry_strategy == %q:\n", RetryStrategyLinear))
+	buf.WriteString(fmt.Sprintf("        elif self.retry_strategy == %q:\n", common.RetryStrategyLinear))
 	buf.WriteString("            # Linear backoff: initial_delay * (attempt + 1)\n")
 	buf.WriteString("            delay = self.retry_initial_delay * (attempt + 1)\n")
-	buf.WriteString(fmt.Sprintf("        elif self.retry_strategy == %q:\n", RetryStrategyFixed))
+	buf.WriteString(fmt.Sprintf("        elif self.retry_strategy == %q:\n", common.RetryStrategyFixed))
 	buf.WriteString("            # Fixed delay: always use initial_delay\n")
 	buf.WriteString("            delay = self.retry_initial_delay\n")
 	buf.WriteString("        else:\n")
@@ -689,7 +728,7 @@ func generatePythonRetryHelper(httpLib string, config RetryConfig) string {
 }
 
 // generatePythonAuthSetup generates authentication setup code
-func generatePythonAuthSetup(securitySchemes map[string]SecurityScheme) string {
+func generatePythonAuthSetup(securitySchemes map[string]common.SecurityScheme) string {
 	if len(securitySchemes) == 0 {
 		return "        # No authentication required"
 	}
@@ -701,35 +740,35 @@ func generatePythonAuthSetup(securitySchemes map[string]SecurityScheme) string {
 
 	for name, scheme := range securitySchemes {
 		switch scheme.Type {
-		case securitySchemeAPIKey:
+		case "apiKey":
 			setupCode.WriteString(fmt.Sprintf("        self.%s = auth_params.get('%s')\n", name, name))
 			setupCode.WriteString(fmt.Sprintf("        if self.%s:\n", name))
 			switch scheme.In {
-			case paramLocationHeader:
+			case "header":
 				setupCode.WriteString(fmt.Sprintf("            self.session.headers['%s'] = self.%s\n", scheme.Name, name))
-			case paramLocationQuery:
+			case "query":
 				setupCode.WriteString(fmt.Sprintf("            # Query parameter '%s' will be added per request\n", scheme.Name))
 			}
-		case securitySchemeHTTP:
+		case "http":
 			switch scheme.Scheme {
-			case securitySchemeBearer:
+			case "bearer":
 				setupCode.WriteString("        self.bearer_token = auth_params.get('bearer_token')\n")
 				setupCode.WriteString("        if self.bearer_token:\n")
 				setupCode.WriteString("            self.session.headers['Authorization'] = f'Bearer {self.bearer_token}'\n")
-			case securitySchemeBasic:
+			case "basic":
 				setupCode.WriteString("        self.username = auth_params.get('username')\n")
 				setupCode.WriteString("        self.password = auth_params.get('password')\n")
 				setupCode.WriteString("        if self.username and self.password:\n")
 				setupCode.WriteString("            from requests.auth import HTTPBasicAuth\n")
 				setupCode.WriteString("            self.session.auth = HTTPBasicAuth(self.username, self.password)\n")
-			case securitySchemeDigest:
+			case "digest":
 				setupCode.WriteString("        self.username = auth_params.get('username')\n")
 				setupCode.WriteString("        self.password = auth_params.get('password')\n")
 				setupCode.WriteString("        if self.username and self.password:\n")
 				setupCode.WriteString("            from requests.auth import HTTPDigestAuth\n")
 				setupCode.WriteString("            self.session.auth = HTTPDigestAuth(self.username, self.password)\n")
 			}
-		case securitySchemeOAuth2:
+		case "oauth2":
 			setupCode.WriteString(fmt.Sprintf("        self.%s_token = auth_params.get('%s_token')\n", name, name))
 			tokenTypeLine := fmt.Sprintf("        self.%s_token_type = auth_params.get('%s_token_type', 'Bearer')\n", name, name)
 			setupCode.WriteString(tokenTypeLine)
@@ -761,7 +800,7 @@ func generatePythonAuthSetup(securitySchemes map[string]SecurityScheme) string {
 				}
 				setupCode.WriteString("\n")
 			}
-		case securitySchemeOpenIDConnect:
+		case "openIdConnect":
 			setupCode.WriteString(fmt.Sprintf("        self.%s_token = auth_params.get('%s_token')\n", name, name))
 			setupCode.WriteString(fmt.Sprintf("        if self.%s_token:\n", name))
 			bearerLine := fmt.Sprintf("            self.session.headers['Authorization'] = f'Bearer {self.%s_token}'\n", name)
@@ -769,7 +808,7 @@ func generatePythonAuthSetup(securitySchemes map[string]SecurityScheme) string {
 			if scheme.OpenIDConnectURL != "" {
 				setupCode.WriteString(fmt.Sprintf("        # OpenID Connect discovery URL: %s\n", scheme.OpenIDConnectURL))
 			}
-		case securitySchemeMutualTLS:
+		case "mutualTLS":
 			setupCode.WriteString(fmt.Sprintf("        self.%s_cert = auth_params.get('%s_cert')\n", name, name))
 			setupCode.WriteString(fmt.Sprintf("        self.%s_key = auth_params.get('%s_key')\n", name, name))
 			setupCode.WriteString(fmt.Sprintf("        if self.%s_cert and self.%s_key:\n", name, name))
@@ -781,7 +820,7 @@ func generatePythonAuthSetup(securitySchemes map[string]SecurityScheme) string {
 }
 
 // generatePythonAPIMethods generates API methods from operations
-func generatePythonAPIMethods(operations []APIOperation) string {
+func generatePythonAPIMethods(operations []common.APIOperation) string {
 	if len(operations) == 0 {
 		return "    # No API methods defined in OpenAPI schema"
 	}
@@ -789,11 +828,11 @@ func generatePythonAPIMethods(operations []APIOperation) string {
 	var methods strings.Builder
 
 	for _, op := range operations {
-		methodName := GetOperationMethodName(op)
+		methodName := common.GetOperationMethodName(op)
 		if methodName == "" {
 			// Fallback naming
 			methodName = strings.ToLower(op.Method) + "_" + strings.ReplaceAll(strings.Trim(op.Path, "/"), "/", "_")
-			methodName = toSnakeCase(methodName)
+			methodName = common.ToSnakeCase(methodName)
 		}
 
 		// Generate method signature
@@ -804,10 +843,10 @@ func generatePythonAPIMethods(operations []APIOperation) string {
 		var queryParams []string
 		for _, param := range op.Parameters {
 			switch param.In {
-			case paramLocationPath:
+			case "path":
 				pathParams = append(pathParams, param.Name)
 				methods.WriteString(fmt.Sprintf(", %s: %s", param.Name, getPythonType(param.Schema)))
-			case paramLocationQuery:
+			case "query":
 				queryParams = append(queryParams, param.Name)
 				// Add query parameters to function signature
 				methods.WriteString(fmt.Sprintf(", %s: Optional[%s] = None", param.Name, getPythonType(param.Schema)))
@@ -884,30 +923,30 @@ func generatePythonAPIMethods(operations []APIOperation) string {
 }
 
 // getPythonType converts schema type to Python type hint
-func getPythonType(schema *Schema) string {
+func getPythonType(schema *common.Schema) string {
 	if schema == nil {
-		return pythonTypeAny
+		return "any"
 	}
 
 	switch schema.Type {
-	case pythonTypeString:
+	case "string":
 		return "str"
-	case pythonTypeInteger:
+	case "integer":
 		return "int"
-	case pythonTypeNumber:
+	case "number":
 		return "float"
-	case pythonTypeBoolean:
+	case "boolean":
 		return "bool"
-	case pythonTypeArray:
+	case "array":
 		return "list"
-	case pythonTypeObject:
-		return pythonTypeDict
+	case "object":
+		return "dict"
 	default:
-		return pythonTypeAny
+		return "any"
 	}
 }
 
-func generatePythonRequirements(data TemplateData) string {
+func generatePythonRequirements(data common.TemplateData) string {
 	if data.HTTPLibConfig == nil {
 		return "# Dependencies\n"
 	}
@@ -920,9 +959,9 @@ func generatePythonRequirements(data TemplateData) string {
 	return strings.Join(requirements, "\n") + "\n"
 }
 
-func generatePythonREADME(data TemplateData) string {
+func generatePythonREADME(data common.TemplateData) string {
 	// Load and render template
-	tmpl, err := LoadTemplate(GetPythonReadmeTemplate())
+	tmpl, err := common.LoadTemplate(getPythonReadmeTemplateContent())
 	if err != nil {
 		// Fallback
 		c := cases.Title(language.English)
@@ -957,8 +996,8 @@ func escapePythonString(s string) string {
 	return s
 }
 
-func generatePythonSetup(data TemplateData, pythonVersion LanguageVersion, sdkVersion string) string {
-	extractedData, ok := data.OpenAPIDoc.(*ExtractedData)
+func generatePythonSetup(data common.TemplateData, pythonVersion common.LanguageVersion, sdkVersion string) string {
+	extractedData, ok := data.OpenAPIDoc.(*common.ExtractedData)
 	description := "Auto-generated Python SDK"
 	if ok && extractedData != nil {
 		if extractedData.Description != "" {
@@ -987,7 +1026,7 @@ func generatePythonSetup(data TemplateData, pythonVersion LanguageVersion, sdkVe
 	}
 	// Add version-specific classifiers (from the selected minimum version up to available versions)
 	// Only include versions that meet the minimum requirement
-	availableVersions := GetPythonAvailableVersions()
+	availableVersions := common.GetPythonAvailableVersions()
 	for _, availableVersion := range availableVersions {
 		// Only include versions >= the selected minimum version
 		if availableVersion.Major == pythonVersion.Major &&
@@ -1006,7 +1045,7 @@ func generatePythonSetup(data TemplateData, pythonVersion LanguageVersion, sdkVe
 	}
 
 	// Load and render template
-	tmpl, err := LoadTemplate(GetPythonSetupTemplate())
+	tmpl, err := common.LoadTemplate(getPythonSetupTemplateContent())
 	if err != nil {
 		// Fallback to old method
 		var setup strings.Builder
@@ -1029,7 +1068,7 @@ func generatePythonSetup(data TemplateData, pythonVersion LanguageVersion, sdkVe
 		setup.WriteString("        \"Intended Audience :: Developers\",\n")
 		setup.WriteString("        \"Programming Language :: Python :: 3\",\n")
 		// Only include versions >= the selected minimum version
-		availableVersions := GetPythonAvailableVersions()
+		availableVersions := common.GetPythonAvailableVersions()
 		for _, availableVersion := range availableVersions {
 			if availableVersion.Major == pythonVersion.Major &&
 				availableVersion.Minor >= pythonVersion.Minor {
@@ -1064,7 +1103,7 @@ func generatePythonSetup(data TemplateData, pythonVersion LanguageVersion, sdkVe
 		setup.WriteString("        \"Intended Audience :: Developers\",\n")
 		setup.WriteString("        \"Programming Language :: Python :: 3\",\n")
 		// Only include versions >= the selected minimum version
-		availableVersions := GetPythonAvailableVersions()
+		availableVersions := common.GetPythonAvailableVersions()
 		for _, availableVersion := range availableVersions {
 			if availableVersion.Major == pythonVersion.Major &&
 				availableVersion.Minor >= pythonVersion.Minor {
@@ -1080,19 +1119,19 @@ func generatePythonSetup(data TemplateData, pythonVersion LanguageVersion, sdkVe
 }
 
 // generatePythonAPIInit generates api/__init__.py
-func generatePythonAPIInit(data TemplateData) string {
-	extractedData, ok := data.OpenAPIDoc.(*ExtractedData)
+func generatePythonAPIInit(data common.TemplateData) string {
+	extractedData, ok := data.OpenAPIDoc.(*common.ExtractedData)
 	if !ok || extractedData == nil || len(extractedData.Operations) == 0 {
 		return "\"\"\"API endpoint modules\"\"\"\n"
 	}
 
-	operationsByTag := groupOperationsByTag(extractedData.Operations)
+	operationsByTag := common.GroupOperationsByTag(extractedData.Operations)
 	var init strings.Builder
 	init.WriteString("\"\"\"API endpoint modules\"\"\"\n\n")
 
 	// Import all tag modules
 	for tag := range operationsByTag {
-		tagModule := toSnakeCase(tag)
+		tagModule := common.ToSnakeCase(tag)
 		init.WriteString(fmt.Sprintf("from . import %s\n", tagModule))
 	}
 
@@ -1102,7 +1141,7 @@ func generatePythonAPIInit(data TemplateData) string {
 		if !first {
 			init.WriteString(",\n")
 		}
-		tagModule := toSnakeCase(tag)
+		tagModule := common.ToSnakeCase(tag)
 		init.WriteString(fmt.Sprintf("    \"%s\"", tagModule))
 		first = false
 	}
@@ -1112,8 +1151,8 @@ func generatePythonAPIInit(data TemplateData) string {
 }
 
 // generatePythonAPIModule generates api/{tag}.py with operations for that tag
-func generatePythonAPIModule(tag string, operations []APIOperation, data TemplateData) string {
-	clientClassName := getClientClassName(data.SDKName)
+func generatePythonAPIModule(tag string, operations []common.APIOperation, data common.TemplateData) string {
+	clientClassName := common.GetClientClassName(data.SDKName)
 	var module strings.Builder
 	module.WriteString(fmt.Sprintf("\"\"\"%s API endpoints\"\"\"\n\n", tag))
 	module.WriteString("from typing import Optional, Dict, Any\n")
@@ -1121,12 +1160,12 @@ func generatePythonAPIModule(tag string, operations []APIOperation, data Templat
 
 	// Generate functions for each operation
 	for _, op := range operations {
-		methodName := GetOperationMethodName(op)
+		methodName := common.GetOperationMethodName(op)
 		if methodName == "" {
 			// Fallback naming
 			pathPart := strings.ReplaceAll(strings.Trim(op.Path, "/"), "/", "_")
 			methodName = strings.ToLower(op.Method) + "_" + pathPart
-			methodName = toSnakeCase(methodName)
+			methodName = common.ToSnakeCase(methodName)
 		}
 
 		// Function signature - takes client as first parameter
@@ -1137,11 +1176,11 @@ func generatePythonAPIModule(tag string, operations []APIOperation, data Templat
 		var queryParams []string
 		for _, param := range op.Parameters {
 			switch param.In {
-			case paramLocationPath:
+			case "path":
 				pathParams = append(pathParams, param.Name)
 				paramType := getPythonType(param.Schema)
 				module.WriteString(fmt.Sprintf(", %s: %s", param.Name, paramType))
-			case paramLocationQuery:
+			case "query":
 				queryParams = append(queryParams, param.Name)
 				paramType := getPythonType(param.Schema)
 				module.WriteString(fmt.Sprintf(", %s: Optional[%s] = None", param.Name, paramType))
@@ -1199,9 +1238,9 @@ func generatePythonAPIModule(tag string, operations []APIOperation, data Templat
 }
 
 // generatePythonExamples generates examples/basic_usage.py
-func generatePythonExamples(data TemplateData) string {
-	extractedData, ok := data.OpenAPIDoc.(*ExtractedData)
-	clientClassName := getClientClassName(data.SDKName)
+func generatePythonExamples(data common.TemplateData) string {
+	extractedData, ok := data.OpenAPIDoc.(*common.ExtractedData)
+	clientClassName := common.GetClientClassName(data.SDKName)
 
 	var examples strings.Builder
 	examples.WriteString("\"\"\"Basic usage examples for the SDK\"\"\"\n\n")
@@ -1221,13 +1260,13 @@ func generatePythonExamples(data TemplateData) string {
 	if ok && extractedData != nil && len(extractedData.SecuritySchemes) > 0 {
 		for name, scheme := range extractedData.SecuritySchemes {
 			switch scheme.Type {
-			case securitySchemeAPIKey:
+			case "apiKey":
 				examples.WriteString(fmt.Sprintf("    %s=\"your-%s\",\n", name, name))
-			case securitySchemeHTTP:
+			case "http":
 				switch scheme.Scheme {
-				case securitySchemeBearer:
+				case "bearer":
 					examples.WriteString("    bearer_token=\"your-bearer-token\",\n")
-				case securitySchemeBasic:
+				case "basic":
 					examples.WriteString("    username=\"your-username\",\n")
 					examples.WriteString("    password=\"your-password\",\n")
 				}
@@ -1251,7 +1290,7 @@ func generatePythonExamples(data TemplateData) string {
 }
 
 // generatePythonTests generates test files for Python SDK
-func generatePythonTests(outputPath, packageDir string, data TemplateData, extractedData *ExtractedData) error {
+func generatePythonTests(outputPath, packageDir string, data common.TemplateData, extractedData *common.ExtractedData) error {
 	// Create tests/ directory
 	testsDir := filepath.Join(outputPath, "tests")
 	if err := os.MkdirAll(testsDir, 0750); err != nil {
@@ -1341,7 +1380,7 @@ func generatePythonTests(outputPath, packageDir string, data TemplateData, extra
 }
 
 // generatePythonTestFixtures generates test fixture files from OpenAPI examples
-func generatePythonTestFixtures(testsDir string, extractedData *ExtractedData) error {
+func generatePythonTestFixtures(testsDir string, extractedData *common.ExtractedData) error {
 	fixturesDir := filepath.Join(testsDir, "fixtures")
 	if err := os.MkdirAll(fixturesDir, 0750); err != nil {
 		return fmt.Errorf("failed to create fixtures directory: %w", err)
@@ -1384,7 +1423,7 @@ func generatePythonFixturesFile(fixtures map[string]interface{}) string {
 
 	for key, example := range fixtures {
 		// Convert key to valid Python variable name
-		varName := toSnakeCase(key)
+		varName := common.ToSnakeCase(key)
 		exampleJSON := formatExampleForPython(example)
 		fmt.Fprintf(&buf, "%s = %s\n\n", varName, exampleJSON)
 	}
@@ -1393,7 +1432,7 @@ func generatePythonFixturesFile(fixtures map[string]interface{}) string {
 }
 
 // generatePythonConftest generates pytest conftest.py with fixtures
-func generatePythonConftest(data TemplateData, extractedData *ExtractedData) string {
+func generatePythonConftest(data common.TemplateData, extractedData *common.ExtractedData) string {
 	var conftest bytes.Buffer
 	conftest.WriteString("import pytest\n")
 	conftest.WriteString(fmt.Sprintf("from %s import %s\n\n", data.SDKName, data.ClientClassName))
@@ -1411,7 +1450,7 @@ func generatePythonConftest(data TemplateData, extractedData *ExtractedData) str
 }
 
 // generatePythonClientTest generates test_client.py
-func generatePythonClientTest(data TemplateData, extractedData *ExtractedData) string {
+func generatePythonClientTest(data common.TemplateData, extractedData *common.ExtractedData) string {
 	var test bytes.Buffer
 	test.WriteString("import pytest\n")
 	test.WriteString(fmt.Sprintf("from %s import %s\n\n\n", data.SDKName, data.ClientClassName))
@@ -1430,7 +1469,7 @@ func generatePythonClientTest(data TemplateData, extractedData *ExtractedData) s
 }
 
 // generatePythonModelsTest generates test_models.py with schema-based tests
-func generatePythonModelsTest(data TemplateData, schemas map[string]*Schema) string {
+func generatePythonModelsTest(data common.TemplateData, schemas map[string]*common.Schema) string {
 	var test bytes.Buffer
 	test.WriteString("import pytest\n")
 	test.WriteString("from dataclasses import asdict\n")
@@ -1438,12 +1477,12 @@ func generatePythonModelsTest(data TemplateData, schemas map[string]*Schema) str
 
 	// Generate tests for each schema
 	for name, schema := range schemas {
-		className := toPascalCase(name)
+		className := common.ToPascalCase(name)
 		test.WriteString(fmt.Sprintf("class Test%s:\n", className))
 		test.WriteString(fmt.Sprintf("    \"\"\"Tests for %s model\"\"\"\n\n", className))
 
 		// Test model instantiation
-		test.WriteString(fmt.Sprintf("    def test_%s_creation(self):\n", toSnakeCase(name)))
+		test.WriteString(fmt.Sprintf("    def test_%s_creation(self):\n", common.ToSnakeCase(name)))
 		test.WriteString(fmt.Sprintf("        \"\"\"Test %s can be instantiated.\"\"\"\n", className))
 
 		// Generate test data based on schema properties
@@ -1468,7 +1507,7 @@ func generatePythonModelsTest(data TemplateData, schemas map[string]*Schema) str
 				}
 				first = false
 
-				propSnakeName := toSnakeCase(propName)
+				propSnakeName := common.ToSnakeCase(propName)
 				testValue := generatePythonTestValue(propSchema, propName)
 
 				if requiredSet[propName] {
@@ -1483,7 +1522,7 @@ func generatePythonModelsTest(data TemplateData, schemas map[string]*Schema) str
 
 			// Test property access
 			for propName := range schema.Properties {
-				propSnakeName := toSnakeCase(propName)
+				propSnakeName := common.ToSnakeCase(propName)
 				test.WriteString(fmt.Sprintf("        assert hasattr(model, '%s')\n", propSnakeName))
 			}
 		} else {
@@ -1502,7 +1541,7 @@ func generatePythonModelsTest(data TemplateData, schemas map[string]*Schema) str
 						test.WriteString(",\n")
 					}
 					first = false
-					fieldSnakeName := toSnakeCase(reqField)
+					fieldSnakeName := common.ToSnakeCase(reqField)
 					test.WriteString(fmt.Sprintf("            %s=\"test_value\"", fieldSnakeName))
 				}
 				test.WriteString("\n        )\n")
@@ -1515,7 +1554,7 @@ func generatePythonModelsTest(data TemplateData, schemas map[string]*Schema) str
 		test.WriteString("\n")
 
 		// Test serialization (if dataclass)
-		test.WriteString(fmt.Sprintf("    def test_%s_serialization(self):\n", toSnakeCase(name)))
+		test.WriteString(fmt.Sprintf("    def test_%s_serialization(self):\n", common.ToSnakeCase(name)))
 		test.WriteString(fmt.Sprintf("        \"\"\"Test %s can be serialized to dict.\"\"\"\n", className))
 		if schema.Type == "object" && len(schema.Properties) > 0 {
 			test.WriteString(fmt.Sprintf("        model = models.%s(\n", className))
@@ -1534,7 +1573,7 @@ func generatePythonModelsTest(data TemplateData, schemas map[string]*Schema) str
 					test.WriteString(",\n")
 				}
 				first = false
-				propSnakeName := toSnakeCase(propName)
+				propSnakeName := common.ToSnakeCase(propName)
 				testValue := generatePythonTestValue(propSchema, propName)
 				test.WriteString(fmt.Sprintf("            %s=%s", propSnakeName, testValue))
 			}
@@ -1556,7 +1595,7 @@ func generatePythonModelsTest(data TemplateData, schemas map[string]*Schema) str
 						test.WriteString(",\n")
 					}
 					first = false
-					fieldSnakeName := toSnakeCase(reqField)
+					fieldSnakeName := common.ToSnakeCase(reqField)
 					test.WriteString(fmt.Sprintf("            %s=\"test_value\"", fieldSnakeName))
 				}
 				test.WriteString("\n        )\n")
@@ -1571,7 +1610,7 @@ func generatePythonModelsTest(data TemplateData, schemas map[string]*Schema) str
 
 		// Test required fields validation (if any)
 		if len(schema.Required) > 0 {
-			test.WriteString(fmt.Sprintf("    def test_%s_required_fields(self):\n", toSnakeCase(name)))
+			test.WriteString(fmt.Sprintf("    def test_%s_required_fields(self):\n", common.ToSnakeCase(name)))
 			test.WriteString(fmt.Sprintf("        \"\"\"Test %s required fields are enforced.\"\"\"\n", className))
 			test.WriteString("        # Note: dataclasses don't enforce required fields at runtime\n")
 			test.WriteString("        # This test serves as documentation of required fields\n")
@@ -1580,7 +1619,7 @@ func generatePythonModelsTest(data TemplateData, schemas map[string]*Schema) str
 				if i > 0 {
 					test.WriteString(", ")
 				}
-				test.WriteString(fmt.Sprintf("\"%s\"", toSnakeCase(req)))
+				test.WriteString(fmt.Sprintf("\"%s\"", common.ToSnakeCase(req)))
 			}
 			test.WriteString("]\n")
 			test.WriteString("        assert len(required_fields) > 0\n")
@@ -1592,7 +1631,7 @@ func generatePythonModelsTest(data TemplateData, schemas map[string]*Schema) str
 }
 
 // generatePythonTestValue generates a test value for a schema property
-func generatePythonTestValue(schema *Schema, propName string) string {
+func generatePythonTestValue(schema *common.Schema, propName string) string {
 	if schema == nil {
 		return "\"test_value\""
 	}
@@ -1608,7 +1647,7 @@ func generatePythonTestValue(schema *Schema, propName string) string {
 		if schema.Format == "email" {
 			return "\"test@example.com\""
 		}
-		return fmt.Sprintf("\"test_%s\"", toSnakeCase(propName))
+		return fmt.Sprintf("\"test_%s\"", common.ToSnakeCase(propName))
 	case "integer", "number":
 		return "42"
 	case "boolean":
@@ -1627,23 +1666,23 @@ func generatePythonTestValue(schema *Schema, propName string) string {
 }
 
 // generatePythonAPITest generates test_api_methods.py with operation-based tests
-func generatePythonAPITest(data TemplateData, operations []APIOperation, extractedData *ExtractedData) string {
+func generatePythonAPITest(data common.TemplateData, operations []common.APIOperation, extractedData *common.ExtractedData) string {
 	var test bytes.Buffer
 	test.WriteString("import pytest\n")
 	test.WriteString("from unittest.mock import Mock, patch\n")
 	test.WriteString(fmt.Sprintf("from %s import %s\n\n\n", data.SDKName, data.ClientClassName))
 
 	// Group operations by tag for better organization
-	operationsByTag := groupOperationsByTag(operations)
+	operationsByTag := common.GroupOperationsByTag(operations)
 
 	// Generate tests for each tag/group
 	for tag, tagOperations := range operationsByTag {
-		test.WriteString(fmt.Sprintf("class Test%sAPI:\n", toPascalCase(tag)))
+		test.WriteString(fmt.Sprintf("class Test%sAPI:\n", common.ToPascalCase(tag)))
 		test.WriteString(fmt.Sprintf("    \"\"\"Tests for %s API methods\"\"\"\n\n", tag))
 
 		// Generate test for each operation
 		for _, op := range tagOperations {
-			methodName := GetOperationMethodName(op)
+			methodName := common.GetOperationMethodName(op)
 			testMethodName := fmt.Sprintf("test_%s", methodName)
 
 			// Patch requests.Session.request since client uses session.request()
@@ -1697,7 +1736,7 @@ func generatePythonAPITest(data TemplateData, operations []APIOperation, extract
 					if hasParams {
 						test.WriteString(", ")
 					}
-					paramName := toSnakeCase(param.Name)
+					paramName := common.ToSnakeCase(param.Name)
 					testValue := generatePythonTestValueFromParam(param)
 					test.WriteString(fmt.Sprintf("%s=%s", paramName, testValue))
 					hasParams = true
@@ -1710,7 +1749,7 @@ func generatePythonAPITest(data TemplateData, operations []APIOperation, extract
 					if hasParams {
 						test.WriteString(", ")
 					}
-					paramName := toSnakeCase(param.Name)
+					paramName := common.ToSnakeCase(param.Name)
 					testValue := generatePythonTestValueFromParam(param)
 					test.WriteString(fmt.Sprintf("%s=%s", paramName, testValue))
 					hasParams = true
@@ -1743,7 +1782,7 @@ func generatePythonAPITest(data TemplateData, operations []APIOperation, extract
 }
 
 // generatePythonTestValueFromParam generates a test value from a parameter
-func generatePythonTestValueFromParam(param Parameter) string {
+func generatePythonTestValueFromParam(param common.Parameter) string {
 	if param.Schema == nil {
 		return "\"test_value\""
 	}
@@ -1751,7 +1790,7 @@ func generatePythonTestValueFromParam(param Parameter) string {
 }
 
 // generatePythonAuthTest generates test_auth.py with authentication tests
-func generatePythonAuthTest(data TemplateData, securitySchemes map[string]SecurityScheme, extractedData *ExtractedData) string {
+func generatePythonAuthTest(data common.TemplateData, securitySchemes map[string]common.SecurityScheme, extractedData *common.ExtractedData) string {
 	var test bytes.Buffer
 	test.WriteString("import pytest\n")
 	test.WriteString(fmt.Sprintf("from %s import %s\n\n\n", data.SDKName, data.ClientClassName))
@@ -1767,7 +1806,7 @@ func generatePythonAuthTest(data TemplateData, securitySchemes map[string]Securi
 
 	// Generate tests for each security scheme
 	for name, scheme := range securitySchemes {
-		schemeName := toSnakeCase(name)
+		schemeName := common.ToSnakeCase(name)
 
 		switch scheme.Type {
 		case "apiKey":
@@ -1777,7 +1816,7 @@ func generatePythonAuthTest(data TemplateData, securitySchemes map[string]Securi
 			test.WriteString("            base_url=\"https://api.example.com\",\n")
 			apiKeyValue := "test-api-key" //nolint:goconst // Test value for generated code
 			// Use camelCase for attribute name (matches client code)
-			attrName := toCamelCase(name)
+			attrName := common.ToCamelCase(name)
 			test.WriteString(fmt.Sprintf("            %s=%q\n", attrName, apiKeyValue))
 			test.WriteString("        )\n")
 			test.WriteString(fmt.Sprintf("        assert client.%s == %q\n", attrName, apiKeyValue))
@@ -1834,7 +1873,7 @@ func generatePythonAuthTest(data TemplateData, securitySchemes map[string]Securi
 			test.WriteString(fmt.Sprintf("        client = %s(\n", data.ClientClassName))
 			test.WriteString(fmt.Sprintf("            base_url=%q,\n", baseURL))
 			// Use camelCase for parameter name (matches client code)
-			paramName := toCamelCase(name) + "_token"
+			paramName := common.ToCamelCase(name) + "_token"
 			test.WriteString(fmt.Sprintf("            %s=\"test-openid-token\"\n", paramName))
 			test.WriteString("        )\n")
 			test.WriteString(fmt.Sprintf("        assert client.%s == \"test-openid-token\"\n", paramName))
@@ -1846,8 +1885,8 @@ func generatePythonAuthTest(data TemplateData, securitySchemes map[string]Securi
 			test.WriteString(fmt.Sprintf("        client = %s(\n", data.ClientClassName))
 			test.WriteString(fmt.Sprintf("            base_url=%q,\n", baseURL))
 			// Use camelCase for parameter name (matches client code)
-			certParamName := toCamelCase(name) + "_cert"
-			keyParamName := toCamelCase(name) + "_key"
+			certParamName := common.ToCamelCase(name) + "_cert"
+			keyParamName := common.ToCamelCase(name) + "_key"
 			test.WriteString(fmt.Sprintf("            %s=\"test-cert.pem\",\n", certParamName))
 			test.WriteString(fmt.Sprintf("            %s=\"test-key.pem\"\n", keyParamName))
 			test.WriteString("        )\n")
@@ -1861,7 +1900,7 @@ func generatePythonAuthTest(data TemplateData, securitySchemes map[string]Securi
 }
 
 // getPythonExampleFromResponse extracts example from response for Python test
-func getPythonExampleFromResponse(response Response) string {
+func getPythonExampleFromResponse(response common.Response) string {
 	// Look for JSON content type first
 	if jsonContent, ok := response.Content["application/json"]; ok {
 		if len(jsonContent.Examples) > 0 {
@@ -1904,7 +1943,7 @@ func formatExampleForPython(example interface{}) string {
 }
 
 // generatePythonExampleFromSchema generates a Python example from schema
-func generatePythonExampleFromSchema(schema *Schema) string {
+func generatePythonExampleFromSchema(schema *common.Schema) string {
 	if schema == nil {
 		return "{}"
 	}
@@ -1932,7 +1971,7 @@ func generatePythonExampleFromSchema(schema *Schema) string {
 }
 
 // generatePythonErrorTests generates error handling tests for 4xx/5xx responses
-func generatePythonErrorTests(test *bytes.Buffer, op APIOperation, data TemplateData, extractedData *ExtractedData) {
+func generatePythonErrorTests(test *bytes.Buffer, op common.APIOperation, data common.TemplateData, extractedData *common.ExtractedData) {
 	// Find error responses (4xx, 5xx)
 	errorStatuses := []string{}
 	for statusCode := range op.Responses {
@@ -1948,7 +1987,7 @@ func generatePythonErrorTests(test *bytes.Buffer, op APIOperation, data Template
 		return // No error responses to test
 	}
 
-	methodName := GetOperationMethodName(op)
+	methodName := common.GetOperationMethodName(op)
 
 	// Generate test for each error status
 	for _, statusCode := range errorStatuses {

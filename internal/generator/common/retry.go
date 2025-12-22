@@ -1,9 +1,9 @@
-// Package generator provides retry mechanism configuration and utilities.
+// Package common provides retry mechanism configuration and utilities.
 //
 // The retry mechanism allows generated SDKs to automatically retry failed HTTP requests
 // with configurable strategies (exponential backoff, linear backoff, or fixed delay).
 // Retry can be configured via CLI flags or OpenAPI extensions (x-sdk-forge-retry).
-package generator
+package common
 
 import (
 	"strings"

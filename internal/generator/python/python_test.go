@@ -5,49 +5,19 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/vubon/sdk-forge/internal/generator/common"
 
 	httplib "github.com/vubon/sdk-forge/pkg/languages/http"
 )
 
-// createTestExtractedData creates a minimal ExtractedData for testing
-func createTestExtractedData() *ExtractedData {
-	return &ExtractedData{
-		BaseURL:         "https://api.example.com/v1",
-		Title:           "Test API",
-		Version:         "1.0.0",
-		Operations:      []APIOperation{},
-		Schemas:         make(map[string]*Schema),
-		SecuritySchemes: make(map[string]SecurityScheme),
-	}
-}
-
-// createTestOpenAPIDoc creates a minimal openapi3.T for testing
-func createTestOpenAPIDoc() *openapi3.T {
-	doc := &openapi3.T{
-		OpenAPI: "3.0.0",
-		Info: &openapi3.Info{
-			Title:   "Test API",
-			Version: "1.0.0",
-		},
-		Servers: openapi3.Servers{
-			&openapi3.Server{
-				URL: "https://api.example.com/v1",
-			},
-		},
-		Paths: openapi3.NewPaths(),
-	}
-	return doc
-}
-
 func TestGeneratePythonSDK(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "requests"
 
 	// Use ExtractedData for testing
-	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	extractedData := common.CreateTestExtractedData()
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -72,8 +42,8 @@ func TestGeneratePythonSDK_InvalidHTTPLib(t *testing.T) {
 	sdkName := "test-sdk"
 	httpLib := "invalid-lib"
 
-	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	extractedData := common.CreateTestExtractedData()
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err == nil {
 		t.Error("GeneratePythonSDK() with invalid HTTP library should return error")
 	}
@@ -81,11 +51,11 @@ func TestGeneratePythonSDK_InvalidHTTPLib(t *testing.T) {
 
 func TestGeneratePythonSDK_CustomHTTPLib(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "httpx"
 
-	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	extractedData := common.CreateTestExtractedData()
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -99,18 +69,18 @@ func TestGeneratePythonSDK_CustomHTTPLib(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !contains(contentStr, "httpx") {
+	if !common.Contains(contentStr, "httpx") {
 		t.Error("GeneratePythonSDK() should use httpx in client.py")
 	}
 }
 
 func TestGeneratePythonSDK_RequirementsTxt(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "requests"
 
-	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	extractedData := common.CreateTestExtractedData()
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -123,7 +93,7 @@ func TestGeneratePythonSDK_RequirementsTxt(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !contains(contentStr, "requests") {
+	if !common.Contains(contentStr, "requests") {
 		t.Error("requirements.txt should contain requests dependency")
 	}
 }
@@ -138,14 +108,14 @@ func TestGeneratePythonSDK_SDKNameSanitization(t *testing.T) {
 		{"camel case", "myApiSdk", "my_api_sdk"},
 		{"pascal case", "MyApiSdk", "my_api_sdk"},
 		{"with spaces", "my api sdk", "my_api_sdk"},
-		{"test-sdk", testSDKName, "test_sdk"},
+		{"test-sdk", common.TestSDKName, "test_sdk"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
-			extractedData := createTestExtractedData()
-			err := GeneratePythonSDK(tmpDir, tt.sdkName, "requests", extractedData, nil, "", true, DefaultRetryConfig())
+			extractedData := common.CreateTestExtractedData()
+			err := GeneratePythonSDK(tmpDir, tt.sdkName, "requests", extractedData, nil, "", true, common.DefaultRetryConfig())
 			if err != nil {
 				t.Fatalf("GeneratePythonSDK() error = %v", err)
 			}
@@ -161,11 +131,11 @@ func TestGeneratePythonSDK_SDKNameSanitization(t *testing.T) {
 
 func TestGeneratePythonSDK_WithTests(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "requests"
 
-	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	extractedData := common.CreateTestExtractedData()
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -192,11 +162,11 @@ func TestGeneratePythonSDK_WithTests(t *testing.T) {
 
 func TestGeneratePythonSDK_WithoutTests(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "requests"
 
-	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", false, DefaultRetryConfig())
+	extractedData := common.CreateTestExtractedData()
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", false, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -210,16 +180,16 @@ func TestGeneratePythonSDK_WithoutTests(t *testing.T) {
 
 func TestGeneratePythonSDK_ModelTests(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "requests"
 
 	// Create extracted data with schemas
-	extractedData := createTestExtractedData()
-	extractedData.Schemas = map[string]*Schema{
+	extractedData := common.CreateTestExtractedData()
+	extractedData.Schemas = map[string]*common.Schema{
 		"User": {
 			Type:        "object",
 			Description: "User model",
-			Properties: map[string]*Schema{
+			Properties: map[string]*common.Schema{
 				"id": {
 					Type: "integer",
 				},
@@ -231,7 +201,7 @@ func TestGeneratePythonSDK_ModelTests(t *testing.T) {
 		},
 	}
 
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -249,33 +219,33 @@ func TestGeneratePythonSDK_ModelTests(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !contains(contentStr, "TestUser") {
+	if !common.Contains(contentStr, "TestUser") {
 		t.Error("test_models.py should contain TestUser class")
 	}
-	if !contains(contentStr, "test_user_creation") {
+	if !common.Contains(contentStr, "test_user_creation") {
 		t.Error("test_models.py should contain test_user_creation method")
 	}
-	if !contains(contentStr, "test_user_serialization") {
+	if !common.Contains(contentStr, "test_user_serialization") {
 		t.Error("test_models.py should contain test_user_serialization method")
 	}
 }
 
 func TestGeneratePythonSDK_APITests(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "requests"
 
 	// Create extracted data with operations
-	extractedData := createTestExtractedData()
-	extractedData.Operations = []APIOperation{
+	extractedData := common.CreateTestExtractedData()
+	extractedData.Operations = []common.APIOperation{
 		{
 			Method:      "GET",
 			Path:        "/users",
 			OperationID: "listUsers",
 			Summary:     "List users",
 			Tags:        []string{"users"},
-			Parameters:  []Parameter{},
-			Responses: map[string]Response{
+			Parameters:  []common.Parameter{},
+			Responses: map[string]common.Response{
 				"200": {
 					Description: "Success",
 				},
@@ -283,7 +253,7 @@ func TestGeneratePythonSDK_APITests(t *testing.T) {
 		},
 	}
 
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -301,25 +271,25 @@ func TestGeneratePythonSDK_APITests(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !contains(contentStr, "TestUsersAPI") {
+	if !common.Contains(contentStr, "TestUsersAPI") {
 		t.Error("test_api_methods.py should contain TestUsersAPI class")
 	}
-	if !contains(contentStr, "test_list_users") {
+	if !common.Contains(contentStr, "test_list_users") {
 		t.Error("test_api_methods.py should contain test_list_users method")
 	}
-	if !contains(contentStr, "mock_request") {
+	if !common.Contains(contentStr, "mock_request") {
 		t.Error("test_api_methods.py should contain mock setup")
 	}
 }
 
 func TestGeneratePythonSDK_AuthTests(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "requests"
 
 	// Create extracted data with security schemes
-	extractedData := createTestExtractedData()
-	extractedData.SecuritySchemes = map[string]SecurityScheme{
+	extractedData := common.CreateTestExtractedData()
+	extractedData.SecuritySchemes = map[string]common.SecurityScheme{
 		"apiKey": {
 			Type: "apiKey",
 			In:   "header",
@@ -348,7 +318,7 @@ func TestGeneratePythonSDK_AuthTests(t *testing.T) {
 		},
 	}
 
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -366,42 +336,42 @@ func TestGeneratePythonSDK_AuthTests(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !contains(contentStr, "TestAuthentication") {
+	if !common.Contains(contentStr, "TestAuthentication") {
 		t.Error("test_auth.py should contain TestAuthentication class")
 	}
 	// Check for API key auth test (scheme name "apiKey" is converted to "api_key")
-	if !contains(contentStr, "api_key") {
+	if !common.Contains(contentStr, "api_key") {
 		t.Error("test_auth.py should contain API key auth test")
 	}
 	// Check for Bearer auth test (scheme name "bearer" stays as "bearer")
-	if !contains(contentStr, "bearer_auth") {
+	if !common.Contains(contentStr, "bearer_auth") {
 		t.Error("test_auth.py should contain Bearer auth test")
 	}
 	// Check for Basic auth test
-	if !contains(contentStr, "basic_auth") {
+	if !common.Contains(contentStr, "basic_auth") {
 		t.Error("test_auth.py should contain Basic auth test")
 	}
 	// Check for Digest auth test
-	if !contains(contentStr, "digest_auth") {
+	if !common.Contains(contentStr, "digest_auth") {
 		t.Error("test_auth.py should contain Digest auth test")
 	}
 	// Check for OAuth2 auth test
-	if !contains(contentStr, "oauth2_auth") {
+	if !common.Contains(contentStr, "oauth2_auth") {
 		t.Error("test_auth.py should contain OAuth2 auth test")
 	}
 	// Check for OpenID Connect auth test
-	if !contains(contentStr, "openid_connect_auth") {
+	if !common.Contains(contentStr, "openid_connect_auth") {
 		t.Error("test_auth.py should contain OpenID Connect auth test")
 	}
 	// Check for Mutual TLS auth test
-	if !contains(contentStr, "mutual_tls_auth") {
+	if !common.Contains(contentStr, "mutual_tls_auth") {
 		t.Error("test_auth.py should contain Mutual TLS auth test")
 	}
 }
 
 func TestGeneratePythonInit(t *testing.T) {
-	extractedData := createTestExtractedData()
-	data := TemplateData{
+	extractedData := common.CreateTestExtractedData()
+	data := common.TemplateData{
 		SDKName:       "test_sdk",
 		HTTPLib:       "requests",
 		HTTPLibImport: "requests",
@@ -419,19 +389,19 @@ func TestGeneratePythonInit(t *testing.T) {
 	}
 
 	// Check for SDK name or client class (template might render differently)
-	if !contains(content, "test") && !contains(content, "Test") {
+	if !common.Contains(content, "test") && !common.Contains(content, "Test") {
 		t.Error("generatePythonInit() should include SDK name or client class")
 	}
 
 	// Check for client import
-	if !contains(content, "client") && !contains(content, "Client") {
+	if !common.Contains(content, "client") && !common.Contains(content, "Client") {
 		t.Error("generatePythonInit() should include client import")
 	}
 }
 
 func TestGeneratePythonClient(t *testing.T) {
-	extractedData := createTestExtractedData()
-	data := TemplateData{
+	extractedData := common.CreateTestExtractedData()
+	data := common.TemplateData{
 		SDKName:       "test_sdk",
 		HTTPLib:       "requests",
 		HTTPLibImport: "requests",
@@ -448,18 +418,18 @@ func TestGeneratePythonClient(t *testing.T) {
 		t.Error("generatePythonClient() should return non-empty content")
 	}
 
-	if !contains(content, "requests") {
+	if !common.Contains(content, "requests") {
 		t.Error("generatePythonClient() should include HTTP library import")
 	}
 
-	if !contains(content, "Test") && !contains(content, "test") {
+	if !common.Contains(content, "Test") && !common.Contains(content, "test") {
 		t.Error("generatePythonClient() should include client class name")
 	}
 }
 
 func TestGeneratePythonRequirements(t *testing.T) {
-	extractedData := createTestExtractedData()
-	data := TemplateData{
+	extractedData := common.CreateTestExtractedData()
+	data := common.TemplateData{
 		SDKName:       "test_sdk",
 		HTTPLib:       "requests",
 		HTTPLibImport: "requests",
@@ -476,32 +446,32 @@ func TestGeneratePythonRequirements(t *testing.T) {
 		t.Error("generatePythonRequirements() should return non-empty content")
 	}
 
-	if !contains(content, "requests") {
+	if !common.Contains(content, "requests") {
 		t.Error("generatePythonRequirements() should include HTTP library dependency")
 	}
 }
 
 func TestGeneratePythonSDK_Phase3_Examples(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "requests"
 
 	// Create extracted data with operations that have examples
-	extractedData := createTestExtractedData()
-	extractedData.Operations = []APIOperation{
+	extractedData := common.CreateTestExtractedData()
+	extractedData.Operations = []common.APIOperation{
 		{
 			Method:      "GET",
 			Path:        "/users",
 			OperationID: "listUsers",
 			Summary:     "List users",
 			Tags:        []string{"users"},
-			Parameters:  []Parameter{},
-			Responses: map[string]Response{
+			Parameters:  []common.Parameter{},
+			Responses: map[string]common.Response{
 				"200": {
 					Description: "Success",
-					Content: map[string]ContentType{
+					Content: map[string]common.ContentType{
 						"application/json": {
-							Schema: &Schema{Type: "object"},
+							Schema: &common.Schema{Type: "object"},
 							Examples: map[string]interface{}{
 								"default": map[string]interface{}{
 									"id":   1,
@@ -515,7 +485,7 @@ func TestGeneratePythonSDK_Phase3_Examples(t *testing.T) {
 		},
 	}
 
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -534,42 +504,42 @@ func TestGeneratePythonSDK_Phase3_Examples(t *testing.T) {
 
 	contentStr := string(content)
 	// Check that example data is used (not just hardcoded success)
-	if !contains(contentStr, "Test User") && !contains(contentStr, "\"id\"") {
+	if !common.Contains(contentStr, "Test User") && !common.Contains(contentStr, "\"id\"") {
 		t.Error("test_api_methods.py should use examples from OpenAPI spec")
 	}
 }
 
 func TestGeneratePythonSDK_Phase3_ErrorTests(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "requests"
 
 	// Create extracted data with error responses
-	extractedData := createTestExtractedData()
-	extractedData.Operations = []APIOperation{
+	extractedData := common.CreateTestExtractedData()
+	extractedData.Operations = []common.APIOperation{
 		{
 			Method:      "GET",
 			Path:        "/users/{id}",
 			OperationID: "getUser",
 			Summary:     "Get user",
 			Tags:        []string{"users"},
-			Parameters: []Parameter{
-				{Name: "id", In: "path", Required: true, Schema: &Schema{Type: "string"}},
+			Parameters: []common.Parameter{
+				{Name: "id", In: "path", Required: true, Schema: &common.Schema{Type: "string"}},
 			},
-			Responses: map[string]Response{
+			Responses: map[string]common.Response{
 				"200": {
 					Description: "Success",
-					Content: map[string]ContentType{
+					Content: map[string]common.ContentType{
 						"application/json": {
-							Schema: &Schema{Type: "object"},
+							Schema: &common.Schema{Type: "object"},
 						},
 					},
 				},
 				"404": {
 					Description: "Not Found",
-					Content: map[string]ContentType{
+					Content: map[string]common.ContentType{
 						"application/json": {
-							Schema: &Schema{Type: "object"},
+							Schema: &common.Schema{Type: "object"},
 							Examples: map[string]interface{}{
 								"default": map[string]interface{}{
 									"error": "User not found",
@@ -582,7 +552,7 @@ func TestGeneratePythonSDK_Phase3_ErrorTests(t *testing.T) {
 		},
 	}
 
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -596,27 +566,27 @@ func TestGeneratePythonSDK_Phase3_ErrorTests(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !contains(contentStr, "error") || !contains(contentStr, "404") {
+	if !common.Contains(contentStr, "error") || !common.Contains(contentStr, "404") {
 		t.Error("test_api_methods.py should contain error handling tests for 4xx responses")
 	}
 }
 
 func TestGeneratePythonSDK_Phase3_Fixtures(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "requests"
 
 	// Create extracted data with examples
-	extractedData := createTestExtractedData()
-	extractedData.Operations = []APIOperation{
+	extractedData := common.CreateTestExtractedData()
+	extractedData.Operations = []common.APIOperation{
 		{
 			Method:      "GET",
 			Path:        "/users",
 			OperationID: "listUsers",
 			Tags:        []string{"users"},
-			Responses: map[string]Response{
+			Responses: map[string]common.Response{
 				"200": {
-					Content: map[string]ContentType{
+					Content: map[string]common.ContentType{
 						"application/json": {
 							Examples: map[string]interface{}{
 								"default": map[string]interface{}{
@@ -630,7 +600,7 @@ func TestGeneratePythonSDK_Phase3_Fixtures(t *testing.T) {
 		},
 	}
 
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -648,7 +618,7 @@ func TestGeneratePythonSDK_Phase3_Fixtures(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !contains(contentStr, "fixtures") || !contains(contentStr, "list_users") {
+	if !common.Contains(contentStr, "fixtures") || !common.Contains(contentStr, "list_users") {
 		t.Error("fixtures.py should contain fixture variables from examples")
 	}
 }

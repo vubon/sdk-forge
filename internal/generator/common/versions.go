@@ -1,5 +1,5 @@
 // Package generator provides language version configuration.
-package generator
+package common
 
 import (
 	"fmt"

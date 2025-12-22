@@ -1,32 +1,32 @@
-package generator
+package common
 
 // Python type constants
 const (
-	pythonTypeAny     = "Any"
-	pythonTypeDict    = "Dict[str, Any]"
-	pythonTypeArray   = "array"
-	pythonTypeObject  = "object"
-	pythonTypeString  = "string"
-	pythonTypeInteger = "integer"
-	pythonTypeNumber  = "number"
-	pythonTypeBoolean = "boolean"
+	PythonTypeAny     = "Any"
+	PythonTypeDict    = "Dict[str, Any]"
+	PythonTypeArray   = "array"
+	PythonTypeObject  = "object"
+	PythonTypeString  = "string"
+	PythonTypeInteger = "integer"
+	PythonTypeNumber  = "number"
+	PythonTypeBoolean = "boolean"
 )
 
 // Parameter location constants
 const (
-	paramLocationPath   = "path"
-	paramLocationQuery  = "query"
-	paramLocationHeader = "header"
+	ParamLocationPath   = "path"
+	ParamLocationQuery  = "query"
+	ParamLocationHeader = "header"
 )
 
 // Security scheme constants
 const (
-	securitySchemeAPIKey        = "apiKey"
-	securitySchemeHTTP          = "http"
-	securitySchemeBearer        = "bearer"
-	securitySchemeBasic         = "basic"
-	securitySchemeDigest        = "digest"
-	securitySchemeOAuth2        = "oauth2"
-	securitySchemeOpenIDConnect = "openIdConnect"
-	securitySchemeMutualTLS     = "mutualTLS"
+	SecuritySchemeAPIKey        = "apiKey"
+	SecuritySchemeHTTP          = "http"
+	SecuritySchemeBearer        = "bearer"
+	SecuritySchemeBasic         = "basic"
+	SecuritySchemeDigest        = "digest"
+	SecuritySchemeOAuth2        = "oauth2"
+	SecuritySchemeOpenIDConnect = "openIdConnect"
+	SecuritySchemeMutualTLS     = "mutualTLS"
 )

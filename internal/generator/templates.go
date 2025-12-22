@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"text/template"
 
-	"github.com/vubon/sdk-forge/internal/generator/common"
+	common "github.com/vubon/sdk-forge/internal/generator/common"
 )
 
 //go:embed go/templates/client.go.tmpl

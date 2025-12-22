@@ -4,18 +4,20 @@ package php
 import (
 	"fmt"
 	"strings"
+
+	"github.com/vubon/sdk-forge/internal/generator/common"
 )
 
 // generatePHPAPIModule generates PHP API module class organized by tag
-func generatePHPAPIModule(tag string, operations []APIOperation, data TemplateData, version LanguageVersion) string {
+func generatePHPAPIModule(tag string, operations []common.APIOperation, data common.TemplateData, version common.LanguageVersion) string {
 	if len(operations) == 0 {
 		return "<?php\n\n// No API methods defined in OpenAPI schema\n"
 	}
 
 	var module strings.Builder
-	namespace := getPHPNamespace(data.SDKName)
-	clientClassName := getClientClassName(data.SDKName)
-	apiClassName := toPascalCase(tag) + "Api"
+	namespace := fmt.Sprintf("Vendor\\%s", common.ToPascalCase(data.SDKName))
+	clientClassName := common.GetClientClassName(data.SDKName)
+	apiClassName := common.ToPascalCase(tag) + "Api"
 
 	// Generate class header
 	module.WriteString("<?php\n\n")
@@ -55,18 +57,18 @@ func generatePHPAPIModule(tag string, operations []APIOperation, data TemplateDa
 }
 
 // generatePHPAPIMethod generates a single PHP API method
-func generatePHPAPIMethod(op APIOperation, clientClassName string, version LanguageVersion) string {
+func generatePHPAPIMethod(op common.APIOperation, clientClassName string, version common.LanguageVersion) string {
 	var method strings.Builder
 
 	// Get method name
-	methodName := GetOperationMethodName(op)
+	methodName := common.GetOperationMethodName(op)
 	if methodName == "" {
 		// Fallback naming
 		pathPart := strings.ReplaceAll(strings.Trim(op.Path, "/"), "/", "_")
-		methodName = strings.ToLower(op.Method) + toPascalCase(pathPart)
+		methodName = strings.ToLower(op.Method) + common.ToPascalCase(pathPart)
 	} else {
 		// Convert to camelCase for PHP
-		methodName = toCamelCase(methodName)
+		methodName = common.ToCamelCase(methodName)
 	}
 
 	// Generate PHPDoc
@@ -92,9 +94,9 @@ func generatePHPAPIMethod(op APIOperation, clientClassName string, version Langu
 	var queryParams []string
 	for _, param := range op.Parameters {
 		switch param.In {
-		case paramLocationPath:
+		case "path":
 			pathParams = append(pathParams, param.Name)
-		case paramLocationQuery:
+		case "query":
 			queryParams = append(queryParams, param.Name)
 		}
 	}
@@ -102,7 +104,7 @@ func generatePHPAPIMethod(op APIOperation, clientClassName string, version Langu
 	// Add @param tags
 	for _, param := range op.Parameters {
 		paramType := getPHPType(param.Schema, version)
-		if param.In == paramLocationQuery {
+		if param.In == "query" {
 			paramType = "?" + paramType
 		}
 		desc := param.Description
@@ -125,7 +127,7 @@ func generatePHPAPIMethod(op APIOperation, clientClassName string, version Langu
 
 	// Add path parameters (required)
 	for _, param := range op.Parameters {
-		if param.In == paramLocationPath {
+		if param.In == "path" {
 			paramType := getPHPType(param.Schema, version)
 			method.WriteString(fmt.Sprintf("%s $%s, ", paramType, param.Name))
 		}
@@ -133,7 +135,7 @@ func generatePHPAPIMethod(op APIOperation, clientClassName string, version Langu
 
 	// Add query parameters (optional)
 	for _, param := range op.Parameters {
-		if param.In == paramLocationQuery {
+		if param.In == "query" {
 			paramType := getPHPType(param.Schema, version)
 			method.WriteString(fmt.Sprintf("?%s $%s = null, ", paramType, param.Name))
 		}

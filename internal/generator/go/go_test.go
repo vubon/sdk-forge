@@ -1,23 +1,24 @@
-package go
+package gogen
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/vubon/sdk-forge/internal/generator/common"
 	httplib "github.com/vubon/sdk-forge/pkg/languages/http"
 )
 
 func TestGenerateGoSDK(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "nethttp"
 
 	// Use ExtractedData for testing
-	extractedData := createTestExtractedData()
+	extractedData := common.CreateTestExtractedData()
 	// outputPath should include the SDK name (like CLI does)
-	outputPath := filepath.Join(tmpDir, testGoSDKName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	outputPath := filepath.Join(tmpDir, common.TestGoSDKName)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -43,10 +44,10 @@ func TestGenerateGoSDK_InvalidHTTPLib(t *testing.T) {
 	sdkName := "test-sdk"
 	httpLib := "invalid-lib"
 
-	extractedData := createTestExtractedData()
+	extractedData := common.CreateTestExtractedData()
 	// outputPath should include the SDK name (like CLI does)
-	outputPath := filepath.Join(tmpDir, testGoSDKName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	outputPath := filepath.Join(tmpDir, common.TestGoSDKName)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err == nil {
 		t.Error("GenerateGoSDK() with invalid HTTP library should return error")
 	}
@@ -54,13 +55,13 @@ func TestGenerateGoSDK_InvalidHTTPLib(t *testing.T) {
 
 func TestGenerateGoSDK_CustomHTTPLib(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "resty"
 
-	extractedData := createTestExtractedData()
+	extractedData := common.CreateTestExtractedData()
 	// outputPath should include the SDK name (like CLI does)
-	outputPath := filepath.Join(tmpDir, testGoSDKName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	outputPath := filepath.Join(tmpDir, common.TestGoSDKName)
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -74,7 +75,7 @@ func TestGenerateGoSDK_CustomHTTPLib(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !contains(contentStr, "module") {
+	if !common.Contains(contentStr, "module") {
 		t.Error("go.mod should contain module declaration")
 	}
 }
@@ -89,16 +90,16 @@ func TestGenerateGoSDK_SDKNameSanitization(t *testing.T) {
 		{"camel case", "myApiSdk", "myapisdk"},
 		{"pascal case", "MyApiSdk", "myapisdk"},
 		{"with spaces", "my api sdk", "myapisdk"},
-		{"test-sdk", testSDKName, testGoSDKName},
+		{"test-sdk", common.TestSDKName, common.TestGoSDKName},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
-			extractedData := createTestExtractedData()
+			extractedData := common.CreateTestExtractedData()
 			// outputPath should include the SDK name (like CLI does)
 			outputPath := filepath.Join(tmpDir, tt.expected)
-			err := GenerateGoSDK(outputPath, tt.sdkName, "nethttp", extractedData, nil, "", true, DefaultRetryConfig())
+			err := GenerateGoSDK(outputPath, tt.sdkName, "nethttp", extractedData, nil, "", true, common.DefaultRetryConfig())
 			if err != nil {
 				t.Fatalf("GenerateGoSDK() error = %v", err)
 			}
@@ -112,7 +113,7 @@ func TestGenerateGoSDK_SDKNameSanitization(t *testing.T) {
 			}
 
 			contentStr := string(content)
-			if !contains(contentStr, tt.expected) {
+			if !common.Contains(contentStr, tt.expected) {
 				t.Errorf("go.mod should contain module name with %s, got: %s", tt.expected, contentStr)
 			}
 		})
@@ -120,26 +121,26 @@ func TestGenerateGoSDK_SDKNameSanitization(t *testing.T) {
 }
 
 func TestGenerateGoMod(t *testing.T) {
-	extractedData := createTestExtractedData()
-	defaultVersion := GetGoDefaultVersion()
+	extractedData := common.CreateTestExtractedData()
+	defaultVersion := common.GetGoDefaultVersion()
 	content := generateGoMod("test-sdk", extractedData, defaultVersion)
 	if content == "" {
 		t.Error("generateGoMod() should return non-empty content")
 	}
 
-	if !contains(content, "module") {
+	if !common.Contains(content, "module") {
 		t.Error("generateGoMod() should include module declaration")
 	}
 
-	if !contains(content, "go 1.24") {
+	if !common.Contains(content, "go 1.24") {
 		t.Error("generateGoMod() should include Go version 1.24")
 	}
 }
 
 func TestGenerateGoClient(t *testing.T) {
-	extractedData := createTestExtractedData()
-	data := TemplateData{
-		SDKName:       testGoSDKName,
+	extractedData := common.CreateTestExtractedData()
+	data := common.TemplateData{
+		SDKName:       common.TestGoSDKName,
 		HTTPLib:       "nethttp",
 		HTTPLibImport: "net/http",
 		HTTPLibConfig: &httplib.LibraryConfig{
@@ -148,55 +149,55 @@ func TestGenerateGoClient(t *testing.T) {
 			ClientClass: "http.Client",
 		},
 		OpenAPIDoc:      extractedData,
-		ClientClassName: getClientClassName(testGoSDKName),
+		ClientClassName: common.GetClientClassName(common.TestGoSDKName),
 	}
 
-	defaultVersion := GetGoDefaultVersion()
+	defaultVersion := common.GetGoDefaultVersion()
 	content := generateGoClient(data, defaultVersion)
 	if content == "" {
 		t.Error("generateGoClient() should return non-empty content")
 	}
 
-	if !contains(content, "package") {
+	if !common.Contains(content, "package") {
 		t.Error("generateGoClient() should include package declaration")
 	}
 
 	// Check for client struct (should be "Test" after removing "Sdk" suffix)
-	clientClassName := getClientClassName(testGoSDKName)
-	if !contains(content, clientClassName) {
+	clientClassName := common.GetClientClassName(common.TestGoSDKName)
+	if !common.Contains(content, clientClassName) {
 		t.Errorf("generateGoClient() should include %s struct", clientClassName)
 	}
 
 	// Check for New function (should be "NewTest")
 	newFuncName := "New" + clientClassName
-	if !contains(content, newFuncName) {
+	if !common.Contains(content, newFuncName) {
 		t.Errorf("generateGoClient() should include %s function", newFuncName)
 	}
 
-	if !contains(content, "net/http") {
+	if !common.Contains(content, "net/http") {
 		t.Error("generateGoClient() should include HTTP library import")
 	}
 }
 
 func TestGenerateGoModels(t *testing.T) {
 	// Test with empty schemas
-	defaultVersion := GetGoDefaultVersion()
-	content := generateGoModels(make(map[string]*Schema), defaultVersion)
+	defaultVersion := common.GetGoDefaultVersion()
+	content := generateGoModels(make(map[string]*common.Schema), defaultVersion)
 	if content == "" {
 		t.Error("generateGoModels() should return non-empty content even with empty schemas")
 	}
 
 	// Test with schemas
-	schemas := map[string]*Schema{
+	schemas := map[string]*common.Schema{
 		"User": {
-			Type:        pythonTypeObject,
+			Type:        "object",
 			Description: "User model",
-			Properties: map[string]*Schema{
+			Properties: map[string]*common.Schema{
 				"id": {
-					Type: pythonTypeInteger,
+					Type: "integer",
 				},
 				"name": {
-					Type: pythonTypeString,
+					Type: "string",
 				},
 			},
 			Required: []string{"id", "name"},
@@ -208,18 +209,18 @@ func TestGenerateGoModels(t *testing.T) {
 		t.Error("generateGoModels() should return non-empty content")
 	}
 
-	if !contains(content, "User") {
+	if !common.Contains(content, "User") {
 		t.Error("generateGoModels() should include User struct")
 	}
 
-	if !contains(content, "struct") {
+	if !common.Contains(content, "struct") {
 		t.Error("generateGoModels() should include struct definition")
 	}
 }
 
 func TestGenerateGoREADME(t *testing.T) {
-	data := TemplateData{
-		SDKName:  testGoSDKName,
+	data := common.TemplateData{
+		SDKName:  common.TestGoSDKName,
 		HTTPLib:  "nethttp",
 		Language: "go",
 	}
@@ -229,15 +230,15 @@ func TestGenerateGoREADME(t *testing.T) {
 		t.Error("generateGoREADME() should return non-empty content")
 	}
 
-	if !contains(content, "Go SDK") {
+	if !common.Contains(content, "Go SDK") {
 		t.Error("generateGoREADME() should include 'Go SDK'")
 	}
 
-	if !contains(content, "Installation") {
+	if !common.Contains(content, "Installation") {
 		t.Error("generateGoREADME() should include Installation section")
 	}
 
-	if !contains(content, "Usage") {
+	if !common.Contains(content, "Usage") {
 		t.Error("generateGoREADME() should include Usage section")
 	}
 }
@@ -245,43 +246,43 @@ func TestGenerateGoREADME(t *testing.T) {
 func TestGenerateGoAuthSetup(t *testing.T) {
 	clientClassName := "Test"
 	// Test with no security schemes
-	content := generateGoAuthSetup(make(map[string]SecurityScheme), clientClassName)
-	if !contains(content, "No authentication") {
+	content := generateGoAuthSetup(make(map[string]common.SecurityScheme), clientClassName)
+	if !common.Contains(content, "No authentication") {
 		t.Error("generateGoAuthSetup() should handle empty security schemes")
 	}
 
 	// Test with API Key
-	securitySchemes := map[string]SecurityScheme{
+	securitySchemes := map[string]common.SecurityScheme{
 		"apiKey": {
-			Type: securitySchemeAPIKey,
-			In:   paramLocationHeader,
+			Type: "apiKey",
+			In:   "header",
 			Name: "X-API-Key",
 		},
 	}
 
 	content = generateGoAuthSetup(securitySchemes, clientClassName)
-	if !contains(content, "applyAuth") {
+	if !common.Contains(content, "applyAuth") {
 		t.Error("generateGoAuthSetup() should include applyAuth function")
 	}
 
-	if !contains(content, "X-API-Key") {
+	if !common.Contains(content, "X-API-Key") {
 		t.Error("generateGoAuthSetup() should include API key header name")
 	}
 
 	// Test with Bearer token
-	securitySchemes = map[string]SecurityScheme{
+	securitySchemes = map[string]common.SecurityScheme{
 		"bearerAuth": {
-			Type:   securitySchemeHTTP,
-			Scheme: securitySchemeBearer,
+			Type:   "http",
+			Scheme: "bearer",
 		},
 	}
 
 	content = generateGoAuthSetup(securitySchemes, clientClassName)
-	if !contains(content, "BearerToken") {
+	if !common.Contains(content, "BearerToken") {
 		t.Error("generateGoAuthSetup() should include BearerToken field")
 	}
 
-	if !contains(content, "Bearer") {
+	if !common.Contains(content, "Bearer") {
 		t.Error("generateGoAuthSetup() should include Bearer token handling")
 	}
 }
@@ -289,14 +290,14 @@ func TestGenerateGoAuthSetup(t *testing.T) {
 func TestGenerateGoAPIMethods(t *testing.T) {
 	clientClassName := "Test"
 	// Test with no operations
-	defaultVersion := GetGoDefaultVersion()
-	content := generateGoAPIMethods([]APIOperation{}, clientClassName, defaultVersion)
-	if !contains(content, "No API methods") {
+	defaultVersion := common.GetGoDefaultVersion()
+	content := generateGoAPIMethods([]common.APIOperation{}, clientClassName, defaultVersion)
+	if !common.Contains(content, "No API methods") {
 		t.Error("generateGoAPIMethods() should handle empty operations")
 	}
 
 	// Test with operations
-	operations := []APIOperation{
+	operations := []common.APIOperation{
 		{
 			Method:      "GET",
 			Path:        "/users",
@@ -308,7 +309,7 @@ func TestGenerateGoAPIMethods(t *testing.T) {
 			Path:        "/users",
 			OperationID: "createUser",
 			Summary:     "Create user",
-			RequestBody: &RequestBody{
+			RequestBody: &common.RequestBody{
 				Required: true,
 			},
 		},
@@ -316,16 +317,16 @@ func TestGenerateGoAPIMethods(t *testing.T) {
 
 	content = generateGoAPIMethods(operations, clientClassName, defaultVersion)
 	// Method names are in PascalCase in Go
-	if !contains(content, "ListUsers") {
+	if !common.Contains(content, "ListUsers") {
 		t.Error("generateGoAPIMethods() should include ListUsers method")
 	}
 
-	if !contains(content, "CreateUser") {
+	if !common.Contains(content, "CreateUser") {
 		t.Error("generateGoAPIMethods() should include CreateUser method")
 	}
 
 	expectedReceiver := "func (c *" + clientClassName + ")"
-	if !contains(content, expectedReceiver) {
+	if !common.Contains(content, expectedReceiver) {
 		t.Errorf("generateGoAPIMethods() should include client methods with receiver %s", expectedReceiver)
 	}
 }
@@ -333,20 +334,20 @@ func TestGenerateGoAPIMethods(t *testing.T) {
 func TestGetGoType(t *testing.T) {
 	tests := []struct {
 		name     string
-		schema   *Schema
+		schema   *common.Schema
 		expected string
 	}{
-		{"string", &Schema{Type: pythonTypeString}, "string"},
-		{"integer", &Schema{Type: pythonTypeInteger}, "int"},
-		{"number", &Schema{Type: pythonTypeNumber}, "float64"},
-		{"boolean", &Schema{Type: pythonTypeBoolean}, "bool"},
-		{"array", &Schema{Type: pythonTypeArray, Items: &Schema{Type: pythonTypeString}}, "[]string"},
-		{"object", &Schema{Type: pythonTypeObject}, "map[string]any"},
+		{"string", &common.Schema{Type: "string"}, "string"},
+		{"integer", &common.Schema{Type: "integer"}, "int"},
+		{"number", &common.Schema{Type: "number"}, "float64"},
+		{"boolean", &common.Schema{Type: "boolean"}, "bool"},
+		{"array", &common.Schema{Type: "array", Items: &common.Schema{Type: "string"}}, "[]string"},
+		{"object", &common.Schema{Type: "object"}, "map[string]any"},
 		{"nil", nil, "any"},
-		{"unknown", &Schema{Type: "unknown"}, "any"},
+		{"unknown", &common.Schema{Type: "unknown"}, "any"},
 	}
 
-	defaultVersion := GetGoDefaultVersion()
+	defaultVersion := common.GetGoDefaultVersion()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := getGoType(tt.schema, defaultVersion)
@@ -359,12 +360,12 @@ func TestGetGoType(t *testing.T) {
 
 func TestGenerateGoSDK_WithTests(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "nethttp"
 
-	extractedData := createTestExtractedData()
+	extractedData := common.CreateTestExtractedData()
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -383,12 +384,12 @@ func TestGenerateGoSDK_WithTests(t *testing.T) {
 
 func TestGenerateGoSDK_WithoutTests(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "nethttp"
 
-	extractedData := createTestExtractedData()
+	extractedData := common.CreateTestExtractedData()
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", false, DefaultRetryConfig())
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", false, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -402,16 +403,16 @@ func TestGenerateGoSDK_WithoutTests(t *testing.T) {
 
 func TestGenerateGoSDK_ModelTests(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "nethttp"
 
 	// Create extracted data with schemas
-	extractedData := createTestExtractedData()
-	extractedData.Schemas = map[string]*Schema{
+	extractedData := common.CreateTestExtractedData()
+	extractedData.Schemas = map[string]*common.Schema{
 		"User": {
 			Type:        "object",
 			Description: "User model",
-			Properties: map[string]*Schema{
+			Properties: map[string]*common.Schema{
 				"id": {
 					Type: "integer",
 				},
@@ -424,7 +425,7 @@ func TestGenerateGoSDK_ModelTests(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -442,30 +443,30 @@ func TestGenerateGoSDK_ModelTests(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !contains(contentStr, "TestUser_Creation") {
+	if !common.Contains(contentStr, "TestUser_Creation") {
 		t.Error("models_test.go should contain TestUser_Creation function")
 	}
-	if !contains(contentStr, "TestUser_Serialization") {
+	if !common.Contains(contentStr, "TestUser_Serialization") {
 		t.Error("models_test.go should contain TestUser_Serialization function")
 	}
 }
 
 func TestGenerateGoSDK_APITests(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "nethttp"
 
 	// Create extracted data with operations
-	extractedData := createTestExtractedData()
-	extractedData.Operations = []APIOperation{
+	extractedData := common.CreateTestExtractedData()
+	extractedData.Operations = []common.APIOperation{
 		{
 			Method:      "GET",
 			Path:        "/users",
 			OperationID: "listUsers",
 			Summary:     "List users",
 			Tags:        []string{"users"},
-			Parameters:  []Parameter{},
-			Responses: map[string]Response{
+			Parameters:  []common.Parameter{},
+			Responses: map[string]common.Response{
 				"200": {
 					Description: "Success",
 				},
@@ -474,7 +475,7 @@ func TestGenerateGoSDK_APITests(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -492,25 +493,25 @@ func TestGenerateGoSDK_APITests(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !contains(contentStr, "TestUsersAPI") {
+	if !common.Contains(contentStr, "TestUsersAPI") {
 		t.Error("api_test.go should contain TestUsersAPI function")
 	}
-	if !contains(contentStr, "TestUsers_ListUsers") {
+	if !common.Contains(contentStr, "TestUsers_ListUsers") {
 		t.Error("api_test.go should contain TestUsers_ListUsers function")
 	}
-	if !contains(contentStr, "httptest.NewServer") {
+	if !common.Contains(contentStr, "httptest.NewServer") {
 		t.Error("api_test.go should contain httptest server setup")
 	}
 }
 
 func TestGenerateGoSDK_AuthTests(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "nethttp"
 
 	// Create extracted data with security schemes
-	extractedData := createTestExtractedData()
-	extractedData.SecuritySchemes = map[string]SecurityScheme{
+	extractedData := common.CreateTestExtractedData()
+	extractedData.SecuritySchemes = map[string]common.SecurityScheme{
 		"apiKey": {
 			Type: "apiKey",
 			In:   "header",
@@ -540,7 +541,7 @@ func TestGenerateGoSDK_AuthTests(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -558,53 +559,53 @@ func TestGenerateGoSDK_AuthTests(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !contains(contentStr, "TestAuthentication") {
+	if !common.Contains(contentStr, "TestAuthentication") {
 		t.Error("auth_test.go should contain TestAuthentication function")
 	}
-	if !contains(contentStr, "TestApiKey_APIKeyAuth") {
+	if !common.Contains(contentStr, "TestApiKey_APIKeyAuth") {
 		t.Error("auth_test.go should contain API key auth test")
 	}
-	if !contains(contentStr, "TestBearer_BearerAuth") {
+	if !common.Contains(contentStr, "TestBearer_BearerAuth") {
 		t.Error("auth_test.go should contain Bearer auth test")
 	}
-	if !contains(contentStr, "TestBasic_BasicAuth") {
+	if !common.Contains(contentStr, "TestBasic_BasicAuth") {
 		t.Error("auth_test.go should contain Basic auth test")
 	}
-	if !contains(contentStr, "TestDigest_DigestAuth") {
+	if !common.Contains(contentStr, "TestDigest_DigestAuth") {
 		t.Error("auth_test.go should contain Digest auth test")
 	}
-	if !contains(contentStr, "TestOauth2_OAuth2Auth") {
+	if !common.Contains(contentStr, "TestOauth2_OAuth2Auth") {
 		t.Error("auth_test.go should contain OAuth2 auth test")
 	}
-	if !contains(contentStr, "TestOpenIdConnect_OpenIDConnectAuth") {
+	if !common.Contains(contentStr, "TestOpenIdConnect_OpenIDConnectAuth") {
 		t.Error("auth_test.go should contain OpenID Connect auth test")
 	}
-	if !contains(contentStr, "TestMutualTLS_MutualTLSAuth") {
+	if !common.Contains(contentStr, "TestMutualTLS_MutualTLSAuth") {
 		t.Error("auth_test.go should contain Mutual TLS auth test")
 	}
 }
 
 func TestGenerateGoSDK_Phase3_Examples(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "nethttp"
 
 	// Create extracted data with operations that have examples
-	extractedData := createTestExtractedData()
-	extractedData.Operations = []APIOperation{
+	extractedData := common.CreateTestExtractedData()
+	extractedData.Operations = []common.APIOperation{
 		{
 			Method:      "GET",
 			Path:        "/users",
 			OperationID: "listUsers",
 			Summary:     "List users",
 			Tags:        []string{"users"},
-			Parameters:  []Parameter{},
-			Responses: map[string]Response{
+			Parameters:  []common.Parameter{},
+			Responses: map[string]common.Response{
 				"200": {
 					Description: "Success",
-					Content: map[string]ContentType{
+					Content: map[string]common.ContentType{
 						"application/json": {
-							Schema: &Schema{Type: "object"},
+							Schema: &common.Schema{Type: "object"},
 							Examples: map[string]interface{}{
 								"default": map[string]interface{}{
 									"id":   1,
@@ -619,7 +620,7 @@ func TestGenerateGoSDK_Phase3_Examples(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -638,42 +639,42 @@ func TestGenerateGoSDK_Phase3_Examples(t *testing.T) {
 
 	contentStr := string(content)
 	// Check that example data is used (not just hardcoded success)
-	if !contains(contentStr, "Test User") && !contains(contentStr, "\"id\"") {
+	if !common.Contains(contentStr, "Test User") && !common.Contains(contentStr, "\"id\"") {
 		t.Error("api_test.go should use examples from OpenAPI spec")
 	}
 }
 
 func TestGenerateGoSDK_Phase3_ErrorTests(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "nethttp"
 
 	// Create extracted data with error responses
-	extractedData := createTestExtractedData()
-	extractedData.Operations = []APIOperation{
+	extractedData := common.CreateTestExtractedData()
+	extractedData.Operations = []common.APIOperation{
 		{
 			Method:      "GET",
 			Path:        "/users/{id}",
 			OperationID: "getUser",
 			Summary:     "Get user",
 			Tags:        []string{"users"},
-			Parameters: []Parameter{
-				{Name: "id", In: "path", Required: true, Schema: &Schema{Type: "string"}},
+			Parameters: []common.Parameter{
+				{Name: "id", In: "path", Required: true, Schema: &common.Schema{Type: "string"}},
 			},
-			Responses: map[string]Response{
+			Responses: map[string]common.Response{
 				"200": {
 					Description: "Success",
-					Content: map[string]ContentType{
+					Content: map[string]common.ContentType{
 						"application/json": {
-							Schema: &Schema{Type: "object"},
+							Schema: &common.Schema{Type: "object"},
 						},
 					},
 				},
 				"404": {
 					Description: "Not Found",
-					Content: map[string]ContentType{
+					Content: map[string]common.ContentType{
 						"application/json": {
-							Schema: &Schema{Type: "object"},
+							Schema: &common.Schema{Type: "object"},
 							Examples: map[string]interface{}{
 								"default": map[string]interface{}{
 									"error": "User not found",
@@ -687,7 +688,7 @@ func TestGenerateGoSDK_Phase3_ErrorTests(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -701,27 +702,27 @@ func TestGenerateGoSDK_Phase3_ErrorTests(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !contains(contentStr, "Error") || !contains(contentStr, "404") {
+	if !common.Contains(contentStr, "Error") || !common.Contains(contentStr, "404") {
 		t.Error("api_test.go should contain error handling tests for 4xx responses")
 	}
 }
 
 func TestGenerateGoSDK_Phase3_Fixtures(t *testing.T) {
 	tmpDir := t.TempDir()
-	sdkName := testSDKName
+	sdkName := common.TestSDKName
 	httpLib := "nethttp"
 
 	// Create extracted data with examples
-	extractedData := createTestExtractedData()
-	extractedData.Operations = []APIOperation{
+	extractedData := common.CreateTestExtractedData()
+	extractedData.Operations = []common.APIOperation{
 		{
 			Method:      "GET",
 			Path:        "/users",
 			OperationID: "listUsers",
 			Tags:        []string{"users"},
-			Responses: map[string]Response{
+			Responses: map[string]common.Response{
 				"200": {
-					Content: map[string]ContentType{
+					Content: map[string]common.ContentType{
 						"application/json": {
 							Examples: map[string]interface{}{
 								"default": map[string]interface{}{
@@ -736,7 +737,7 @@ func TestGenerateGoSDK_Phase3_Fixtures(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(tmpDir, sdkName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -754,7 +755,7 @@ func TestGenerateGoSDK_Phase3_Fixtures(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !contains(contentStr, "package testdata") || !contains(contentStr, "var") {
+	if !common.Contains(contentStr, "package testdata") || !common.Contains(contentStr, "var") {
 		t.Error("fixtures.go should contain fixture variables from examples")
 	}
 }

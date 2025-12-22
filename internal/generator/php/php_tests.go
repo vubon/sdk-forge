@@ -6,10 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/vubon/sdk-forge/internal/generator/common"
 )
 
 // generatePHPTests generates PHPUnit tests for PHP SDK
-func generatePHPTests(packageDir, srcDir string, data TemplateData, extractedData *ExtractedData) error {
+func generatePHPTests(packageDir, srcDir string, data common.TemplateData, extractedData *common.ExtractedData) error {
 	// Create tests/ directory
 	testsDir := filepath.Join(packageDir, "tests")
 	if err := os.MkdirAll(testsDir, 0750); err != nil {
@@ -90,7 +92,7 @@ func generatePHPTests(packageDir, srcDir string, data TemplateData, extractedDat
 }
 
 // generatePHPBootstrap generates PHPUnit bootstrap file
-func generatePHPBootstrap(data TemplateData) string {
+func generatePHPBootstrap(data common.TemplateData) string {
 	return `<?php
 
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -101,7 +103,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 }
 
 // generatePHPPHPUnitConfig generates PHPUnit configuration file
-func generatePHPPHPUnitConfig(data TemplateData) string {
+func generatePHPPHPUnitConfig(data common.TemplateData) string {
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.0/phpunit.xsd"
@@ -131,9 +133,9 @@ func generatePHPPHPUnitConfig(data TemplateData) string {
 }
 
 // generatePHPClientTest generates ClientTest.php
-func generatePHPClientTest(data TemplateData, extractedData *ExtractedData) string {
-	namespace := getPHPNamespace(data.SDKName)
-	clientClassName := getClientClassName(data.SDKName)
+func generatePHPClientTest(data common.TemplateData, extractedData *common.ExtractedData) string {
+	namespace := fmt.Sprintf("Vendor\\%s", common.ToPascalCase(data.SDKName))
+	clientClassName := common.GetClientClassName(data.SDKName)
 
 	baseURL := extractedData.BaseURL
 	if baseURL == "" {
@@ -165,8 +167,8 @@ func generatePHPClientTest(data TemplateData, extractedData *ExtractedData) stri
 }
 
 // generatePHPModelsTest generates ModelsTest.php
-func generatePHPModelsTest(data TemplateData, schemas map[string]*Schema) string {
-	namespace := getPHPNamespace(data.SDKName)
+func generatePHPModelsTest(data common.TemplateData, schemas map[string]*common.Schema) string {
+	namespace := fmt.Sprintf("Vendor\\%s", common.ToPascalCase(data.SDKName))
 
 	var test strings.Builder
 	test.WriteString("<?php\n\n")
@@ -182,7 +184,7 @@ func generatePHPModelsTest(data TemplateData, schemas map[string]*Schema) string
 
 	// Generate tests for each schema
 	for name, schema := range schemas {
-		className := toPascalCase(name)
+		className := common.ToPascalCase(name)
 		test.WriteString("    /**\n")
 		test.WriteString(fmt.Sprintf("     * Test %s model creation\n", className))
 		test.WriteString("     */\n")
@@ -281,9 +283,9 @@ func generatePHPModelsTest(data TemplateData, schemas map[string]*Schema) string
 }
 
 // generatePHPApiMethodsTest generates ApiMethodsTest.php
-func generatePHPApiMethodsTest(data TemplateData, operations []APIOperation, extractedData *ExtractedData) string {
-	namespace := getPHPNamespace(data.SDKName)
-	clientClassName := getClientClassName(data.SDKName)
+func generatePHPApiMethodsTest(data common.TemplateData, operations []common.APIOperation, extractedData *common.ExtractedData) string {
+	namespace := fmt.Sprintf("Vendor\\%s", common.ToPascalCase(data.SDKName))
+	clientClassName := common.GetClientClassName(data.SDKName)
 
 	var test strings.Builder
 	test.WriteString("<?php\n\n")
@@ -306,20 +308,20 @@ func generatePHPApiMethodsTest(data TemplateData, operations []APIOperation, ext
 	test.WriteString("    }\n\n")
 
 	// Group operations by tag
-	operationsByTag := groupOperationsByTag(operations)
+	operationsByTag := common.GroupOperationsByTag(operations)
 
 	// Generate tests for each operation
 	for tag, tagOperations := range operationsByTag {
-		apiClassName := toPascalCase(tag) + "Api"
+		apiClassName := common.ToPascalCase(tag) + "Api"
 		test.WriteString(fmt.Sprintf("    /**\n     * Tests for %s API\n     */\n", tag))
 		for _, op := range tagOperations {
-			methodName := GetOperationMethodName(op)
+			methodName := common.GetOperationMethodName(op)
 			if methodName == "" {
 				pathPart := strings.ReplaceAll(strings.Trim(op.Path, "/"), "/", "_")
-				methodName = strings.ToLower(op.Method) + toPascalCase(pathPart)
+				methodName = strings.ToLower(op.Method) + common.ToPascalCase(pathPart)
 			}
-			methodName = toCamelCase(methodName)
-			testMethodName := "test" + toPascalCase(methodName)
+			methodName = common.ToCamelCase(methodName)
+			testMethodName := "test" + common.ToPascalCase(methodName)
 
 			test.WriteString(fmt.Sprintf("    public function %s(): void\n", testMethodName))
 			test.WriteString("    {\n")
@@ -336,9 +338,9 @@ func generatePHPApiMethodsTest(data TemplateData, operations []APIOperation, ext
 }
 
 // generatePHPAuthTest generates AuthTest.php
-func generatePHPAuthTest(data TemplateData, securitySchemes map[string]SecurityScheme, extractedData *ExtractedData) string {
-	namespace := getPHPNamespace(data.SDKName)
-	clientClassName := getClientClassName(data.SDKName)
+func generatePHPAuthTest(data common.TemplateData, securitySchemes map[string]common.SecurityScheme, extractedData *common.ExtractedData) string {
+	namespace := fmt.Sprintf("Vendor\\%s", common.ToPascalCase(data.SDKName))
+	clientClassName := common.GetClientClassName(data.SDKName)
 
 	var test strings.Builder
 	test.WriteString("<?php\n\n")
@@ -354,7 +356,7 @@ func generatePHPAuthTest(data TemplateData, securitySchemes map[string]SecurityS
 
 	// Generate tests for each security scheme
 	for name, scheme := range securitySchemes {
-		testName := toPascalCase(name) + "Auth"
+		testName := common.ToPascalCase(name) + "Auth"
 		test.WriteString("    /**\n")
 		test.WriteString(fmt.Sprintf("     * Test %s authentication\n", name))
 		test.WriteString("     */\n")
@@ -364,17 +366,17 @@ func generatePHPAuthTest(data TemplateData, securitySchemes map[string]SecurityS
 		test.WriteString("        $options = [];\n")
 
 		switch scheme.Type {
-		case securitySchemeAPIKey:
+		case "apiKey":
 			test.WriteString(fmt.Sprintf("        $options['%s'] = 'test-api-key';\n", name))
-		case securitySchemeHTTP:
+		case "http":
 			switch scheme.Scheme {
-			case securitySchemeBearer:
+			case "bearer":
 				test.WriteString("        $options['bearer_token'] = 'test-token';\n")
-			case securitySchemeBasic:
+			case "basic":
 				test.WriteString("        $options['username'] = 'test-user';\n")
 				test.WriteString("        $options['password'] = 'test-pass';\n")
 			}
-		case securitySchemeOAuth2, securitySchemeOpenIDConnect:
+		case "oauth2", "openIdConnect":
 			test.WriteString(fmt.Sprintf("        $options['%s_token'] = 'test-token';\n", name))
 		}
 
@@ -389,7 +391,7 @@ func generatePHPAuthTest(data TemplateData, securitySchemes map[string]SecurityS
 }
 
 // getPHPTestValue generates a test value for a schema
-func getPHPTestValue(schema *Schema) string {
+func getPHPTestValue(schema *common.Schema) string {
 	if schema == nil {
 		return "null"
 	}

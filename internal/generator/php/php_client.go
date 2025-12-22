@@ -2,19 +2,29 @@
 package php
 
 import (
+	_ "embed"
 	"fmt"
 	"strings"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+
+	"github.com/vubon/sdk-forge/internal/generator/common"
 )
 
+//go:embed templates/client.php.tmpl
+var phpClientTemplate string
+
+func getPHPClientTemplateContent() string {
+	return phpClientTemplate
+}
+
 // generatePHPClient generates PHP client class using template
-func generatePHPClient(data TemplateData, version LanguageVersion) (string, error) {
+func generatePHPClient(data common.TemplateData, version common.LanguageVersion) (string, error) {
 	// Extract OpenAPI data
-	extractedData, ok := data.OpenAPIDoc.(*ExtractedData)
+	extractedData, ok := data.OpenAPIDoc.(*common.ExtractedData)
 	if !ok {
-		extractedData = &ExtractedData{BaseURL: "https://api.example.com/v1"}
+		extractedData = &common.ExtractedData{BaseURL: "https://api.example.com/v1"}
 	}
 
 	// Generate base URL default
@@ -30,7 +40,7 @@ func generatePHPClient(data TemplateData, version LanguageVersion) (string, erro
 
 	// Generate namespace (using Vendor\SDKName pattern)
 	namespace := fmt.Sprintf("Vendor\\%s", data.SDKName)
-	clientClassName := getClientClassName(data.SDKName)
+	clientClassName := common.GetClientClassName(data.SDKName)
 
 	// Generate authentication setup
 	authSetup := generatePHPAuthSetup(extractedData.SecuritySchemes, clientClassName)
@@ -89,7 +99,7 @@ func generatePHPClient(data TemplateData, version LanguageVersion) (string, erro
 	}
 
 	// Load and render template
-	tmpl, err := LoadTemplate(GetPHPClientTemplate())
+	tmpl, err := common.LoadTemplate(getPHPClientTemplateContent())
 	if err != nil {
 		return "", fmt.Errorf("failed to load PHP client template: %w", err)
 	}
@@ -103,7 +113,7 @@ func generatePHPClient(data TemplateData, version LanguageVersion) (string, erro
 }
 
 // generatePHPAuthFields generates authentication field declarations
-func generatePHPAuthFields(securitySchemes map[string]SecurityScheme) string {
+func generatePHPAuthFields(securitySchemes map[string]common.SecurityScheme) string {
 	if len(securitySchemes) == 0 {
 		return ""
 	}
@@ -112,21 +122,21 @@ func generatePHPAuthFields(securitySchemes map[string]SecurityScheme) string {
 	fields.WriteString("    // Authentication fields\n")
 	for name, scheme := range securitySchemes {
 		switch scheme.Type {
-		case securitySchemeAPIKey:
-			fields.WriteString(fmt.Sprintf("    private ?string $%s = null;\n", toCamelCase(name)))
-		case securitySchemeHTTP:
+		case "apiKey":
+			fields.WriteString(fmt.Sprintf("    private ?string $%s = null;\n", common.ToCamelCase(name)))
+		case "http":
 			switch scheme.Scheme {
-			case securitySchemeBearer:
+			case "bearer":
 				fields.WriteString("    private ?string $bearerToken = null;\n")
-			case securitySchemeBasic, securitySchemeDigest:
+			case "basic", "digest":
 				fields.WriteString("    private ?string $username = null;\n")
 				fields.WriteString("    private ?string $password = null;\n")
 			}
-		case securitySchemeOAuth2, securitySchemeOpenIDConnect:
-			fields.WriteString(fmt.Sprintf("    private ?string $%sToken = null;\n", toCamelCase(name)))
-		case securitySchemeMutualTLS:
-			fields.WriteString(fmt.Sprintf("    private ?string $%sCert = null;\n", toCamelCase(name)))
-			fields.WriteString(fmt.Sprintf("    private ?string $%sKey = null;\n", toCamelCase(name)))
+		case "oauth2", "openIdConnect":
+			fields.WriteString(fmt.Sprintf("    private ?string $%sToken = null;\n", common.ToCamelCase(name)))
+		case "mutualTLS":
+			fields.WriteString(fmt.Sprintf("    private ?string $%sCert = null;\n", common.ToCamelCase(name)))
+			fields.WriteString(fmt.Sprintf("    private ?string $%sKey = null;\n", common.ToCamelCase(name)))
 		}
 	}
 	fields.WriteString("\n")
@@ -134,7 +144,7 @@ func generatePHPAuthFields(securitySchemes map[string]SecurityScheme) string {
 }
 
 // generatePHPAuthMethodBody generates the body of the applyAuth method
-func generatePHPAuthMethodBody(securitySchemes map[string]SecurityScheme) string {
+func generatePHPAuthMethodBody(securitySchemes map[string]common.SecurityScheme) string {
 	if len(securitySchemes) == 0 {
 		return "        // No authentication required\n"
 	}
@@ -146,32 +156,32 @@ func generatePHPAuthMethodBody(securitySchemes map[string]SecurityScheme) string
 
 	for name, scheme := range securitySchemes {
 		switch scheme.Type {
-		case securitySchemeAPIKey:
-			fieldName := toCamelCase(name)
+		case "apiKey":
+			fieldName := common.ToCamelCase(name)
 			body.WriteString(fmt.Sprintf("        if ($this->%s !== null) {\n", fieldName))
 			switch scheme.In {
-			case paramLocationHeader:
+			case "header":
 				body.WriteString(fmt.Sprintf("            $options['headers']['%s'] = $this->%s;\n", scheme.Name, fieldName))
-			case paramLocationQuery:
+			case "query":
 				body.WriteString("            if (!isset($options['query'])) {\n")
 				body.WriteString("                $options['query'] = [];\n")
 				body.WriteString("            }\n")
 				body.WriteString(fmt.Sprintf("            $options['query']['%s'] = $this->%s;\n", scheme.Name, fieldName))
 			}
 			body.WriteString("        }\n\n")
-		case securitySchemeHTTP:
+		case "http":
 			switch scheme.Scheme {
-			case securitySchemeBearer:
+			case "bearer":
 				body.WriteString("        if ($this->bearerToken !== null) {\n")
 				body.WriteString("            $options['headers']['Authorization'] = 'Bearer ' . $this->bearerToken;\n")
 				body.WriteString("        }\n\n")
-			case securitySchemeBasic:
+			case "basic":
 				body.WriteString("        if ($this->username !== null && $this->password !== null) {\n")
 				body.WriteString("            $options['auth'] = [$this->username, $this->password];\n")
 				body.WriteString("        }\n\n")
 			}
-		case securitySchemeOAuth2, securitySchemeOpenIDConnect:
-			fieldName := toCamelCase(name)
+		case "oauth2", "openIdConnect":
+			fieldName := common.ToCamelCase(name)
 			body.WriteString(fmt.Sprintf("        if ($this->%sToken !== null) {\n", fieldName))
 			body.WriteString(fmt.Sprintf("            $options['headers']['Authorization'] = 'Bearer ' . $this->%sToken;\n", fieldName))
 			body.WriteString("        }\n\n")
@@ -181,10 +191,10 @@ func generatePHPAuthMethodBody(securitySchemes map[string]SecurityScheme) string
 }
 
 // buildPHPImports builds the import/use statements for PHP
-func buildPHPImports(data TemplateData, version LanguageVersion, retryEnabled bool) string {
+func buildPHPImports(data common.TemplateData, version common.LanguageVersion, retryEnabled bool) string {
 	var imports strings.Builder
 	imports.WriteString("use " + data.HTTPLibImport + ";\n")
-	imports.WriteString(fmt.Sprintf("use %s\\Exceptions\\ApiException;\n", getPHPNamespace(data.SDKName)))
+	imports.WriteString(fmt.Sprintf("use %s\\Exceptions\\ApiException;\n", fmt.Sprintf("Vendor\\%s", common.ToPascalCase(data.SDKName))))
 
 	if retryEnabled {
 		imports.WriteString("use Psr\\Http\\Message\\ResponseInterface;\n")
@@ -193,8 +203,8 @@ func buildPHPImports(data TemplateData, version LanguageVersion, retryEnabled bo
 	return imports.String()
 }
 
-// getPHPNamespace returns the PHP namespace for the SDK
-func getPHPNamespace(sdkName string) string {
+// GetPHPNamespace returns the PHP namespace for the SDK
+func GetPHPNamespace(sdkName string) string {
 	return fmt.Sprintf("Vendor\\%s", sdkName)
 }
 
@@ -227,7 +237,7 @@ func getPHPHTTPClientMethod(httpLib string) string {
 }
 
 // generatePHPAuthSetup generates PHP authentication setup code
-func generatePHPAuthSetup(securitySchemes map[string]SecurityScheme, clientClassName string) string {
+func generatePHPAuthSetup(securitySchemes map[string]common.SecurityScheme, clientClassName string) string {
 	if len(securitySchemes) == 0 {
 		return "        // No authentication required\n"
 	}
@@ -237,25 +247,25 @@ func generatePHPAuthSetup(securitySchemes map[string]SecurityScheme, clientClass
 
 	for name, scheme := range securitySchemes {
 		switch scheme.Type {
-		case securitySchemeAPIKey:
-			fieldName := toCamelCase(name)
+		case "apiKey":
+			fieldName := common.ToCamelCase(name)
 			setupCode.WriteString(fmt.Sprintf("        $this->%s = $options['%s'] ?? null;\n", fieldName, name))
-		case securitySchemeHTTP:
+		case "http":
 			switch scheme.Scheme {
-			case securitySchemeBearer:
+			case "bearer":
 				setupCode.WriteString("        $this->bearerToken = $options['bearer_token'] ?? null;\n")
-			case securitySchemeBasic, securitySchemeDigest:
+			case "basic", "digest":
 				setupCode.WriteString("        $this->username = $options['username'] ?? null;\n")
 				setupCode.WriteString("        $this->password = $options['password'] ?? null;\n")
 			}
-		case securitySchemeOAuth2:
-			fieldName := toCamelCase(name)
+		case "oauth2":
+			fieldName := common.ToCamelCase(name)
 			setupCode.WriteString(fmt.Sprintf("        $this->%sToken = $options['%s_token'] ?? null;\n", fieldName, name))
-		case securitySchemeOpenIDConnect:
-			fieldName := toCamelCase(name)
+		case "openIdConnect":
+			fieldName := common.ToCamelCase(name)
 			setupCode.WriteString(fmt.Sprintf("        $this->%sToken = $options['%s_token'] ?? null;\n", fieldName, name))
-		case securitySchemeMutualTLS:
-			fieldName := toCamelCase(name)
+		case "mutualTLS":
+			fieldName := common.ToCamelCase(name)
 			setupCode.WriteString(fmt.Sprintf("        $this->%sCert = $options['%s_cert'] ?? null;\n", fieldName, name))
 			setupCode.WriteString(fmt.Sprintf("        $this->%sKey = $options['%s_key'] ?? null;\n", fieldName, name))
 		}
@@ -265,7 +275,7 @@ func generatePHPAuthSetup(securitySchemes map[string]SecurityScheme, clientClass
 }
 
 // generatePHPRetryFields generates PHP retry configuration fields
-func generatePHPRetryFields(config RetryConfig) string {
+func generatePHPRetryFields(config common.RetryConfig) string {
 	if !config.Enabled {
 		return ""
 	}
@@ -296,7 +306,7 @@ func generatePHPRetryFields(config RetryConfig) string {
 }
 
 // generatePHPRetryInit generates PHP retry configuration initialization
-func generatePHPRetryInit(config RetryConfig) string {
+func generatePHPRetryInit(config common.RetryConfig) string {
 	if !config.Enabled {
 		return ""
 	}
@@ -334,7 +344,7 @@ func generatePHPRetryInit(config RetryConfig) string {
 }
 
 // generatePHPRetryHelper generates PHP retry helper methods
-func generatePHPRetryHelper(httpLib string, config RetryConfig, clientClassName string) string {
+func generatePHPRetryHelper(httpLib string, config common.RetryConfig, clientClassName string) string {
 	if !config.Enabled {
 		return ""
 	}
@@ -350,13 +360,13 @@ func generatePHPRetryHelper(httpLib string, config RetryConfig, clientClassName 
 	buf.WriteString("     */\n")
 	buf.WriteString("    private function calculateRetryDelay(int $attempt): float\n")
 	buf.WriteString("    {\n")
-	buf.WriteString(fmt.Sprintf("        if ($this->retryStrategy === '%s') {\n", RetryStrategyExponential))
+	buf.WriteString(fmt.Sprintf("        if ($this->retryStrategy === '%s') {\n", common.RetryStrategyExponential))
 	buf.WriteString("            // Exponential backoff: initialDelay * (multiplier ^ attempt)\n")
 	buf.WriteString("            $delay = $this->retryInitialDelay * pow($this->retryBackoffMultiplier, $attempt);\n")
-	buf.WriteString(fmt.Sprintf("        } elseif ($this->retryStrategy === '%s') {\n", RetryStrategyLinear))
+	buf.WriteString(fmt.Sprintf("        } elseif ($this->retryStrategy === '%s') {\n", common.RetryStrategyLinear))
 	buf.WriteString("            // Linear backoff: initialDelay * (attempt + 1)\n")
 	buf.WriteString("            $delay = $this->retryInitialDelay * ($attempt + 1);\n")
-	buf.WriteString(fmt.Sprintf("        } elseif ($this->retryStrategy === '%s') {\n", RetryStrategyFixed))
+	buf.WriteString(fmt.Sprintf("        } elseif ($this->retryStrategy === '%s') {\n", common.RetryStrategyFixed))
 	buf.WriteString("            // Fixed delay: always use initialDelay\n")
 	buf.WriteString("            $delay = $this->retryInitialDelay;\n")
 	buf.WriteString("        } else {\n")

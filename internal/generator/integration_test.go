@@ -6,6 +6,10 @@ import (
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
+
+	"github.com/vubon/sdk-forge/internal/generator/common"
+	gogen "github.com/vubon/sdk-forge/internal/generator/go"
+	"github.com/vubon/sdk-forge/internal/generator/python"
 )
 
 const (
@@ -20,7 +24,7 @@ func TestIntegration_PythonSDKGeneration(t *testing.T) {
 	httpLib := testHTTPLib
 
 	// Create a minimal OpenAPI document
-	doc := createTestOpenAPIDoc()
+	doc := common.CreateTestOpenAPIDoc()
 
 	// Add a simple path
 	pathItem := &openapi3.PathItem{
@@ -38,7 +42,7 @@ func TestIntegration_PythonSDKGeneration(t *testing.T) {
 	})
 	doc.Paths.Set("/items", pathItem)
 
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, doc, nil, "", true, DefaultRetryConfig())
+	err := python.GeneratePythonSDK(tmpDir, sdkName, httpLib, doc, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -79,14 +83,14 @@ func TestIntegration_PythonSDKGeneration(t *testing.T) {
 	// Verify requirements.txt contains the HTTP library
 	// #nosec G304 -- File path is from test, safe to read
 	requirementsContent, _ := os.ReadFile(filepath.Join(tmpDir, "requirements.txt"))
-	if !contains(string(requirementsContent), "requests") {
+	if !common.Contains(string(requirementsContent), "requests") {
 		t.Error("requirements.txt should contain 'requests' dependency")
 	}
 
 	// Verify client.py contains the HTTP library import
 	// #nosec G304 -- File path is from test, safe to read
 	clientContent, _ := os.ReadFile(filepath.Join(expectedDir, "client.py"))
-	if !contains(string(clientContent), "import requests") {
+	if !common.Contains(string(clientContent), "import requests") {
 		t.Error("client.py should import requests")
 	}
 }
@@ -97,8 +101,8 @@ func TestIntegration_PythonSDKWithCustomHTTPLib(t *testing.T) {
 	sdkName := testSDKName
 	httpLib := "httpx"
 
-	extractedData := createTestExtractedData()
-	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	extractedData := common.CreateTestExtractedData()
+	err := python.GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GeneratePythonSDK() error = %v", err)
 	}
@@ -112,7 +116,7 @@ func TestIntegration_PythonSDKWithCustomHTTPLib(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !contains(contentStr, "httpx") {
+	if !common.Contains(contentStr, "httpx") {
 		t.Error("client.py should use httpx when specified")
 	}
 
@@ -124,7 +128,7 @@ func TestIntegration_PythonSDKWithCustomHTTPLib(t *testing.T) {
 		t.Fatalf("Failed to read requirements.txt: %v", err)
 	}
 
-	if !contains(string(reqContent), "httpx") {
+	if !common.Contains(string(reqContent), "httpx") {
 		t.Error("requirements.txt should contain httpx dependency")
 	}
 }
@@ -136,7 +140,7 @@ func TestIntegration_GoSDKGeneration(t *testing.T) {
 	httpLib := "nethttp"
 
 	// Create a minimal OpenAPI document
-	doc := createTestOpenAPIDoc()
+	doc := common.CreateTestOpenAPIDoc()
 
 	// Add a simple path
 	pathItem := &openapi3.PathItem{
@@ -157,7 +161,7 @@ func TestIntegration_GoSDKGeneration(t *testing.T) {
 	// outputPath should include the SDK name (like CLI does)
 	const expectedGoSDKName = "myapisdk" // "my-api-sdk" -> "myapisdk"
 	outputPath := filepath.Join(tmpDir, expectedGoSDKName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, doc, nil, "", true, DefaultRetryConfig())
+	err := gogen.GenerateGoSDK(outputPath, sdkName, httpLib, doc, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -191,18 +195,18 @@ func TestIntegration_GoSDKGeneration(t *testing.T) {
 	// Verify go.mod contains module declaration
 	// #nosec G304 -- File path is from test, safe to read
 	goModContent, _ := os.ReadFile(filepath.Join(outputPath, "go.mod"))
-	if !contains(string(goModContent), "module") {
+	if !common.Contains(string(goModContent), "module") {
 		t.Error("go.mod should contain 'module' declaration")
 	}
 
 	// Verify client.go contains package declaration
 	// #nosec G304 -- File path is from test, safe to read
 	clientContent, _ := os.ReadFile(filepath.Join(outputPath, "client.go"))
-	if !contains(string(clientContent), "package") {
+	if !common.Contains(string(clientContent), "package") {
 		t.Error("client.go should contain package declaration")
 	}
 
-	if !contains(string(clientContent), "Client") {
+	if !common.Contains(string(clientContent), "Client") {
 		t.Error("client.go should contain Client struct")
 	}
 }
@@ -213,11 +217,11 @@ func TestIntegration_GoSDKWithCustomHTTPLib(t *testing.T) {
 	sdkName := testSDKName
 	httpLib := "resty"
 
-	extractedData := createTestExtractedData()
+	extractedData := common.CreateTestExtractedData()
 	// outputPath should include the SDK name (like CLI does)
 	const expectedGoSDKName = "testsdk"
 	outputPath := filepath.Join(tmpDir, expectedGoSDKName)
-	err := GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, DefaultRetryConfig())
+	err := gogen.GenerateGoSDK(outputPath, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("GenerateGoSDK() error = %v", err)
 	}
@@ -231,7 +235,7 @@ func TestIntegration_GoSDKWithCustomHTTPLib(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !contains(contentStr, "module") {
+	if !common.Contains(contentStr, "module") {
 		t.Error("go.mod should contain module declaration")
 	}
 }

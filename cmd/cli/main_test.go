@@ -6,8 +6,23 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
+
+var (
+	binaryCache     string
+	binaryCacheOnce sync.Once
+)
+
+func TestMain(m *testing.M) {
+	// Set TESTING environment variable to skip formatting in tests
+	_ = os.Setenv("TESTING", "true")
+	_ = os.Setenv("SKIP_FORMATTING", "true")
+
+	code := m.Run()
+	os.Exit(code)
+}
 
 // findProjectRoot finds the project root by looking for go.mod
 func findProjectRoot(t *testing.T) string {
@@ -314,15 +329,54 @@ func TestGenerateCommandWithRetryEnabled(t *testing.T) {
 	}
 }
 
-// buildTestBinary builds the CLI binary for testing
+// buildTestBinary builds the CLI binary for testing (with caching)
 func buildTestBinary(t *testing.T) string {
+	// Check if cached binary exists and is valid
+	if binaryCache != "" {
+		if _, err := os.Stat(binaryCache); err == nil {
+			return binaryCache
+		}
+		// Cache is invalid, reset it
+		binaryCache = ""
+	}
+
+	// Build binary once and cache it
+	binaryCacheOnce.Do(func() {
+		tmpDir := os.TempDir()
+		binaryPath := filepath.Join(tmpDir, "sdk-forge-test-cached")
+
+		// Find project root (where go.mod is located)
+		projectRoot := findProjectRoot(t)
+
+		// Build the binary
+		cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/cli")
+		cmd.Dir = projectRoot
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+
+		if err := cmd.Run(); err != nil {
+			// Build failed, will fall back to per-test binary
+			return
+		}
+
+		// Verify binary exists
+		if _, err := os.Stat(binaryPath); err == nil {
+			binaryCache = binaryPath
+		}
+	})
+
+	// If cache is available and valid, use it
+	if binaryCache != "" {
+		if _, err := os.Stat(binaryCache); err == nil {
+			return binaryCache
+		}
+	}
+
+	// Fallback: build fresh binary for this test
 	tmpDir := t.TempDir()
 	binaryPath := filepath.Join(tmpDir, "sdk-forge-test")
 
-	// Find project root (where go.mod is located)
 	projectRoot := findProjectRoot(t)
-
-	// Build the binary
 	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/cli")
 	cmd.Dir = projectRoot
 	var stderr bytes.Buffer

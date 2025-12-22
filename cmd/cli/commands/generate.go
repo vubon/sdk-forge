@@ -11,7 +11,10 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/spf13/cobra"
-	"github.com/vubon/sdk-forge/internal/generator"
+	"github.com/vubon/sdk-forge/internal/generator/common"
+	gogen "github.com/vubon/sdk-forge/internal/generator/go"
+	"github.com/vubon/sdk-forge/internal/generator/php"
+	"github.com/vubon/sdk-forge/internal/generator/python"
 	"github.com/vubon/sdk-forge/internal/parser"
 	"github.com/vubon/sdk-forge/internal/validator"
 	httplib "github.com/vubon/sdk-forge/pkg/languages/http"
@@ -316,9 +319,9 @@ func generateAllLanguages(outputDir, sdkName, httpLib string, doc interface{}, f
 
 // generateSDKForLanguage generates SDK for a specific language
 func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc interface{}, cmd *cobra.Command) error {
-	var goVer *generator.LanguageVersion
-	var pythonVer *generator.LanguageVersion
-	var phpVer *generator.LanguageVersion
+	var goVer *common.LanguageVersion
+	var pythonVer *common.LanguageVersion
+	var phpVer *common.LanguageVersion
 
 	// Get SDK version from flag (if provided)
 	sdkVerStr, _ := cmd.Flags().GetString("sdk-version")
@@ -327,11 +330,11 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 	if lang == langGo || lang == langAll {
 		goVerStr, _ := cmd.Flags().GetString("go-version")
 		if goVerStr != "" {
-			parsed, err := generator.ParseVersion(goVerStr)
+			parsed, err := common.ParseVersion(goVerStr)
 			if err != nil {
 				return fmt.Errorf("invalid Go version: %w", err)
 			}
-			if err := generator.ValidateGoVersion(parsed); err != nil {
+			if err := common.ValidateGoVersion(parsed); err != nil {
 				return err
 			}
 			goVer = &parsed
@@ -341,11 +344,11 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 	if lang == langPython || lang == langAll {
 		pythonVerStr, _ := cmd.Flags().GetString("python-version")
 		if pythonVerStr != "" {
-			parsed, err := generator.ParseVersion(pythonVerStr)
+			parsed, err := common.ParseVersion(pythonVerStr)
 			if err != nil {
 				return fmt.Errorf("invalid Python version: %w", err)
 			}
-			if err := generator.ValidatePythonVersion(parsed); err != nil {
+			if err := common.ValidatePythonVersion(parsed); err != nil {
 				return err
 			}
 			pythonVer = &parsed
@@ -355,11 +358,11 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 	if lang == "php" || lang == langAll {
 		phpVerStr, _ := cmd.Flags().GetString("php-version")
 		if phpVerStr != "" {
-			parsed, err := generator.ParseVersion(phpVerStr)
+			parsed, err := common.ParseVersion(phpVerStr)
 			if err != nil {
 				return fmt.Errorf("invalid PHP version: %w", err)
 			}
-			if err := generator.ValidatePHPVersion(parsed); err != nil {
+			if err := common.ValidatePHPVersion(parsed); err != nil {
 				return err
 			}
 			phpVer = &parsed
@@ -372,14 +375,14 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 
 	// Parse retry configuration from flags and OpenAPI extension
 	// First try to get retry config from OpenAPI document
-	var retryConfig generator.RetryConfig
+	var retryConfig common.RetryConfig
 	if openapiDoc, ok := doc.(*openapi3.T); ok {
-		openAPIRetryConfig := generator.ParseRetryConfigFromOpenAPI(openapiDoc)
+		openAPIRetryConfig := common.ParseRetryConfigFromOpenAPI(openapiDoc)
 		cliRetryConfig := parseRetryConfig(cmd)
 
 		// Merge: OpenAPI extension provides defaults, CLI flags override
 		if openAPIRetryConfig != nil {
-			retryConfig = generator.MergeRetryConfig(*openAPIRetryConfig, cliRetryConfig)
+			retryConfig = common.MergeRetryConfig(*openAPIRetryConfig, cliRetryConfig)
 		} else {
 			retryConfig = cliRetryConfig
 		}
@@ -390,11 +393,11 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 
 	switch lang {
 	case langPython:
-		return generator.GeneratePythonSDK(outputPath, sdkName, httpLib, doc, pythonVer, sdkVerStr, generateTests, retryConfig)
+		return python.GeneratePythonSDK(outputPath, sdkName, httpLib, doc, pythonVer, sdkVerStr, generateTests, retryConfig)
 	case langGo:
-		return generator.GenerateGoSDK(outputPath, sdkName, httpLib, doc, goVer, sdkVerStr, generateTests, retryConfig)
+		return gogen.GenerateGoSDK(outputPath, sdkName, httpLib, doc, goVer, sdkVerStr, generateTests, retryConfig)
 	case "php":
-		return generator.GeneratePHPSDK(outputPath, sdkName, httpLib, doc, phpVer, sdkVerStr, generateTests, retryConfig)
+		return php.GeneratePHPSDK(outputPath, sdkName, httpLib, doc, phpVer, sdkVerStr, generateTests, retryConfig)
 	case "javascript", "typescript":
 		return fmt.Errorf("JavaScript/TypeScript SDK generation not yet implemented")
 	default:
@@ -403,8 +406,8 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 }
 
 // parseRetryConfig parses retry configuration from command flags
-func parseRetryConfig(cmd *cobra.Command) generator.RetryConfig {
-	config := generator.DefaultRetryConfig()
+func parseRetryConfig(cmd *cobra.Command) common.RetryConfig {
+	config := common.DefaultRetryConfig()
 
 	// Get retry flags
 	retryEnabled, _ := cmd.Flags().GetBool("retry-enabled")
@@ -432,13 +435,13 @@ func parseRetryConfig(cmd *cobra.Command) generator.RetryConfig {
 	// Parse retry strategy
 	switch strings.ToLower(retryStrategy) {
 	case "exponential":
-		config.Strategy = generator.RetryStrategyExponential
+		config.Strategy = common.RetryStrategyExponential
 	case "linear":
-		config.Strategy = generator.RetryStrategyLinear
+		config.Strategy = common.RetryStrategyLinear
 	case "fixed":
-		config.Strategy = generator.RetryStrategyFixed
+		config.Strategy = common.RetryStrategyFixed
 	default:
-		config.Strategy = generator.RetryStrategyExponential
+		config.Strategy = common.RetryStrategyExponential
 	}
 
 	// Parse retryable status codes

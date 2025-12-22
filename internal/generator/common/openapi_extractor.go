@@ -1,4 +1,4 @@
-package generator
+package common
 
 import (
 	"fmt"
@@ -405,7 +405,7 @@ func extractSchema(schema *openapi3.Schema) *Schema {
 func GetOperationMethodName(op APIOperation) string {
 	if op.OperationID != "" {
 		// Use operationId if available
-		return toSnakeCase(op.OperationID)
+		return ToSnakeCase(op.OperationID)
 	}
 
 	// Generate from method + path
@@ -430,5 +430,5 @@ func GetOperationMethodName(op APIOperation) string {
 		name += "_" + part
 	}
 
-	return toSnakeCase(name)
+	return ToSnakeCase(name)
 }

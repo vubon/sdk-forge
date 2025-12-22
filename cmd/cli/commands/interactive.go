@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/vubon/sdk-forge/internal/generator"
+	"github.com/vubon/sdk-forge/internal/generator/common"
 	"github.com/vubon/sdk-forge/internal/validator"
 	httplib "github.com/vubon/sdk-forge/pkg/languages/http"
 )
@@ -166,8 +166,8 @@ func RunInteractive(cmd *cobra.Command) error {
 	case "go":
 		goVer, _ := cmd.Flags().GetString("go-version")
 		if goVer == "" {
-			availableVersions := generator.GetGoAvailableVersions()
-			defaultVersion := generator.GetGoDefaultVersion()
+			availableVersions := common.GetGoAvailableVersions()
+			defaultVersion := common.GetGoDefaultVersion()
 			versionList := make([]string, len(availableVersions))
 			for i, v := range availableVersions {
 				versionList[i] = v.String()
@@ -180,11 +180,11 @@ func RunInteractive(cmd *cobra.Command) error {
 			}
 			if input != "" {
 				// Validate the version
-				parsed, err := generator.ParseVersion(input)
+				parsed, err := common.ParseVersion(input)
 				if err != nil {
 					return fmt.Errorf("invalid Go version format: %w", err)
 				}
-				if err := generator.ValidateGoVersion(parsed); err != nil {
+				if err := common.ValidateGoVersion(parsed); err != nil {
 					return err
 				}
 				if err := cmd.Flags().Set("go-version", input); err != nil {
@@ -195,8 +195,8 @@ func RunInteractive(cmd *cobra.Command) error {
 	case "python":
 		pythonVer, _ := cmd.Flags().GetString("python-version")
 		if pythonVer == "" {
-			availableVersions := generator.GetPythonAvailableVersions()
-			defaultVersion := generator.GetPythonDefaultVersion()
+			availableVersions := common.GetPythonAvailableVersions()
+			defaultVersion := common.GetPythonDefaultVersion()
 			versionList := make([]string, len(availableVersions))
 			for i, v := range availableVersions {
 				versionList[i] = v.String()
@@ -209,11 +209,11 @@ func RunInteractive(cmd *cobra.Command) error {
 			}
 			if input != "" {
 				// Validate the version
-				parsed, err := generator.ParseVersion(input)
+				parsed, err := common.ParseVersion(input)
 				if err != nil {
 					return fmt.Errorf("invalid Python version format: %w", err)
 				}
-				if err := generator.ValidatePythonVersion(parsed); err != nil {
+				if err := common.ValidatePythonVersion(parsed); err != nil {
 					return err
 				}
 				if err := cmd.Flags().Set("python-version", input); err != nil {
