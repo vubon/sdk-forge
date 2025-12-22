@@ -1230,6 +1230,56 @@ func TestGenerateTypeScriptSDK_CustomSDKVersion(t *testing.T) {
 	}
 }
 
+func TestGenerateTypeScriptSDK_TypeScriptVersion(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	sdkName := common.TestSDKName
+	httpLib := "axios"
+
+	extractedData := common.CreateTestExtractedData()
+
+	// Test with custom TypeScript version
+	customTSVersion := common.LanguageVersion{Major: 5, Minor: 3}
+	err := GenerateTypeScriptSDK(tmpDir, sdkName, httpLib, extractedData, &customTSVersion, "", true, common.DefaultRetryConfig())
+	if err != nil {
+		t.Fatalf("GenerateTypeScriptSDK() error = %v", err)
+	}
+
+	// Verify package.json contains custom TypeScript version
+	packageJSONPath := filepath.Join(tmpDir, "test-sdk", "package.json")
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(packageJSONPath)
+	if err != nil {
+		t.Fatalf("Failed to read package.json: %v", err)
+	}
+
+	contentStr := string(content)
+	expectedVersion := customTSVersion.GetTypeScriptVersionString()
+	if !common.Contains(contentStr, expectedVersion) {
+		t.Errorf("package.json should contain TypeScript version %s, got: %s", expectedVersion, contentStr)
+	}
+
+	// Test with default version (nil)
+	tmpDir2 := t.TempDir()
+	err = GenerateTypeScriptSDK(tmpDir2, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
+	if err != nil {
+		t.Fatalf("GenerateTypeScriptSDK() with nil version error = %v", err)
+	}
+
+	packageJSONPath2 := filepath.Join(tmpDir2, "test-sdk", "package.json")
+	// #nosec G304 -- File path is from test, safe to read
+	content2, err := os.ReadFile(packageJSONPath2)
+	if err != nil {
+		t.Fatalf("Failed to read package.json: %v", err)
+	}
+
+	contentStr2 := string(content2)
+	defaultVersion := common.GetTypeScriptDefaultVersion().GetTypeScriptVersionString()
+	if !common.Contains(contentStr2, defaultVersion) {
+		t.Errorf("package.json should contain default TypeScript version %s when nil is provided, got: %s", defaultVersion, contentStr2)
+	}
+}
+
 func TestGenerateTypeScriptSDK_ModelWithNestedObjects(t *testing.T) {
 	t.Parallel()
 	tmpDir := t.TempDir()

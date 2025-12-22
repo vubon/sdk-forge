@@ -222,6 +222,39 @@ func RunInteractive(cmd *cobra.Command) error {
 				}
 			}
 		}
+	case "javascript", "typescript":
+		tsVer, _ := cmd.Flags().GetString("typescript-version")
+		if tsVer == "" {
+			// Try alias flag
+			tsVer, _ = cmd.Flags().GetString("ts-version")
+		}
+		if tsVer == "" {
+			availableVersions := common.GetTypeScriptAvailableVersions()
+			defaultVersion := common.GetTypeScriptDefaultVersion()
+			versionList := make([]string, len(availableVersions))
+			for i, v := range availableVersions {
+				versionList[i] = v.String()
+			}
+			prompt := fmt.Sprintf("Enter TypeScript version (press Enter for default '%s', available: %v): ",
+				defaultVersion.String(), versionList)
+			input, err := promptInput(reader, prompt)
+			if err != nil {
+				return err
+			}
+			if input != "" {
+				// Validate the version
+				parsed, err := common.ParseVersion(input)
+				if err != nil {
+					return fmt.Errorf("invalid TypeScript version format: %w", err)
+				}
+				if err := common.ValidateTypeScriptVersion(parsed); err != nil {
+					return err
+				}
+				if err := cmd.Flags().Set("typescript-version", input); err != nil {
+					return fmt.Errorf("failed to set typescript-version flag: %w", err)
+				}
+			}
+		}
 	}
 
 	// Get output directory (optional)

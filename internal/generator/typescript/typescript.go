@@ -33,7 +33,7 @@ func getTypeScriptClientTemplateContent() string {
 func GenerateTypeScriptSDK(
 	outputPath, sdkName, httpLib string,
 	openAPIDoc interface{},
-	version *common.LanguageVersion, // Reserved for future TypeScript version support
+	version *common.LanguageVersion, // TypeScript version (e.g., 5.0, 5.1). Default: 5.0
 	sdkVersion string,
 	generateTests bool,
 	retryConfig common.RetryConfig,
@@ -43,7 +43,7 @@ func GenerateTypeScriptSDK(
 	if !ok {
 		// If not an openapi3.T, try to extract from ExtractedData
 		if extractedData, ok := openAPIDoc.(*common.ExtractedData); ok {
-			return generateTypeScriptSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, sdkVersion, generateTests, retryConfig)
+			return generateTypeScriptSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, version, sdkVersion, generateTests, retryConfig)
 		}
 		return fmt.Errorf("invalid OpenAPI document type")
 	}
@@ -54,13 +54,14 @@ func GenerateTypeScriptSDK(
 		return fmt.Errorf("failed to extract OpenAPI data: %w", err)
 	}
 
-	return generateTypeScriptSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, sdkVersion, generateTests, retryConfig)
+	return generateTypeScriptSDKFromExtracted(outputPath, sdkName, httpLib, extractedData, version, sdkVersion, generateTests, retryConfig)
 }
 
 // generateTypeScriptSDKFromExtracted generates SDK from extracted data
 func generateTypeScriptSDKFromExtracted(
 	outputPath, sdkName, httpLib string,
 	extractedData *common.ExtractedData,
+	version *common.LanguageVersion,
 	sdkVersion string,
 	generateTests bool,
 	retryConfig common.RetryConfig,
@@ -95,8 +96,14 @@ func generateTypeScriptSDKFromExtracted(
 	// Determine SDK version using common utility
 	finalSDKVersion := common.DetermineSDKVersion(extractedData, sdkVersion)
 
+	// Use default TypeScript version if not provided
+	tsVersion := common.GetTypeScriptDefaultVersion()
+	if version != nil {
+		tsVersion = *version
+	}
+
 	// Generate package.json
-	packageContent, err := generateTypeScriptPackageJSON(sanitizedName, finalSDKVersion, httpLib, libConfig)
+	packageContent, err := generateTypeScriptPackageJSON(sanitizedName, finalSDKVersion, httpLib, libConfig, tsVersion)
 	if err != nil {
 		return fmt.Errorf("failed to generate package.json: %w", err)
 	}

@@ -16,7 +16,7 @@ import (
 )
 
 // generateTypeScriptPackageJSON generates package.json file
-func generateTypeScriptPackageJSON(sdkName, sdkVersion, httpLib string, libConfig *httplib.LibraryConfig) (string, error) {
+func generateTypeScriptPackageJSON(sdkName, sdkVersion, httpLib string, libConfig *httplib.LibraryConfig, tsVersion common.LanguageVersion) (string, error) {
 	// Prepare dependencies
 	dependencies := make(map[string]string)
 	devDependencies := make(map[string]string)
@@ -46,7 +46,7 @@ func generateTypeScriptPackageJSON(sdkName, sdkVersion, httpLib string, libConfi
 	}
 
 	// Add dev dependencies
-	devDependencies["typescript"] = "^5.0.0"
+	devDependencies["typescript"] = tsVersion.GetTypeScriptVersionString()
 	devDependencies["@types/node"] = "^20.0.0"
 	devDependencies["jest"] = "^29.0.0"
 	devDependencies["@types/jest"] = "^29.0.0"
