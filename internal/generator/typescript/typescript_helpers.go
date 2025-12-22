@@ -4,6 +4,8 @@ package typescript
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/text/cases"
@@ -49,6 +51,10 @@ func generateTypeScriptPackageJSON(sdkName, sdkVersion, httpLib string, libConfi
 	devDependencies["jest"] = "^29.0.0"
 	devDependencies["@types/jest"] = "^29.0.0"
 	devDependencies["ts-jest"] = "^29.0.0"
+	devDependencies["eslint"] = "^8.0.0"
+	devDependencies["@typescript-eslint/parser"] = "^6.0.0"
+	devDependencies["@typescript-eslint/eslint-plugin"] = "^6.0.0"
+	devDependencies["prettier"] = "^3.0.0"
 
 	// Add type definitions for HTTP libraries if needed
 	switch httpLib {
@@ -369,5 +375,115 @@ coverage/
 .env
 .env.local
 .env.*.local
+`
+}
+
+// generateTypeScriptQualityConfigs generates code quality configuration files
+func generateTypeScriptQualityConfigs(packageDir string) error {
+	// Generate .eslintrc.json (ESLint configuration)
+	eslintContent := generateTypeScriptESLintConfig()
+	eslintPath := filepath.Join(packageDir, ".eslintrc.json")
+	// #nosec G306 -- 0644 is appropriate for config files
+	if err := os.WriteFile(eslintPath, []byte(eslintContent), 0644); err != nil {
+		return fmt.Errorf("failed to write .eslintrc.json: %w", err)
+	}
+
+	// Generate .prettierrc.json (Prettier configuration)
+	prettierContent := generateTypeScriptPrettierConfig()
+	prettierPath := filepath.Join(packageDir, ".prettierrc.json")
+	// #nosec G306 -- 0644 is appropriate for config files
+	if err := os.WriteFile(prettierPath, []byte(prettierContent), 0644); err != nil {
+		return fmt.Errorf("failed to write .prettierrc.json: %w", err)
+	}
+
+	// Generate .prettierignore (Prettier ignore file)
+	prettierIgnoreContent := generateTypeScriptPrettierIgnore()
+	prettierIgnorePath := filepath.Join(packageDir, ".prettierignore")
+	// #nosec G306 -- 0644 is appropriate for ignore files
+	if err := os.WriteFile(prettierIgnorePath, []byte(prettierIgnoreContent), 0644); err != nil {
+		return fmt.Errorf("failed to write .prettierignore: %w", err)
+	}
+
+	return nil
+}
+
+// generateTypeScriptESLintConfig generates .eslintrc.json configuration
+func generateTypeScriptESLintConfig() string {
+	return `{
+  "env": {
+    "browser": true,
+    "es2021": true,
+    "node": true,
+    "jest": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module",
+    "project": "./tsconfig.json"
+  },
+  "plugins": [
+    "@typescript-eslint"
+  ],
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/explicit-function-return-type": "off",
+    "@typescript-eslint/explicit-module-boundary-types": "off",
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_"
+      }
+    ],
+    "no-console": "off"
+  },
+  "ignorePatterns": [
+    "dist",
+    "node_modules",
+    "*.js",
+    "coverage"
+  ]
+}
+`
+}
+
+// generateTypeScriptPrettierConfig generates .prettierrc.json configuration
+func generateTypeScriptPrettierConfig() string {
+	return `{
+  "semi": true,
+  "trailingComma": "es5",
+  "singleQuote": true,
+  "printWidth": 100,
+  "tabWidth": 2,
+  "useTabs": false,
+  "arrowParens": "always",
+  "endOfLine": "lf"
+}
+`
+}
+
+// generateTypeScriptPrettierIgnore generates .prettierignore file
+func generateTypeScriptPrettierIgnore() string {
+	return `# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Generated files
+coverage/
+.nyc_output/
+
+# Logs
+*.log
 `
 }

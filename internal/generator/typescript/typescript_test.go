@@ -27,6 +27,9 @@ func TestGenerateTypeScriptSDK(t *testing.T) {
 		filepath.Join(tmpDir, "test-sdk", "tsconfig.json"),
 		filepath.Join(tmpDir, "test-sdk", "README.md"),
 		filepath.Join(tmpDir, "test-sdk", ".gitignore"),
+		filepath.Join(tmpDir, "test-sdk", ".eslintrc.json"),
+		filepath.Join(tmpDir, "test-sdk", ".prettierrc.json"),
+		filepath.Join(tmpDir, "test-sdk", ".prettierignore"),
 		filepath.Join(tmpDir, "test-sdk", "src", "index.ts"),
 		filepath.Join(tmpDir, "test-sdk", "src", "client.ts"),
 		filepath.Join(tmpDir, "test-sdk", "src", "exceptions.ts"),
@@ -1854,5 +1857,75 @@ func TestGenerateTypeScriptSDK_ReadmeGeneration(t *testing.T) {
 	}
 	if !common.Contains(contentStr, "Usage") {
 		t.Error("README.md should contain Usage section")
+	}
+}
+
+func TestGenerateTypeScriptSDK_QualityConfigs(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	sdkName := common.TestSDKName
+	httpLib := "axios"
+
+	extractedData := common.CreateTestExtractedData()
+	err := GenerateTypeScriptSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, common.DefaultRetryConfig())
+	if err != nil {
+		t.Fatalf("GenerateTypeScriptSDK() error = %v", err)
+	}
+
+	// Verify ESLint config was generated
+	eslintPath := filepath.Join(tmpDir, "test-sdk", ".eslintrc.json")
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(eslintPath)
+	if err != nil {
+		t.Fatalf("Failed to read .eslintrc.json: %v", err)
+	}
+
+	contentStr := string(content)
+	if !common.Contains(contentStr, "eslint:recommended") {
+		t.Error(".eslintrc.json should contain eslint:recommended")
+	}
+	if !common.Contains(contentStr, "@typescript-eslint") {
+		t.Error(".eslintrc.json should contain @typescript-eslint configuration")
+	}
+
+	// Verify Prettier config was generated
+	prettierPath := filepath.Join(tmpDir, "test-sdk", ".prettierrc.json")
+	// #nosec G304 -- File path is from test, safe to read
+	content, err = os.ReadFile(prettierPath)
+	if err != nil {
+		t.Fatalf("Failed to read .prettierrc.json: %v", err)
+	}
+
+	contentStr = string(content)
+	if !common.Contains(contentStr, "singleQuote") {
+		t.Error(".prettierrc.json should contain singleQuote setting")
+	}
+	if !common.Contains(contentStr, "semi") {
+		t.Error(".prettierrc.json should contain semi setting")
+	}
+
+	// Verify Prettier ignore was generated
+	prettierIgnorePath := filepath.Join(tmpDir, "test-sdk", ".prettierignore")
+	if _, err := os.Stat(prettierIgnorePath); os.IsNotExist(err) {
+		t.Error("GenerateTypeScriptSDK() should create .prettierignore")
+	}
+
+	// Verify package.json includes ESLint and Prettier dependencies
+	packageJSONPath := filepath.Join(tmpDir, "test-sdk", "package.json")
+	// #nosec G304 -- File path is from test, safe to read
+	content, err = os.ReadFile(packageJSONPath)
+	if err != nil {
+		t.Fatalf("Failed to read package.json: %v", err)
+	}
+
+	contentStr = string(content)
+	if !common.Contains(contentStr, "eslint") {
+		t.Error("package.json should contain eslint in devDependencies")
+	}
+	if !common.Contains(contentStr, "@typescript-eslint") {
+		t.Error("package.json should contain @typescript-eslint packages in devDependencies")
+	}
+	if !common.Contains(contentStr, "prettier") {
+		t.Error("package.json should contain prettier in devDependencies")
 	}
 }

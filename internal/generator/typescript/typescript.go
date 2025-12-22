@@ -235,6 +235,11 @@ func generateTypeScriptSDKFromExtracted(
 		return fmt.Errorf("failed to write .gitignore: %w", err)
 	}
 
+	// Generate code quality configuration files
+	if err := generateTypeScriptQualityConfigs(packageDir); err != nil {
+		return fmt.Errorf("failed to generate quality configs: %w", err)
+	}
+
 	// Generate tests/ directory if test generation is enabled
 	if generateTests {
 		if err := generateTypeScriptTests(packageDir, srcDir, data, extractedData); err != nil {
