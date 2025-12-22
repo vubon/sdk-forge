@@ -130,7 +130,10 @@ func generatePHPSDKFromExtracted(
 	if err != nil {
 		return fmt.Errorf("failed to generate client: %w", err)
 	}
-	clientPath := filepath.Join(srcDir, fmt.Sprintf("%sClient.php", sanitizedName))
+	// Use client class name for filename to match PSR-4 autoloading requirements
+	// The class name is already determined by GetClientClassName (e.g., "Petstore")
+	clientFileName := fmt.Sprintf("%s.php", data.ClientClassName)
+	clientPath := filepath.Join(srcDir, clientFileName)
 	// #nosec G306 -- 0644 is appropriate for PHP source files
 	if err := os.WriteFile(clientPath, []byte(clientContent), 0644); err != nil {
 		return fmt.Errorf("failed to write client class: %w", err)
@@ -196,7 +199,7 @@ func generatePHPSDKFromExtracted(
 	}
 
 	// Generate ApiException.php
-	exceptionContent := generatePHPException()
+	exceptionContent := generatePHPException(data.SDKName)
 	exceptionPath := filepath.Join(exceptionsDir, "ApiException.php")
 	// #nosec G306 -- 0644 is appropriate for PHP source files
 	if err := os.WriteFile(exceptionPath, []byte(exceptionContent), 0644); err != nil {
@@ -279,22 +282,28 @@ func generatePHPComposerJSON(sdkName, sdkVersion, httpLib string, version common
 		}
 	}
 
-	namespace := fmt.Sprintf("Vendor\\%s", common.ToPascalCase(sdkName))
+	namespace := fmt.Sprintf("Vendor\\%s\\", common.ToPascalCase(sdkName))
+	// Escape namespace for JSON: each backslash must be doubled for JSON
+	// Namespace includes trailing backslash for PSR-4 autoloading
+	// "Vendor\Petstore\" becomes "Vendor\\Petstore\\" in JSON
+	namespaceEscaped := strings.ReplaceAll(namespace, `\`, `\\`)
 
 	// Prepare template data
 	type ComposerData struct {
-		SDKName      string
-		SDKVersion   string
-		PHPVersion   string
-		Dependencies string
-		Namespace    string
+		SDKName          string
+		SDKVersion       string
+		PHPVersion       string
+		Dependencies     string
+		Namespace        string
+		NamespaceEscaped string
 	}
 	templateData := ComposerData{
-		SDKName:      strings.ToLower(sdkName),
-		SDKVersion:   sdkVersion,
-		PHPVersion:   version.GetPHPVersionString(),
-		Dependencies: dependencies.String(),
-		Namespace:    namespace,
+		SDKName:          strings.ToLower(sdkName),
+		SDKVersion:       sdkVersion,
+		PHPVersion:       version.GetPHPVersionString(),
+		Dependencies:     dependencies.String(),
+		Namespace:        namespace,
+		NamespaceEscaped: namespaceEscaped,
 	}
 
 	// Load and render template
@@ -319,10 +328,11 @@ func generatePHPComposerJSON(sdkName, sdkVersion, httpLib string, version common
 // generatePHPAPIModule is now implemented in php_api.go
 
 // generatePHPException generates PHP exception class
-func generatePHPException() string {
-	return `<?php
+func generatePHPException(sdkName string) string {
+	namespace := fmt.Sprintf("Vendor\\%s", common.ToPascalCase(sdkName))
+	return fmt.Sprintf(`<?php
 
-namespace Vendor\SdkName\Exceptions;
+namespace %s\Exceptions;
 
 class ApiException extends \Exception
 {
@@ -340,7 +350,7 @@ class ApiException extends \Exception
         return $this->responseBody;
     }
 }
-`
+`, namespace)
 }
 
 // generatePHPReadme generates README.md for PHP SDK using template

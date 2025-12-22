@@ -12,12 +12,12 @@
     },
     "autoload": {
         "psr-4": {
-            "{{.Namespace}}\\": "src/"
+            "{{.NamespaceEscaped}}": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "{{.Namespace}}\\Tests\\": "tests/"
+            "{{.NamespaceEscaped}}Tests\\": "tests/"
         }
     }
 }
