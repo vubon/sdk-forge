@@ -1083,8 +1083,8 @@ Error: unsupported language: php
 ```
 
 **Solution:**
-- Check supported languages: `python`, `go`, `all`
-- Future languages (php, js, ts) coming soon
+- Check supported languages: `python`, `go`, `php`, `all`
+- Future languages (js, ts) coming soon
 
 #### 5. "Test generation failed"
 
