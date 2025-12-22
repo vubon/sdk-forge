@@ -164,8 +164,8 @@ Path to your OpenAPI schema file or URL.
 
 Target programming language for SDK generation.
 
-- **Options**: `python`, `go`, `all`
-- **Future**: `php`, `js`, `ts`, `ruby`
+- **Options**: `python`, `go`, `php`, `all`
+- **Future**: `js`, `ts`, `ruby`
 - **Special**: `all` generates SDKs for all available languages
 
 #### `--name` / `-n`
@@ -189,8 +189,11 @@ Output directory where SDKs will be generated.
 output/
 ├── python/
 │   └── sdk-name/
-└── go/
+├── go/
+│   └── sdk-name/
+└── php/
     └── sdk-name/
+        └── PascalCaseName/
 ```
 
 #### `--http-lib`
@@ -206,6 +209,9 @@ HTTP library to use for the generated SDK.
 **Go Options:**
 - `net/http` (default, standard library)
 
+**PHP Options:**
+- `guzzle` (default)
+
 #### `--go-version`
 
 Target Go version for the generated SDK.
@@ -220,6 +226,14 @@ Target Python version for the generated SDK.
 
 - **Options**: `3.11`, `3.12`, `3.13`, `3.14`
 - **Default**: `3.11`
+- Affects type hints and language features
+
+#### `--php-version`
+
+Target PHP version for the generated SDK.
+
+- **Options**: `8.0`, `8.1`, `8.2`, `8.3`
+- **Default**: `8.1`
 - Affects type hints and language features
 
 #### `--sdk-version`
@@ -311,6 +325,7 @@ $ sdk-forge generate --schema api.yaml
 ? Select language: 
   ▸ python
     go
+    php
     all
 
 ? Enter SDK name: my-api-sdk
@@ -358,7 +373,7 @@ Ensure your OpenAPI schema is valid:
 **2. Choose Your Language**
 
 Decide which language(s) to generate:
-- Single language: `--lang python` or `--lang go`
+- Single language: `--lang python`, `--lang go`, or `--lang php`
 - All languages: `--lang all`
 
 **3. Set Output Directory**
@@ -609,6 +624,88 @@ cd ./sdks/go/my-api-client
 go test ./...
 ```
 
+### PHP SDK Guide
+
+#### Installation
+
+```bash
+cd ./sdks/php/my-api-sdk/PascalCaseName
+composer install
+```
+
+#### Basic Usage
+
+```php
+<?php
+require_once 'vendor/autoload.php';
+
+use Vendor\MyApiSdk\MyApiSdk;
+use Vendor\MyApiSdk\Api\UsersApi;
+
+// Initialize client
+$client = new MyApiSdk(
+    baseUrl: "https://api.example.com/v1",
+    options: ['apiKey' => 'your-api-key']
+);
+
+// Use API classes
+$usersApi = new UsersApi($client);
+$response = $usersApi->listUsers();
+```
+
+#### Authentication
+
+**API Key:**
+```php
+$client = new MyApiSdk(
+    baseUrl: "https://api.example.com/v1",
+    options: ['apiKey' => 'your-api-key']
+);
+```
+
+**Bearer Token:**
+```php
+$client = new MyApiSdk(
+    baseUrl: "https://api.example.com/v1",
+    options: ['bearer_token' => 'your-token']
+);
+```
+
+**Basic Auth:**
+```php
+$client = new MyApiSdk(
+    baseUrl: "https://api.example.com/v1",
+    options: [
+        'username' => 'user',
+        'password' => 'pass'
+    ]
+);
+```
+
+**OAuth2:**
+```php
+$client = new MyApiSdk(
+    baseUrl: "https://api.example.com/v1",
+    options: ['oauth2_token' => 'your-oauth-token']
+);
+```
+
+**OpenID Connect:**
+```php
+$client = new MyApiSdk(
+    baseUrl: "https://api.example.com/v1",
+    options: ['openIdConnect_token' => 'your-openid-token']
+);
+```
+
+#### Running Tests
+
+```bash
+cd ./sdks/php/my-api-sdk/PascalCaseName
+composer install
+vendor/bin/phpunit
+```
+
 ---
 
 ## Advanced Usage
@@ -639,6 +736,14 @@ sdk-forge generate \
   --schema api.yaml \
   --lang go \
   --go-version 1.25 \
+  --name my-api \
+  --output ./sdks
+
+# PHP 8.3
+sdk-forge generate \
+  --schema api.yaml \
+  --lang php \
+  --php-version 8.3 \
   --name my-api \
   --output ./sdks
 ```

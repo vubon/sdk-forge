@@ -5,6 +5,25 @@ All notable changes to SDK Forge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-12-22
+
+### Added
+- **PHP SDK Generation**: Full support for PHP SDK generation
+  - PHP versions: 8.0, 8.1, 8.2, 8.3 (Default: 8.1)
+  - HTTP Library: Guzzle (default)
+  - PSR-4 autoloading support with Composer
+  - Full authentication support (API Key, Bearer, Basic, OAuth2, OpenID Connect)
+  - Retry mechanism support with all strategies (exponential, linear, fixed)
+  - Automatic test generation with PHPUnit
+  - Code quality tools: PHP-CS-Fixer, PHPStan, PHP_CodeSniffer
+  - Comprehensive README and examples generation
+  - Manual integration test support
+
+### Fixed
+- **PHP PSR-4 Autoloading**: Fixed client class filename to match class name (e.g., `Petstore.php` instead of `PetstoreClient.php`)
+- **PHP ApiException Namespace**: Fixed hardcoded namespace placeholder to use actual SDK name
+- **PHP Composer.json**: Fixed namespace escaping for proper JSON formatting with PSR-4 autoloading
+
 ## [0.4.0] - 2025-12-22
 
 ### Added
