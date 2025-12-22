@@ -5,32 +5,43 @@ import (
 	_ "embed"
 	"fmt"
 	"text/template"
+
+	common "github.com/vubon/sdk-forge/internal/generator/common"
 )
 
-//go:embed templates/go/client.go.tmpl
+//go:embed go/templates/client.go.tmpl
 var goClientTemplate string
 
-//go:embed templates/go/go.mod.tmpl
+//go:embed go/templates/go.mod.tmpl
 var goModTemplate string
 
-//go:embed templates/go/README.md.tmpl
+//go:embed go/templates/README.md.tmpl
 var goReadmeTemplate string
 
-//go:embed templates/python/client.py.tmpl
+//go:embed python/templates/client.py.tmpl
 var pythonClientTemplate string
 
-//go:embed templates/python/__init__.py.tmpl
+//go:embed python/templates/__init__.py.tmpl
 var pythonInitTemplate string
 
-//go:embed templates/python/setup.py.tmpl
+//go:embed python/templates/setup.py.tmpl
 var pythonSetupTemplate string
 
-//go:embed templates/python/README.md.tmpl
+//go:embed python/templates/README.md.tmpl
 var pythonReadmeTemplate string
+
+//go:embed php/templates/client.php.tmpl
+var phpClientTemplate string
+
+//go:embed php/templates/composer.json.tmpl
+var phpComposerTemplate string
+
+//go:embed php/templates/README.md.tmpl
+var phpReadmeTemplate string
 
 // LoadTemplate loads and parses a template string with custom functions
 func LoadTemplate(tmplContent string) (*template.Template, error) {
-	tmpl, err := template.New("sdk").Funcs(FuncMap()).Parse(tmplContent)
+	tmpl, err := template.New("sdk").Funcs(common.FuncMap()).Parse(tmplContent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse template: %w", err)
 	}
@@ -70,4 +81,19 @@ func GetPythonSetupTemplate() string {
 // GetPythonReadmeTemplate returns the Python README template
 func GetPythonReadmeTemplate() string {
 	return pythonReadmeTemplate
+}
+
+// GetPHPClientTemplate returns the PHP client template
+func GetPHPClientTemplate() string {
+	return phpClientTemplate
+}
+
+// GetPHPComposerTemplate returns the PHP composer.json template
+func GetPHPComposerTemplate() string {
+	return phpComposerTemplate
+}
+
+// GetPHPReadmeTemplate returns the PHP README template
+func GetPHPReadmeTemplate() string {
+	return phpReadmeTemplate
 }

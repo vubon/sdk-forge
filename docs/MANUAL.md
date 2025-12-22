@@ -1,6 +1,6 @@
 # SDK Forge - User Manual
 
-**Version**: 0.3.0  
+**Version**: 0.5.0  
 **Last Updated**: December 2025
 
 A comprehensive guide to using SDK Forge to generate production-ready SDKs from OpenAPI schemas.
@@ -164,8 +164,8 @@ Path to your OpenAPI schema file or URL.
 
 Target programming language for SDK generation.
 
-- **Options**: `python`, `go`, `all`
-- **Future**: `php`, `js`, `ts`, `ruby`
+- **Options**: `python`, `go`, `php`, `all`
+- **Future**: `js`, `ts`, `ruby`
 - **Special**: `all` generates SDKs for all available languages
 
 #### `--name` / `-n`
@@ -189,8 +189,11 @@ Output directory where SDKs will be generated.
 output/
 ├── python/
 │   └── sdk-name/
-└── go/
+├── go/
+│   └── sdk-name/
+└── php/
     └── sdk-name/
+        └── PascalCaseName/
 ```
 
 #### `--http-lib`
@@ -206,6 +209,9 @@ HTTP library to use for the generated SDK.
 **Go Options:**
 - `net/http` (default, standard library)
 
+**PHP Options:**
+- `guzzle` (default)
+
 #### `--go-version`
 
 Target Go version for the generated SDK.
@@ -220,6 +226,14 @@ Target Python version for the generated SDK.
 
 - **Options**: `3.11`, `3.12`, `3.13`, `3.14`
 - **Default**: `3.11`
+- Affects type hints and language features
+
+#### `--php-version`
+
+Target PHP version for the generated SDK.
+
+- **Options**: `8.0`, `8.1`, `8.2`, `8.3`
+- **Default**: `8.1`
 - Affects type hints and language features
 
 #### `--sdk-version`
@@ -311,6 +325,7 @@ $ sdk-forge generate --schema api.yaml
 ? Select language: 
   ▸ python
     go
+    php
     all
 
 ? Enter SDK name: my-api-sdk
@@ -358,7 +373,7 @@ Ensure your OpenAPI schema is valid:
 **2. Choose Your Language**
 
 Decide which language(s) to generate:
-- Single language: `--lang python` or `--lang go`
+- Single language: `--lang python`, `--lang go`, or `--lang php`
 - All languages: `--lang all`
 
 **3. Set Output Directory**
@@ -417,197 +432,52 @@ Location: ./sdks/python/my-api/
 - Test files (if not skipped)
 - Usage examples
 
+**For PHP:**
+- PSR-4 autoloading structure with `composer.json`
+- Client class with authentication
+- Data models from schemas
+- API classes organized by tags
+- PHPUnit test suite (if not skipped)
+- Usage examples
+- Code quality configuration (PHP-CS-Fixer, PHPStan, PHP_CodeSniffer)
+
 ---
 
 ## Language-Specific Guides
 
-### Python SDK Guide
+For detailed, language-specific documentation, see the dedicated guides:
 
-#### Installation
+- **[Python SDK Guide](languages/python.md)** - Complete Python SDK documentation
+  - Installation and setup
+  - Basic usage and examples
+  - Authentication methods
+  - HTTP libraries (requests, httpx, aiohttp, urllib3)
+  - Retry mechanism
+  - Testing with pytest
+  - Advanced usage patterns
+  - Troubleshooting
 
-```bash
-cd ./sdks/python/my-api-sdk
-pip install -e .
-```
+- **[Go SDK Guide](languages/go.md)** - Complete Go SDK documentation
+  - Installation and setup
+  - Basic usage and examples
+  - Authentication methods
+  - HTTP libraries (net/http, resty, gentleman)
+  - Retry mechanism
+  - Testing with go test
+  - Advanced usage patterns
+  - Troubleshooting
 
-#### Basic Usage
+- **[PHP SDK Guide](languages/php.md)** - Complete PHP SDK documentation
+  - Installation with Composer
+  - Basic usage and examples
+  - Authentication methods
+  - HTTP libraries (Guzzle)
+  - Retry mechanism
+  - Testing with PHPUnit
+  - Advanced usage patterns
+  - Troubleshooting
 
-```python
-from my_api_sdk import MyApiSdk
-
-# Initialize client
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    apiKey="your-api-key"  # If using API key auth
-)
-
-# Make API calls
-response = client.list_users()
-users = response.json()
-```
-
-#### Authentication
-
-**API Key:**
-```python
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    apiKey="your-api-key"
-)
-```
-
-**Bearer Token:**
-```python
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    bearer_token="your-token"
-)
-```
-
-**Basic Auth:**
-```python
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    username="user",
-    password="pass"
-)
-```
-
-**OAuth2:**
-```python
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    oauth2_token="your-oauth-token"
-)
-```
-
-**OpenID Connect:**
-```python
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    openIdConnect_token="your-openid-token"
-)
-```
-
-**Digest Authentication:**
-```python
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    username="user",
-    password="pass"
-)
-# Digest auth is automatically used when both username and password are provided
-# and the OpenAPI schema specifies digest authentication
-```
-
-**Mutual TLS (mTLS):**
-```python
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    # mTLS is configured via client certificates
-    # Requires additional SSL/TLS configuration
-)
-```
-
-#### Running Tests
-
-```bash
-cd ./sdks/python/my-api-sdk
-pip install -e ".[dev]"
-pytest tests/
-```
-
-### Go SDK Guide
-
-#### Installation
-
-```bash
-cd ./sdks/go/my-api-client
-go mod download
-```
-
-#### Basic Usage
-
-```go
-package main
-
-import (
-    "fmt"
-    "github.com/example/my-api-client"
-)
-
-func main() {
-    // Initialize client
-    client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-    
-    // Set authentication
-    client.ApiKey = "your-api-key"
-    
-    // Make API calls
-    data, err := client.ListUsers()
-    if err != nil {
-        panic(err)
-    }
-    
-    fmt.Println(string(data))
-}
-```
-
-#### Authentication
-
-**API Key:**
-```go
-client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-client.ApiKey = "your-api-key"
-```
-
-**Bearer Token:**
-```go
-client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-client.BearerToken = "your-token"
-```
-
-**Basic Auth:**
-```go
-client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-client.Username = "user"
-client.Password = "pass"
-```
-
-**OAuth2:**
-```go
-client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-client.OAuth2Token = "your-oauth-token"
-```
-
-**OpenID Connect:**
-```go
-client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-client.OpenIdConnectToken = "your-openid-token"
-```
-
-**Digest Authentication:**
-```go
-client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-client.Username = "user"
-client.Password = "pass"
-// Digest auth is automatically used when both username and password are provided
-// and the OpenAPI schema specifies digest authentication
-```
-
-**Mutual TLS (mTLS):**
-```go
-client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-// mTLS is configured via client certificates
-// Requires additional SSL/TLS configuration
-```
-
-#### Running Tests
-
-```bash
-cd ./sdks/go/my-api-client
-go test ./...
-```
+Each guide includes comprehensive examples, best practices, and troubleshooting tips specific to that language.
 
 ---
 
@@ -639,6 +509,14 @@ sdk-forge generate \
   --schema api.yaml \
   --lang go \
   --go-version 1.25 \
+  --name my-api \
+  --output ./sdks
+
+# PHP 8.3
+sdk-forge generate \
+  --schema api.yaml \
+  --lang php \
+  --php-version 8.3 \
   --name my-api \
   --output ./sdks
 ```
@@ -978,8 +856,8 @@ Error: unsupported language: php
 ```
 
 **Solution:**
-- Check supported languages: `python`, `go`, `all`
-- Future languages (php, js, ts) coming soon
+- Check supported languages: `python`, `go`, `php`, `all`
+- Future languages (js, ts) coming soon
 
 #### 5. "Test generation failed"
 

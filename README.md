@@ -4,7 +4,7 @@ A powerful CLI tool written in Go that generates production-ready SDKs for multi
 
 ## Status
 
-✅ **v0.4.0** - Go and Python SDK generation with automatic test generation and retry mechanism fully implemented
+✅ **v0.5.0** - Go, Python, and PHP SDK generation with automatic test generation and retry mechanism fully implemented
 
 > This project follows [Semantic Versioning 2.0.0](https://semver.org/). Current version is a stable release.
 
@@ -29,13 +29,20 @@ sdk-forge generate \
   --lang go \
   --name my-api-client \
   --output ./sdks
+
+# Generate a PHP SDK
+sdk-forge generate \
+  --schema examples/petstore.yaml \
+  --lang php \
+  --name my-api-sdk \
+  --output ./sdks
 ```
 
 ## Features
 
-- 🚀 **Multi-Language Support**: Generate SDKs for Go and Python (PHP, JavaScript/TypeScript coming soon)
+- 🚀 **Multi-Language Support**: Generate SDKs for Go, Python, and PHP (JavaScript/TypeScript coming soon)
 - 📦 **Template-Based Generation**: Clean, maintainable template system
-- 🔧 **Language Version Configuration**: Specify target language versions (Go 1.24/1.25, Python 3.11-3.14)
+- 🔧 **Language Version Configuration**: Specify target language versions (Go 1.24/1.25, Python 3.11-3.14, PHP 8.0-8.3)
 - 📌 **SDK Version Management**: Automatic version extraction from OpenAPI schema
 - 🎨 **Code Formatting**: Automatic formatting for generated code (gofmt, black/autopep8)
 - 🔐 **Authentication Support**: Full support for all OpenAPI authentication methods
@@ -53,8 +60,13 @@ sdk-forge generate \
 - Versions: 1.24, 1.25 (Default: 1.24)
 - HTTP Libraries: `nethttp` (default), `resty`, `gentleman`
 
+### ✅ PHP
+- Versions: 8.0, 8.1, 8.2, 8.3 (Default: 8.1)
+- HTTP Libraries: `guzzle` (default)
+- PSR-4 autoloading support
+- Composer package management
+
 ### 🔜 Coming Soon
-- PHP
 - JavaScript/TypeScript
 
 ## Authentication
@@ -284,7 +296,7 @@ make clean
 
 SDK Forge follows [Semantic Versioning 2.0.0](https://semver.org/) (SemVer). The version is managed in the `VERSION` file and automatically injected during build.
 
-**Current Version**: `0.4.0`
+**Current Version**: `0.5.0`
 
 **Version Format**: `MAJOR.MINOR.PATCH-PRERELEASE`
 - **0.x.x**: Initial development (API may change)

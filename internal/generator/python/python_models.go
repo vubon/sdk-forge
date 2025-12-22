@@ -1,13 +1,15 @@
-package generator
+package python
 
 import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/vubon/sdk-forge/internal/generator/common"
 )
 
 // generatePythonModels generates Python data models from OpenAPI schemas
-func generatePythonModels(schemas map[string]*Schema) string {
+func generatePythonModels(schemas map[string]*common.Schema) string {
 	if len(schemas) == 0 {
 		return "# No data models defined in OpenAPI schema\n"
 	}
@@ -27,11 +29,11 @@ func generatePythonModels(schemas map[string]*Schema) string {
 }
 
 // generatePythonModel generates a single Python model class
-func generatePythonModel(name string, schema *Schema, allSchemas map[string]*Schema) string {
+func generatePythonModel(name string, schema *common.Schema, allSchemas map[string]*common.Schema) string {
 	var code strings.Builder
 
 	// Convert schema name to PascalCase for class name
-	className := toPascalCase(name)
+	className := common.ToPascalCase(name)
 
 	// Generate docstring
 	code.WriteString(fmt.Sprintf("@dataclass\nclass %s:\n", className))
@@ -55,7 +57,7 @@ func generatePythonModel(name string, schema *Schema, allSchemas map[string]*Sch
 }
 
 // generatePythonObjectFields generates fields for an object schema
-func generatePythonObjectFields(schema *Schema, allSchemas map[string]*Schema) string {
+func generatePythonObjectFields(schema *common.Schema, allSchemas map[string]*common.Schema) string {
 	var fields strings.Builder
 
 	if len(schema.Properties) == 0 {
@@ -72,7 +74,7 @@ func generatePythonObjectFields(schema *Schema, allSchemas map[string]*Schema) s
 	// Separate required and optional fields for proper dataclass ordering
 	type fieldInfo struct {
 		name        string
-		schema      *Schema
+		schema      *common.Schema
 		isRequired  bool
 		description string
 	}
@@ -112,7 +114,7 @@ func generatePythonObjectFields(schema *Schema, allSchemas map[string]*Schema) s
 	// Generate required fields first (no default values)
 	for _, info := range requiredFields {
 		fieldType := getPythonTypeFromSchema(info.schema, allSchemas)
-		fields.WriteString(fmt.Sprintf("    %s: %s\n", toSnakeCase(info.name), fieldType))
+		fields.WriteString(fmt.Sprintf("    %s: %s\n", common.ToSnakeCase(info.name), fieldType))
 		if info.description != "" {
 			fields.WriteString(fmt.Sprintf("    # %s\n", info.description))
 		}
@@ -121,7 +123,7 @@ func generatePythonObjectFields(schema *Schema, allSchemas map[string]*Schema) s
 	// Generate optional fields second (with default values)
 	for _, info := range optionalFields {
 		fieldType := getPythonTypeFromSchema(info.schema, allSchemas)
-		fields.WriteString(fmt.Sprintf("    %s: Optional[%s] = None\n", toSnakeCase(info.name), fieldType))
+		fields.WriteString(fmt.Sprintf("    %s: Optional[%s] = None\n", common.ToSnakeCase(info.name), fieldType))
 		if info.description != "" {
 			fields.WriteString(fmt.Sprintf("    # %s\n", info.description))
 		}
@@ -131,7 +133,7 @@ func generatePythonObjectFields(schema *Schema, allSchemas map[string]*Schema) s
 }
 
 // generatePythonArrayModel generates a model for array schemas
-func generatePythonArrayModel(_ string, schema *Schema, allSchemas map[string]*Schema) string {
+func generatePythonArrayModel(_ string, schema *common.Schema, allSchemas map[string]*common.Schema) string {
 	var code strings.Builder
 
 	itemType := "Any"
@@ -144,7 +146,7 @@ func generatePythonArrayModel(_ string, schema *Schema, allSchemas map[string]*S
 }
 
 // generatePythonPrimitiveModel generates a model for primitive types
-func generatePythonPrimitiveModel(_ string, schema *Schema) string {
+func generatePythonPrimitiveModel(_ string, schema *common.Schema) string {
 	var code strings.Builder
 	fieldType := getPythonType(schema)
 	code.WriteString(fmt.Sprintf("    value: %s\n", fieldType))
@@ -152,9 +154,9 @@ func generatePythonPrimitiveModel(_ string, schema *Schema) string {
 }
 
 // getPythonTypeFromSchema converts a schema to Python type hint, handling refs
-func getPythonTypeFromSchema(schema *Schema, _ map[string]*Schema) string {
+func getPythonTypeFromSchema(schema *common.Schema, _ map[string]*common.Schema) string {
 	if schema == nil {
-		return pythonTypeAny
+		return "any"
 	}
 
 	// Handle $ref
@@ -163,23 +165,23 @@ func getPythonTypeFromSchema(schema *Schema, _ map[string]*Schema) string {
 		refParts := strings.Split(schema.Ref, "/")
 		if len(refParts) > 0 {
 			refName := refParts[len(refParts)-1]
-			return toPascalCase(refName)
+			return common.ToPascalCase(refName)
 		}
 	}
 
 	// Handle object type (might be a nested object or reference)
-	if schema.Type == pythonTypeObject {
+	if schema.Type == "object" {
 		// If it has properties, it's an inline object - use Dict
 		if len(schema.Properties) > 0 {
-			return pythonTypeDict
+			return "dict"
 		}
 		// Otherwise might be a reference
-		return pythonTypeDict
+		return "dict"
 	}
 
 	// Handle array type
-	if schema.Type == pythonTypeArray {
-		itemType := pythonTypeAny
+	if schema.Type == "array" {
+		itemType := "any"
 		if schema.Items != nil {
 			itemType = getPythonTypeFromSchema(schema.Items, nil)
 		}

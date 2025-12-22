@@ -92,16 +92,16 @@ func GetConfig() *Config {
 				ClientClass: "GuzzleHttp\\Client",
 				Default:     true,
 			},
+			"symfony": {
+				Import:      "Symfony\\Component\\HttpClient\\HttpClient",
+				Dependency:  "symfony/http-client:^6.0",
+				ClientClass: "Symfony\\Component\\HttpClient\\HttpClient",
+				Default:     false,
+			},
 			"curl": {
 				Import:      "curl",
 				Dependency:  "", // Built-in PHP extension
 				ClientClass: "curl",
-				Default:     false,
-			},
-			"httpful": {
-				Import:      "Httpful\\Request",
-				Dependency:  "nategood/httpful:^0.3.0",
-				ClientClass: "Httpful\\Request",
 				Default:     false,
 			},
 		},

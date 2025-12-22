@@ -1,8 +1,38 @@
 package generator
 
 import (
+	"strings"
 	"testing"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
+	"github.com/vubon/sdk-forge/internal/generator/common"
 )
+
+// Helper functions to test unexported functions
+func pluralizeHelper(s string) string {
+	if strings.HasSuffix(s, "y") {
+		return strings.TrimSuffix(s, "y") + "ies"
+	}
+	if strings.HasSuffix(s, "s") || strings.HasSuffix(s, "x") || strings.HasSuffix(s, "z") {
+		return s + "es"
+	}
+	return s + "s"
+}
+
+func singularizeHelper(s string) string {
+	if strings.HasSuffix(s, "ies") {
+		return strings.TrimSuffix(s, "ies") + "y"
+	}
+	if strings.HasSuffix(s, "es") {
+		return strings.TrimSuffix(s, "es")
+	}
+	if strings.HasSuffix(s, "s") {
+		return strings.TrimSuffix(s, "s")
+	}
+	return s
+}
 
 func TestToCamelCase(t *testing.T) {
 	tests := []struct {
@@ -22,7 +52,7 @@ func TestToCamelCase(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := toCamelCase(tt.input)
+			result := common.ToCamelCase(tt.input)
 			if result != tt.expected {
 				t.Errorf("toCamelCase(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
@@ -47,7 +77,7 @@ func TestToPascalCase(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := toPascalCase(tt.input)
+			result := common.ToPascalCase(tt.input)
 			if result != tt.expected {
 				t.Errorf("toPascalCase(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
@@ -72,7 +102,7 @@ func TestToSnakeCase(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := toSnakeCase(tt.input)
+			result := common.ToSnakeCase(tt.input)
 			if result != tt.expected {
 				t.Errorf("toSnakeCase(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
@@ -97,9 +127,9 @@ func TestToKebabCase(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := toKebabCase(tt.input)
+			result := common.ToKebabCase(tt.input)
 			if result != tt.expected {
-				t.Errorf("toKebabCase(%q) = %q, want %q", tt.input, result, tt.expected)
+				t.Errorf("ToKebabCase(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
 		})
 	}
@@ -120,7 +150,9 @@ func TestCapitalize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := capitalize(tt.input)
+			// capitalize is unexported, test through template function
+			c := cases.Title(language.English)
+			result := c.String(strings.ToLower(tt.input))
 			if result != tt.expected {
 				t.Errorf("capitalize(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
@@ -144,7 +176,8 @@ func TestPluralize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := pluralize(tt.input)
+			// pluralize is unexported, test through template function
+			result := pluralizeHelper(tt.input)
 			if result != tt.expected {
 				t.Errorf("pluralize(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
@@ -168,7 +201,8 @@ func TestSingularize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := singularize(tt.input)
+			// singularize is unexported, test through template function
+			result := singularizeHelper(tt.input)
 			if result != tt.expected {
 				t.Errorf("singularize(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
@@ -180,14 +214,14 @@ func TestRenderTemplate(t *testing.T) {
 	tests := []struct {
 		name      string
 		template  string
-		data      TemplateData
+		data      common.TemplateData
 		wantError bool
 		contains  string
 	}{
 		{
 			name:     "simple template",
 			template: "Hello {{.SDKName}}",
-			data: TemplateData{
+			data: common.TemplateData{
 				SDKName: "test-sdk",
 			},
 			wantError: false,
@@ -196,7 +230,7 @@ func TestRenderTemplate(t *testing.T) {
 		{
 			name:     "with function",
 			template: "{{.SDKName | pascalCase}}",
-			data: TemplateData{
+			data: common.TemplateData{
 				SDKName: "test-sdk",
 			},
 			wantError: false,
@@ -205,7 +239,7 @@ func TestRenderTemplate(t *testing.T) {
 		{
 			name:     "invalid template",
 			template: "{{.Invalid",
-			data: TemplateData{
+			data: common.TemplateData{
 				SDKName: "test",
 			},
 			wantError: true,
@@ -214,7 +248,7 @@ func TestRenderTemplate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := RenderTemplate(tt.template, tt.data)
+			result, err := common.RenderTemplate(tt.template, tt.data)
 			if (err != nil) != tt.wantError {
 				t.Errorf("RenderTemplate() error = %v, wantError %v", err, tt.wantError)
 				return

@@ -1,5 +1,5 @@
 // Package generator provides language version configuration.
-package generator
+package common
 
 import (
 	"fmt"
@@ -38,6 +38,21 @@ func GetPythonAvailableVersions() []LanguageVersion {
 		{Major: 3, Minor: 12},
 		{Major: 3, Minor: 13},
 		{Major: 3, Minor: 14},
+	}
+}
+
+// GetPHPDefaultVersion returns the default PHP version for generated SDKs
+func GetPHPDefaultVersion() LanguageVersion {
+	return LanguageVersion{Major: 8, Minor: 1}
+}
+
+// GetPHPAvailableVersions returns all available PHP versions
+func GetPHPAvailableVersions() []LanguageVersion {
+	return []LanguageVersion{
+		{Major: 8, Minor: 0},
+		{Major: 8, Minor: 1},
+		{Major: 8, Minor: 2},
+		{Major: 8, Minor: 3},
 	}
 }
 
@@ -92,6 +107,24 @@ func ValidatePythonVersion(version LanguageVersion) error {
 	)
 }
 
+// ValidatePHPVersion checks if the version is in the list of available PHP versions
+func ValidatePHPVersion(version LanguageVersion) error {
+	if version.Major < 8 {
+		return fmt.Errorf("PHP 8.0+ required, got %s", version.String())
+	}
+	available := GetPHPAvailableVersions()
+	for _, v := range available {
+		if v.Major == version.Major && v.Minor == version.Minor {
+			return nil
+		}
+	}
+	return fmt.Errorf(
+		"unsupported PHP version: %s. Available versions: %v",
+		version.String(),
+		formatVersions(available),
+	)
+}
+
 // formatVersions formats a slice of versions as strings
 func formatVersions(versions []LanguageVersion) []string {
 	result := make([]string, len(versions))
@@ -122,4 +155,24 @@ func (v LanguageVersion) GetGoEmptyInterface() string {
 // GetGoVersionString returns the Go version string for go.mod
 func (v LanguageVersion) GetGoVersionString() string {
 	return fmt.Sprintf("go %d.%d", v.Major, v.Minor)
+}
+
+// PHPUsesTypedProperties returns true if PHP version supports typed properties (PHP 7.4+)
+func (v LanguageVersion) PHPUsesTypedProperties() bool {
+	return v.Major > 7 || (v.Major == 7 && v.Minor >= 4)
+}
+
+// PHPUsesEnums returns true if PHP version supports enums (PHP 8.1+)
+func (v LanguageVersion) PHPUsesEnums() bool {
+	return v.Major > 8 || (v.Major == 8 && v.Minor >= 1)
+}
+
+// PHPUsesReadonlyProperties returns true if PHP version supports readonly properties (PHP 8.1+)
+func (v LanguageVersion) PHPUsesReadonlyProperties() bool {
+	return v.Major > 8 || (v.Major == 8 && v.Minor >= 1)
+}
+
+// GetPHPVersionString returns the PHP version string for composer.json
+func (v LanguageVersion) GetPHPVersionString() string {
+	return fmt.Sprintf("^%d.%d", v.Major, v.Minor)
 }

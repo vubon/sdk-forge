@@ -1,0 +1,97 @@
+<?php
+
+namespace {{.Namespace}};
+
+{{.Imports}}
+
+/**
+ * {{.DisplayName}} API Client
+ * Auto-generated from OpenAPI schema
+ */
+class {{.ClientClassName}}
+{
+    private string $baseUrl;
+    private {{.HTTPClientType}} $httpClient;
+
+{{.AuthFields}}
+{{- if .RetryEnabled}}
+{{.RetryFields}}
+{{- end}}
+
+    /**
+     * Create a new API client
+     *
+     * @param string $baseUrl Base URL for the API
+     * @param array<string, mixed> $options Client options (http_client, auth, retry, etc.)
+     */
+    public function __construct(string $baseUrl = "{{.BaseURLDefault}}", array $options = [])
+    {
+        $this->baseUrl = rtrim($baseUrl, '/');
+        $this->httpClient = $options['http_client'] ?? new {{.HTTPClientType}}();
+
+{{.AuthSetup}}
+{{- if .RetryEnabled}}
+{{.RetryInit}}
+{{- end}}
+    }
+
+{{- if .RetryEnabled}}
+{{.RetryHelper}}
+{{- end}}
+
+    /**
+     * Make an HTTP request
+{{- if .RetryEnabled}}
+     * Includes automatic retry logic for transient failures
+{{- end}}
+     *
+     * @param string $method HTTP method
+     * @param string $path API path
+     * @param array<string, mixed> $options Request options
+     * @return array<string, mixed> Response data
+     * @throws ApiException
+     */
+    public function request(string $method, string $path, array $options = []): array
+    {
+        $url = $this->baseUrl . $path;
+
+        // Apply authentication
+        $this->applyAuth($options);
+
+{{- if .RetryEnabled}}
+        // Use retry logic if enabled
+        return $this->requestWithRetry($method, $url, $options);
+{{- else}}
+        // Make request
+        try {
+            $response = $this->httpClient->{{.HTTPClientMethod}}($method, $url, $options);
+            $statusCode = $response->getStatusCode();
+
+            if ($statusCode >= 400) {
+                $body = $response->getBody()->getContents();
+                throw new ApiException(
+                    "API error: {$statusCode} - {$body}",
+                    $statusCode,
+                    null,
+                    json_decode($body, true)
+                );
+            }
+
+            return json_decode($response->getBody()->getContents(), true);
+        } catch (\GuzzleHttp\Exception\RequestException $e) {
+            throw new ApiException($e->getMessage(), $e->getCode(), $e);
+        }
+{{- end}}
+    }
+
+    /**
+     * Apply authentication to request options
+     *
+     * @param array<string, mixed> $options Request options (modified in place)
+     */
+    private function applyAuth(array &$options): void
+    {
+{{.AuthMethodBody}}
+    }
+}
+
