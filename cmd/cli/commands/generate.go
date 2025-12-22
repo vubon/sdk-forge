@@ -11,10 +11,12 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/spf13/cobra"
+
 	"github.com/vubon/sdk-forge/internal/generator/common"
 	gogen "github.com/vubon/sdk-forge/internal/generator/go"
 	"github.com/vubon/sdk-forge/internal/generator/php"
 	"github.com/vubon/sdk-forge/internal/generator/python"
+	"github.com/vubon/sdk-forge/internal/generator/typescript"
 	"github.com/vubon/sdk-forge/internal/parser"
 	"github.com/vubon/sdk-forge/internal/validator"
 	httplib "github.com/vubon/sdk-forge/pkg/languages/http"
@@ -399,7 +401,8 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 	case "php":
 		return php.GeneratePHPSDK(outputPath, sdkName, httpLib, doc, phpVer, sdkVerStr, generateTests, retryConfig)
 	case "javascript", "typescript":
-		return fmt.Errorf("JavaScript/TypeScript SDK generation not yet implemented")
+		// TypeScript version is not used yet, but reserved for future use
+		return typescript.GenerateTypeScriptSDK(outputPath, sdkName, httpLib, doc, nil, sdkVerStr, generateTests, retryConfig)
 	default:
 		return fmt.Errorf("unsupported language: %s", lang)
 	}

@@ -1,0 +1,15 @@
+// Auto-generated SDK entry point
+// This file exports all public APIs
+
+export { {{.ClientClassName}}, type ClientConfig{{if .RetryEnabled}}, type RetryConfig{{end}} } from './client';
+export { ApiException, NetworkException, TimeoutException } from './exceptions';
+
+// Export all models
+export * from './models';
+
+// Export all API modules
+export * from './api';
+
+// Default export (client)
+export default {{.ClientClassName}};
+

@@ -1,0 +1,46 @@
+{
+  "name": "{{.SDKName}}",
+  "version": "{{.SDKVersion}}",
+  "description": "Auto-generated TypeScript SDK from OpenAPI schema",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint src --ext .ts",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "sdk",
+    "api",
+    "typescript",
+    "openapi"
+  ],
+  "author": "SDK Forge",
+  "license": "MIT",
+  "dependencies": {
+    {{- if .HTTPLibDependency}}
+    "{{.HTTPLibPackage}}": "{{.HTTPLibVersion}}"
+    {{- end}}
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "jest": "^29.0.0",
+    "@types/jest": "^29.0.0",
+    "ts-jest": "^29.0.0"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs.js",
+      "types": "./dist/index.d.ts"
+    }
+  }
+}
+
