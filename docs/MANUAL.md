@@ -1,6 +1,6 @@
 # SDK Forge - User Manual
 
-**Version**: 0.3.0  
+**Version**: 0.5.0  
 **Last Updated**: December 2025
 
 A comprehensive guide to using SDK Forge to generate production-ready SDKs from OpenAPI schemas.
@@ -432,279 +432,52 @@ Location: ./sdks/python/my-api/
 - Test files (if not skipped)
 - Usage examples
 
+**For PHP:**
+- PSR-4 autoloading structure with `composer.json`
+- Client class with authentication
+- Data models from schemas
+- API classes organized by tags
+- PHPUnit test suite (if not skipped)
+- Usage examples
+- Code quality configuration (PHP-CS-Fixer, PHPStan, PHP_CodeSniffer)
+
 ---
 
 ## Language-Specific Guides
 
-### Python SDK Guide
+For detailed, language-specific documentation, see the dedicated guides:
 
-#### Installation
+- **[Python SDK Guide](languages/python.md)** - Complete Python SDK documentation
+  - Installation and setup
+  - Basic usage and examples
+  - Authentication methods
+  - HTTP libraries (requests, httpx, aiohttp, urllib3)
+  - Retry mechanism
+  - Testing with pytest
+  - Advanced usage patterns
+  - Troubleshooting
 
-```bash
-cd ./sdks/python/my-api-sdk
-pip install -e .
-```
+- **[Go SDK Guide](languages/go.md)** - Complete Go SDK documentation
+  - Installation and setup
+  - Basic usage and examples
+  - Authentication methods
+  - HTTP libraries (net/http, resty, gentleman)
+  - Retry mechanism
+  - Testing with go test
+  - Advanced usage patterns
+  - Troubleshooting
 
-#### Basic Usage
+- **[PHP SDK Guide](languages/php.md)** - Complete PHP SDK documentation
+  - Installation with Composer
+  - Basic usage and examples
+  - Authentication methods
+  - HTTP libraries (Guzzle)
+  - Retry mechanism
+  - Testing with PHPUnit
+  - Advanced usage patterns
+  - Troubleshooting
 
-```python
-from my_api_sdk import MyApiSdk
-
-# Initialize client
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    apiKey="your-api-key"  # If using API key auth
-)
-
-# Make API calls
-response = client.list_users()
-users = response.json()
-```
-
-#### Authentication
-
-**API Key:**
-```python
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    apiKey="your-api-key"
-)
-```
-
-**Bearer Token:**
-```python
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    bearer_token="your-token"
-)
-```
-
-**Basic Auth:**
-```python
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    username="user",
-    password="pass"
-)
-```
-
-**OAuth2:**
-```python
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    oauth2_token="your-oauth-token"
-)
-```
-
-**OpenID Connect:**
-```python
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    openIdConnect_token="your-openid-token"
-)
-```
-
-**Digest Authentication:**
-```python
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    username="user",
-    password="pass"
-)
-# Digest auth is automatically used when both username and password are provided
-# and the OpenAPI schema specifies digest authentication
-```
-
-**Mutual TLS (mTLS):**
-```python
-client = MyApiSdk(
-    base_url="https://api.example.com/v1",
-    # mTLS is configured via client certificates
-    # Requires additional SSL/TLS configuration
-)
-```
-
-#### Running Tests
-
-```bash
-cd ./sdks/python/my-api-sdk
-pip install -e ".[dev]"
-pytest tests/
-```
-
-### Go SDK Guide
-
-#### Installation
-
-```bash
-cd ./sdks/go/my-api-client
-go mod download
-```
-
-#### Basic Usage
-
-```go
-package main
-
-import (
-    "fmt"
-    "github.com/example/my-api-client"
-)
-
-func main() {
-    // Initialize client
-    client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-    
-    // Set authentication
-    client.ApiKey = "your-api-key"
-    
-    // Make API calls
-    data, err := client.ListUsers()
-    if err != nil {
-        panic(err)
-    }
-    
-    fmt.Println(string(data))
-}
-```
-
-#### Authentication
-
-**API Key:**
-```go
-client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-client.ApiKey = "your-api-key"
-```
-
-**Bearer Token:**
-```go
-client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-client.BearerToken = "your-token"
-```
-
-**Basic Auth:**
-```go
-client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-client.Username = "user"
-client.Password = "pass"
-```
-
-**OAuth2:**
-```go
-client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-client.OAuth2Token = "your-oauth-token"
-```
-
-**OpenID Connect:**
-```go
-client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-client.OpenIdConnectToken = "your-openid-token"
-```
-
-**Digest Authentication:**
-```go
-client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-client.Username = "user"
-client.Password = "pass"
-// Digest auth is automatically used when both username and password are provided
-// and the OpenAPI schema specifies digest authentication
-```
-
-**Mutual TLS (mTLS):**
-```go
-client := myapiclient.NewMyApiClient("https://api.example.com/v1")
-// mTLS is configured via client certificates
-// Requires additional SSL/TLS configuration
-```
-
-#### Running Tests
-
-```bash
-cd ./sdks/go/my-api-client
-go test ./...
-```
-
-### PHP SDK Guide
-
-#### Installation
-
-```bash
-cd ./sdks/php/my-api-sdk/PascalCaseName
-composer install
-```
-
-#### Basic Usage
-
-```php
-<?php
-require_once 'vendor/autoload.php';
-
-use Vendor\MyApiSdk\MyApiSdk;
-use Vendor\MyApiSdk\Api\UsersApi;
-
-// Initialize client
-$client = new MyApiSdk(
-    baseUrl: "https://api.example.com/v1",
-    options: ['apiKey' => 'your-api-key']
-);
-
-// Use API classes
-$usersApi = new UsersApi($client);
-$response = $usersApi->listUsers();
-```
-
-#### Authentication
-
-**API Key:**
-```php
-$client = new MyApiSdk(
-    baseUrl: "https://api.example.com/v1",
-    options: ['apiKey' => 'your-api-key']
-);
-```
-
-**Bearer Token:**
-```php
-$client = new MyApiSdk(
-    baseUrl: "https://api.example.com/v1",
-    options: ['bearer_token' => 'your-token']
-);
-```
-
-**Basic Auth:**
-```php
-$client = new MyApiSdk(
-    baseUrl: "https://api.example.com/v1",
-    options: [
-        'username' => 'user',
-        'password' => 'pass'
-    ]
-);
-```
-
-**OAuth2:**
-```php
-$client = new MyApiSdk(
-    baseUrl: "https://api.example.com/v1",
-    options: ['oauth2_token' => 'your-oauth-token']
-);
-```
-
-**OpenID Connect:**
-```php
-$client = new MyApiSdk(
-    baseUrl: "https://api.example.com/v1",
-    options: ['openIdConnect_token' => 'your-openid-token']
-);
-```
-
-#### Running Tests
-
-```bash
-cd ./sdks/php/my-api-sdk/PascalCaseName
-composer install
-vendor/bin/phpunit
-```
+Each guide includes comprehensive examples, best practices, and troubleshooting tips specific to that language.
 
 ---
 
