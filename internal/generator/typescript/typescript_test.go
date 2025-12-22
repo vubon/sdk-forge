@@ -9,6 +9,7 @@ import (
 )
 
 func TestGenerateTypeScriptSDK(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -39,6 +40,7 @@ func TestGenerateTypeScriptSDK(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_InvalidHTTPLib(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := "test-sdk"
 	httpLib := "invalid-lib"
@@ -51,6 +53,7 @@ func TestGenerateTypeScriptSDK_InvalidHTTPLib(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_CustomHTTPLib(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "fetch"
@@ -76,6 +79,7 @@ func TestGenerateTypeScriptSDK_CustomHTTPLib(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_PackageJSON(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -106,6 +110,7 @@ func TestGenerateTypeScriptSDK_PackageJSON(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_SDKNameSanitization(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		sdkName  string
@@ -137,6 +142,7 @@ func TestGenerateTypeScriptSDK_SDKNameSanitization(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_WithTests(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -167,6 +173,7 @@ func TestGenerateTypeScriptSDK_WithTests(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_WithoutTests(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -191,6 +198,7 @@ func TestGenerateTypeScriptSDK_WithoutTests(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_ModelGeneration(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -257,6 +265,7 @@ func TestGenerateTypeScriptSDK_ModelGeneration(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_APIGeneration(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -318,6 +327,7 @@ func TestGenerateTypeScriptSDK_APIGeneration(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_RetryConfig(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -357,6 +367,7 @@ func TestGenerateTypeScriptSDK_RetryConfig(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_NoRetryConfig(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -385,6 +396,7 @@ func TestGenerateTypeScriptSDK_NoRetryConfig(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_Examples(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -409,6 +421,7 @@ func TestGenerateTypeScriptSDK_Examples(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_TSConfig(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -437,6 +450,7 @@ func TestGenerateTypeScriptSDK_TSConfig(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_DifferentHTTPLibraries(t *testing.T) {
+	t.Parallel()
 	httpLibraries := []string{"axios", "fetch", "node-fetch", "ky"}
 
 	for _, httpLib := range httpLibraries {
@@ -468,6 +482,7 @@ func TestGenerateTypeScriptSDK_DifferentHTTPLibraries(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_Authentication(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -519,6 +534,7 @@ func TestGenerateTypeScriptSDK_Authentication(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_OpenAPIDoc(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -538,6 +554,7 @@ func TestGenerateTypeScriptSDK_OpenAPIDoc(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_InvalidOpenAPIDoc(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -550,6 +567,7 @@ func TestGenerateTypeScriptSDK_InvalidOpenAPIDoc(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_ArrayModel(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -588,6 +606,7 @@ func TestGenerateTypeScriptSDK_ArrayModel(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_APIMethodWithParams(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -654,6 +673,7 @@ func TestGenerateTypeScriptSDK_APIMethodWithParams(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_AllSchemaTypes(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -739,6 +759,7 @@ func TestGenerateTypeScriptSDK_AllSchemaTypes(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_ResponseTypes(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -823,6 +844,7 @@ func TestGenerateTypeScriptSDK_ResponseTypes(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_AllHTTPLibrariesDetailed(t *testing.T) {
+	t.Parallel()
 	httpLibraries := []struct {
 		name string
 		lib  string
@@ -873,6 +895,7 @@ func TestGenerateTypeScriptSDK_AllHTTPLibrariesDetailed(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_AllAuthTypes(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -939,6 +962,7 @@ func TestGenerateTypeScriptSDK_AllAuthTypes(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_ModelWithRef(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -984,6 +1008,7 @@ func TestGenerateTypeScriptSDK_ModelWithRef(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_ModelWithOptionalFields(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1031,6 +1056,7 @@ func TestGenerateTypeScriptSDK_ModelWithOptionalFields(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_APIMethodWithRequestBody(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1087,6 +1113,7 @@ func TestGenerateTypeScriptSDK_APIMethodWithRequestBody(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_OperationWithoutTags(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1121,6 +1148,7 @@ func TestGenerateTypeScriptSDK_OperationWithoutTags(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_EmptySchemas(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1146,6 +1174,7 @@ func TestGenerateTypeScriptSDK_EmptySchemas(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_EmptyOperations(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1167,6 +1196,7 @@ func TestGenerateTypeScriptSDK_EmptyOperations(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_CustomSDKVersion(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1198,6 +1228,7 @@ func TestGenerateTypeScriptSDK_CustomSDKVersion(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_ModelWithNestedObjects(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1251,6 +1282,7 @@ func TestGenerateTypeScriptSDK_ModelWithNestedObjects(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_ModelWithEmptyProperties(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1284,6 +1316,7 @@ func TestGenerateTypeScriptSDK_ModelWithEmptyProperties(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_ModelWithDescription(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1329,6 +1362,7 @@ func TestGenerateTypeScriptSDK_ModelWithDescription(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_APIMethodWithoutOperationID(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1371,6 +1405,7 @@ func TestGenerateTypeScriptSDK_APIMethodWithoutOperationID(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_APIMethodWithDescription(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1417,6 +1452,7 @@ func TestGenerateTypeScriptSDK_APIMethodWithDescription(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_AllParameterTypes(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1495,6 +1531,7 @@ func TestGenerateTypeScriptSDK_AllParameterTypes(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_NilSchemaProperties(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1534,6 +1571,7 @@ func TestGenerateTypeScriptSDK_NilSchemaProperties(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_AllIntegerTypes(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1580,6 +1618,7 @@ func TestGenerateTypeScriptSDK_AllIntegerTypes(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_RefWithInvalidPath(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1618,6 +1657,7 @@ func TestGenerateTypeScriptSDK_RefWithInvalidPath(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_ArrayWithNilItems(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1651,6 +1691,7 @@ func TestGenerateTypeScriptSDK_ArrayWithNilItems(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_ResponseWithNonJSONContent(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1698,6 +1739,7 @@ func TestGenerateTypeScriptSDK_ResponseWithNonJSONContent(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_ResponseWithNilSchema(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1744,6 +1786,7 @@ func TestGenerateTypeScriptSDK_ResponseWithNilSchema(t *testing.T) {
 }
 
 func TestGenerateTypeScriptSDK_PackageJSONWithDifferentDependencyFormats(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
@@ -1782,6 +1825,7 @@ func TestGenerateTypeScriptSDK_PackageJSONWithDifferentDependencyFormats(t *test
 }
 
 func TestGenerateTypeScriptSDK_ReadmeGeneration(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sdkName := common.TestSDKName
 	httpLib := "axios"
