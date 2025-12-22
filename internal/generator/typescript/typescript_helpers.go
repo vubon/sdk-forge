@@ -68,6 +68,7 @@ func generateTypeScriptPackageJSON(sdkName, sdkVersion, httpLib string, libConfi
 	packageJSON := map[string]interface{}{
 		"name":        sdkName,
 		"version":     sdkVersion,
+		"type":        "module", // ESM module type for Node.js
 		"description": "Auto-generated TypeScript SDK from OpenAPI schema",
 		"main":        "dist/index.js",
 		"types":       "dist/index.d.ts",
@@ -149,30 +150,29 @@ func generateTypeScriptIndex(data common.TemplateData) string {
 	buf.WriteString("// This file exports all public APIs\n\n")
 
 	// Export client
+	// Note: Use .js extensions for ESM compatibility (even in .ts files)
 	buf.WriteString(fmt.Sprintf("export { %s, type ClientConfig", data.ClientClassName))
 	if data.RetryConfig.Enabled {
 		buf.WriteString(", type RetryConfig")
 	}
-	buf.WriteString(" } from './client';\n\n")
+	buf.WriteString(" } from './client.js';\n")
+	buf.WriteString(fmt.Sprintf("export { %s as default } from './client.js';\n\n", data.ClientClassName))
 
 	// Export exceptions
-	buf.WriteString("export { ApiException, NetworkException, TimeoutException } from './exceptions';\n\n")
+	buf.WriteString("export { ApiException, NetworkException, TimeoutException } from './exceptions.js';\n\n")
 
 	// Export models if they exist
 	extractedData, ok := data.OpenAPIDoc.(*common.ExtractedData)
 	if ok && extractedData != nil && len(extractedData.Schemas) > 0 {
 		buf.WriteString("// Export all models\n")
-		buf.WriteString("export * from './models';\n\n")
+		buf.WriteString("export * from './models/index.js';\n\n")
 	}
 
 	// Export API modules if they exist
 	if ok && extractedData != nil && len(extractedData.Operations) > 0 {
 		buf.WriteString("// Export all API modules\n")
-		buf.WriteString("export * from './api';\n\n")
+		buf.WriteString("export * from './api/index.js';\n\n")
 	}
-
-	// Default export (client)
-	buf.WriteString(fmt.Sprintf("export default %s;\n", data.ClientClassName))
 
 	return buf.String()
 }

@@ -1,11 +1,11 @@
-import { ApiException } from './exceptions';
+import { ApiException } from './exceptions.js';
 {{- if .HTTPLibImport}}
 import {{.HTTPLibImportName}} from '{{.HTTPLibImport}}';
 {{- end}}
 
 export interface ClientConfig {
   baseUrl?: string;
-{{.AuthFields}}
+{{.AuthFieldsForInterface}}
 {{- if .RetryEnabled}}
   retryConfig?: RetryConfig;
 {{- end}}
@@ -18,6 +18,7 @@ export interface RetryConfig {
   strategy?: 'exponential' | 'linear' | 'fixed';
   initialDelay?: number;
   maxDelay?: number;
+  backoffMultiplier?: number;
   retryableStatusCodes?: number[];
   retryOnNetworkErrors?: boolean;
 }
@@ -27,9 +28,9 @@ export class {{.ClientClassName}} {
   private baseUrl: string;
   private httpClient: {{.HTTPClientType}};
 {{- if .RetryEnabled}}
-  private retryConfig: RetryConfig;
+{{.RetryFields}}
 {{- end}}
-{{.AuthFields}}
+{{.AuthFieldsForClass}}
 
   constructor(config: ClientConfig = {}) {
     this.baseUrl = (config.baseUrl || '{{.BaseURLDefault}}').replace(/\/$/, '');
@@ -51,8 +52,18 @@ export class {{.ClientClassName}} {
     {{- if .RetryEnabled}}
     return this.requestWithRetry<T>(url, options);
     {{- else}}
-    {{.RequestMethod}}
+    return this.executeRequest<T>(url, options);
     {{- end}}
+  }
+
+  private async executeRequest<T>(url: string, options: {
+    method: string;
+    url: string;
+    params?: Record<string, any>;
+    headers?: Record<string, string>;
+    body?: any;
+  }): Promise<T> {
+    {{.RequestMethod}}
   }
 
 {{- if .RetryEnabled}}

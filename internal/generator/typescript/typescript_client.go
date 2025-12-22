@@ -23,7 +23,9 @@ func generateTypeScriptClient(data common.TemplateData) (string, error) {
 	}
 
 	// Generate authentication setup
-	authFields := generateTypeScriptAuthFields(extractedData.SecuritySchemes)
+	// Separate fields for interface (no private) and class (with private)
+	authFieldsForInterface := generateTypeScriptAuthFieldsForInterface(extractedData.SecuritySchemes)
+	authFieldsForClass := generateTypeScriptAuthFieldsForClass(extractedData.SecuritySchemes)
 	authSetup := generateTypeScriptAuthSetup(extractedData.SecuritySchemes)
 
 	// Generate retry setup if enabled
@@ -43,39 +45,41 @@ func generateTypeScriptClient(data common.TemplateData) (string, error) {
 	tmpl, err := common.LoadTemplate(getTypeScriptClientTemplateContent())
 	if err != nil {
 		// Fallback to direct generation
-		return generateTypeScriptClientFallback(data, extractedData, baseURLDefault, authFields, authSetup, httpClientInit, retryFields, retryHelper, retryInit), nil
+		return generateTypeScriptClientFallback(data, extractedData, baseURLDefault, authFieldsForInterface, authFieldsForClass, authSetup, httpClientInit, retryFields, retryHelper, retryInit), nil
 	}
 
 	// Prepare template data
 	type TypeScriptClientData struct {
-		ClientClassName string
-		HTTPLibImport   string
-		BaseURLDefault  string
-		AuthFields      string
-		AuthSetup       string
-		HTTPClientInit  string
-		RetryEnabled    bool
-		RetryFields     string
-		RetryHelper     string
-		RetryInit       string
+		ClientClassName        string
+		HTTPLibImport          string
+		BaseURLDefault         string
+		AuthFieldsForInterface string
+		AuthFieldsForClass     string
+		AuthSetup              string
+		HTTPClientInit         string
+		RetryEnabled           bool
+		RetryFields            string
+		RetryHelper            string
+		RetryInit              string
 	}
 	templateData := TypeScriptClientData{
-		ClientClassName: data.ClientClassName,
-		HTTPLibImport:   data.HTTPLibImport,
-		BaseURLDefault:  baseURLDefault,
-		AuthFields:      authFields,
-		AuthSetup:       authSetup,
-		HTTPClientInit:  httpClientInit,
-		RetryEnabled:    data.RetryConfig.Enabled,
-		RetryFields:     retryFields,
-		RetryHelper:     retryHelper,
-		RetryInit:       retryInit,
+		ClientClassName:        data.ClientClassName,
+		HTTPLibImport:          data.HTTPLibImport,
+		BaseURLDefault:         baseURLDefault,
+		AuthFieldsForInterface: authFieldsForInterface,
+		AuthFieldsForClass:     authFieldsForClass,
+		AuthSetup:              authSetup,
+		HTTPClientInit:         httpClientInit,
+		RetryEnabled:           data.RetryConfig.Enabled,
+		RetryFields:            retryFields,
+		RetryHelper:            retryHelper,
+		RetryInit:              retryInit,
 	}
 
 	var buf strings.Builder
 	if err := tmpl.Execute(&buf, templateData); err != nil {
 		// Fallback to direct generation
-		return generateTypeScriptClientFallback(data, extractedData, baseURLDefault, authFields, authSetup, httpClientInit, retryFields, retryHelper, retryInit), nil
+		return generateTypeScriptClientFallback(data, extractedData, baseURLDefault, authFieldsForInterface, authFieldsForClass, authSetup, httpClientInit, retryFields, retryHelper, retryInit), nil
 	}
 
 	return buf.String(), nil
@@ -85,12 +89,13 @@ func generateTypeScriptClient(data common.TemplateData) (string, error) {
 func generateTypeScriptClientFallback(
 	data common.TemplateData,
 	extractedData *common.ExtractedData,
-	baseURLDefault, authFields, authSetup, httpClientInit, retryFields, retryHelper, retryInit string,
+	baseURLDefault, authFieldsForInterface, authFieldsForClass, authSetup, httpClientInit, retryFields, retryHelper, retryInit string,
 ) string {
 	var buf strings.Builder
 
 	// Imports
-	buf.WriteString("import { ApiException } from './exceptions';\n")
+	// Note: Use .js extensions for ESM compatibility (even in .ts files)
+	buf.WriteString("import { ApiException } from './exceptions.js';\n")
 	if data.HTTPLibImport != "" {
 		buf.WriteString(fmt.Sprintf("import %s from '%s';\n", getHTTPLibImportName(data.HTTPLib), data.HTTPLibImport))
 	}
@@ -99,7 +104,7 @@ func generateTypeScriptClientFallback(
 	// Client configuration interface
 	buf.WriteString("export interface ClientConfig {\n")
 	buf.WriteString("  baseUrl?: string;\n")
-	buf.WriteString(authFields)
+	buf.WriteString(authFieldsForInterface)
 	if data.RetryConfig.Enabled {
 		buf.WriteString("  retryConfig?: RetryConfig;\n")
 	}
@@ -113,6 +118,7 @@ func generateTypeScriptClientFallback(
 		buf.WriteString("  strategy?: 'exponential' | 'linear' | 'fixed';\n")
 		buf.WriteString("  initialDelay?: number;\n")
 		buf.WriteString("  maxDelay?: number;\n")
+		buf.WriteString("  backoffMultiplier?: number;\n")
 		buf.WriteString("  retryableStatusCodes?: number[];\n")
 		buf.WriteString("  retryOnNetworkErrors?: boolean;\n")
 		buf.WriteString("}\n\n")
@@ -123,9 +129,9 @@ func generateTypeScriptClientFallback(
 	buf.WriteString("  private baseUrl: string;\n")
 	buf.WriteString(fmt.Sprintf("  private httpClient: %s;\n", getHTTPClientType(data.HTTPLib)))
 	if data.RetryConfig.Enabled {
-		buf.WriteString("  private retryConfig: RetryConfig;\n")
+		buf.WriteString(retryFields)
 	}
-	buf.WriteString(authFields)
+	buf.WriteString(authFieldsForClass)
 	buf.WriteString("\n")
 
 	// Constructor
@@ -151,8 +157,19 @@ func generateTypeScriptClientFallback(
 	if data.RetryConfig.Enabled {
 		buf.WriteString("    return this.requestWithRetry<T>(url, options);\n")
 	} else {
-		buf.WriteString(generateTypeScriptRequestMethod(data.HTTPLib))
+		buf.WriteString("    return this.executeRequest<T>(url, options);\n")
 	}
+	buf.WriteString("  }\n\n")
+
+	// Execute request method (private, does actual HTTP call)
+	buf.WriteString("  private async executeRequest<T>(url: string, options: {\n")
+	buf.WriteString("    method: string;\n")
+	buf.WriteString("    url: string;\n")
+	buf.WriteString("    params?: Record<string, any>;\n")
+	buf.WriteString("    headers?: Record<string, string>;\n")
+	buf.WriteString("    body?: any;\n")
+	buf.WriteString("  }): Promise<T> {\n")
+	buf.WriteString(generateTypeScriptRequestMethod(data.HTTPLib))
 	buf.WriteString("  }\n\n")
 
 	// Retry helper methods
@@ -219,7 +236,7 @@ func generateTypeScriptRequestMethod(httpLib string) string {
 		return `    try {
       const response = await this.httpClient.request({
         method: options.method,
-        url: options.url,
+        url: url,
         params: options.params,
         headers: {
           ...this.getAuthHeaders(),
@@ -241,14 +258,14 @@ func generateTypeScriptRequestMethod(httpLib string) string {
 `
 	case "fetch", "node-fetch":
 		return `    try {
-      const url = new URL(options.url, this.baseUrl);
+      const requestUrl = new URL(url);
       if (options.params) {
         Object.entries(options.params).forEach(([key, value]) => {
-          url.searchParams.append(key, String(value));
+          requestUrl.searchParams.append(key, String(value));
         });
       }
 
-      const response = await fetch(url.toString(), {
+      const response = await fetch(requestUrl.toString(), {
         method: options.method,
         headers: {
           ...this.getAuthHeaders(),
@@ -276,7 +293,7 @@ func generateTypeScriptRequestMethod(httpLib string) string {
 `
 	case "ky":
 		return `    try {
-      const response = await this.httpClient(options.url, {
+      const response = await this.httpClient(url, {
         method: options.method as any,
         searchParams: options.params,
         headers: {
@@ -304,8 +321,37 @@ func generateTypeScriptRequestMethod(httpLib string) string {
 	}
 }
 
-// generateTypeScriptAuthFields generates authentication fields
-func generateTypeScriptAuthFields(securitySchemes map[string]common.SecurityScheme) string {
+// generateTypeScriptAuthFieldsForInterface generates authentication fields for interface (no private modifier)
+func generateTypeScriptAuthFieldsForInterface(securitySchemes map[string]common.SecurityScheme) string {
+	if len(securitySchemes) == 0 {
+		return ""
+	}
+
+	var buf strings.Builder
+	for name, scheme := range securitySchemes {
+		switch scheme.Type {
+		case "apiKey":
+			buf.WriteString(fmt.Sprintf("  %s?: string;\n", common.ToCamelCase(name)))
+		case "http":
+			switch scheme.Scheme {
+			case "bearer", "Bearer":
+				buf.WriteString("  bearerToken?: string;\n")
+			case "basic", "Basic":
+				buf.WriteString("  username?: string;\n")
+				buf.WriteString("  password?: string;\n")
+			}
+		case "oauth2", "OAuth2":
+			buf.WriteString(fmt.Sprintf("  %sToken?: string;\n", common.ToCamelCase(name)))
+			buf.WriteString(fmt.Sprintf("  %sTokenType?: string;\n", common.ToCamelCase(name)))
+		case "openIdConnect", "OpenIDConnect":
+			buf.WriteString(fmt.Sprintf("  %sToken?: string;\n", common.ToCamelCase(name)))
+		}
+	}
+	return buf.String()
+}
+
+// generateTypeScriptAuthFieldsForClass generates authentication fields for class (with private modifier)
+func generateTypeScriptAuthFieldsForClass(securitySchemes map[string]common.SecurityScheme) string {
 	if len(securitySchemes) == 0 {
 		return ""
 	}
@@ -530,7 +576,7 @@ func generateTypeScriptRetryHelper(httpLib string, config common.RetryConfig) st
 	buf.WriteString("    \n")
 	buf.WriteString("    for (let attempt = 0; attempt < this.retryMaxAttempts; attempt++) {\n")
 	buf.WriteString("      try {\n")
-	buf.WriteString("        return await this.request<T>(options);\n")
+	buf.WriteString("        return await this.executeRequest<T>(url, options);\n")
 	buf.WriteString("      } catch (error: any) {\n")
 	buf.WriteString("        lastError = error;\n")
 	buf.WriteString("        \n")

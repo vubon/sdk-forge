@@ -21,7 +21,8 @@ func generateTypeScriptAPIIndex(operations []common.APIOperation, data common.Te
 	for tag := range operationsByTag {
 		moduleName := common.ToKebabCase(tag)
 		apiClassName := common.ToPascalCase(tag) + "Api"
-		buf.WriteString(fmt.Sprintf("export { %s } from './%s';\n", apiClassName, moduleName))
+		// Note: Use .js extensions for ESM compatibility
+		buf.WriteString(fmt.Sprintf("export { %s } from './%s.js';\n", apiClassName, moduleName))
 	}
 
 	return buf.String()
@@ -41,8 +42,9 @@ func generateTypeScriptAPIModule(tag string, operations []common.APIOperation, d
 	buf.WriteString(" */\n\n")
 
 	// Imports
-	buf.WriteString(fmt.Sprintf("import { %s } from '../client';\n", clientClassName))
-	buf.WriteString("import { ApiException } from '../exceptions';\n\n")
+	// Note: Use .js extensions for ESM compatibility (even in .ts files)
+	buf.WriteString(fmt.Sprintf("import { %s } from '../client.js';\n", clientClassName))
+	buf.WriteString("import { ApiException } from '../exceptions.js';\n\n")
 
 	// API class
 	buf.WriteString(fmt.Sprintf("export class %s {\n", apiClassName))

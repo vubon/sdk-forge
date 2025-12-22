@@ -41,6 +41,7 @@ func generateTypeScriptExceptions(data common.TemplateData) string {
 	buf.WriteString(" * Exception for network-related errors\n")
 	buf.WriteString(" */\n")
 	buf.WriteString("export class NetworkException extends ApiException {\n")
+	buf.WriteString("  public readonly cause?: Error;\n\n")
 	buf.WriteString("  constructor(message: string = 'Network error occurred', originalError?: Error) {\n")
 	buf.WriteString("    super(message, 0);\n")
 	buf.WriteString("    this.name = 'NetworkException';\n")

@@ -165,7 +165,7 @@ func TestGenerateTypeScriptSDK_WithTests(t *testing.T) {
 	// Verify test files exist
 	expectedTestFiles := []string{
 		filepath.Join(testsDir, "client.test.ts"),
-		filepath.Join(tmpDir, "test-sdk", "jest.config.js"),
+		filepath.Join(tmpDir, "test-sdk", "jest.config.cjs"),
 	}
 
 	for _, file := range expectedTestFiles {
@@ -193,10 +193,10 @@ func TestGenerateTypeScriptSDK_WithoutTests(t *testing.T) {
 		t.Error("GenerateTypeScriptSDK() with tests disabled should NOT create tests directory")
 	}
 
-	// Verify jest.config.js does NOT exist
-	jestConfigPath := filepath.Join(tmpDir, "test-sdk", "jest.config.js")
+	// Verify jest.config.cjs does NOT exist
+	jestConfigPath := filepath.Join(tmpDir, "test-sdk", "jest.config.cjs")
 	if _, err := os.Stat(jestConfigPath); err == nil {
-		t.Error("GenerateTypeScriptSDK() with tests disabled should NOT create jest.config.js")
+		t.Error("GenerateTypeScriptSDK() with tests disabled should NOT create jest.config.cjs")
 	}
 }
 

@@ -18,8 +18,9 @@ func generateTypeScriptModelsIndex(schemas map[string]*common.Schema, sdkName st
 	for name := range schemas {
 		modelName := common.ToPascalCase(name)
 		fileName := common.ToKebabCase(name)
-		buf.WriteString(fmt.Sprintf("export * from './%s';\n", fileName))
-		buf.WriteString(fmt.Sprintf("export type { %s } from './%s';\n", modelName, fileName))
+		// Note: Use .js extensions for ESM compatibility
+		buf.WriteString(fmt.Sprintf("export * from './%s.js';\n", fileName))
+		buf.WriteString(fmt.Sprintf("export type { %s } from './%s.js';\n", modelName, fileName))
 	}
 
 	return buf.String()
