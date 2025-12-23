@@ -26,20 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **TypeScript Interactive Mode**: Interactive prompts for TypeScript version selection
 - **TypeScript Language Validation**: Added typescript/javascript to supported languages
 - **TypeScript Documentation**: Complete TypeScript/JavaScript SDK guide in docs/languages/typescript.md
-- **TypeScript Manual Tests**: Full manual integration test suite for TypeScript SDKs
-- **TypeScript Retry Tests**: Dedicated retry mechanism test scripts for TypeScript
-- **TypeScript HTTP Library Tests**: Support for testing all HTTP client libraries in test-all-http-libs.sh
-
-### Fixed
-- **TypeScript ESM Module Resolution**: Fixed Node.js ESM module resolution by adding `.js` extensions to all imports
-- **TypeScript Jest Configuration**: Fixed Jest ESM compatibility by using jest.config.cjs and proper ts-jest configuration
-- **TypeScript Retry Mechanism**: Fixed infinite recursion in retry logic by introducing separate `executeRequest` method
-- **TypeScript Client Interface**: Fixed `private` modifier errors in TypeScript interfaces by separating interface and class field generation
-- **TypeScript Default Export**: Fixed default export pattern to use re-export syntax for proper module resolution
-- **TypeScript NetworkException**: Added `cause` property to NetworkException class for error chaining
-- **TypeScript RetryConfig Interface**: Added missing `backoffMultiplier` property to RetryConfig interface
-- **Manual Test Authentication**: Updated all manual integration tests to use Bearer token authentication for endpoints requiring it
-- **TypeScript Test Method Calls**: Fixed API method calls to use object parameter syntax (e.g., `getPetById({ id: 1 })`)
+- **TypeScript Implementation Details**:
+  - ESM module resolution with `.js` extensions for Node.js compatibility
+  - Jest ESM configuration with jest.config.cjs and ts-jest
+  - Retry mechanism with separate `executeRequest` method to prevent recursion
+  - Proper TypeScript interface and class field separation
+  - Re-export pattern for default exports
+  - NetworkException with error chaining support
+  - Complete RetryConfig interface with backoffMultiplier
+  - Object parameter syntax for API method calls (e.g., `getPetById({ id: 1 })`)
 
 ### Changed
 - **Version**: Updated from 0.5.0 to 0.6.0

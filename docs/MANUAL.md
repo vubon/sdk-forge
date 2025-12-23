@@ -355,6 +355,7 @@ $ sdk-forge generate --schema api.yaml
   ▸ python
     go
     php
+    typescript
     all
 
 ? Enter SDK name: my-api-sdk
@@ -364,6 +365,8 @@ $ sdk-forge generate --schema api.yaml
 ? Go version (1.24, 1.25) [1.24]: 
 
 ? Python version (3.11, 3.12, 3.13, 3.14) [3.11]: 
+
+? TypeScript version (4.9, 5.0, 5.1, 5.2, 5.3, 5.4, 5.5) [5.0]: 
 
 ? SDK version (leave empty to use OpenAPI schema version): 
 
