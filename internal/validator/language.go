@@ -48,7 +48,7 @@ func ValidateLanguage(language string) error {
 
 // GetImplementedLanguages returns a list of languages that are currently implemented
 func GetImplementedLanguages() []string {
-	return []string{"python", "go", "php"}
+	return []string{"python", "go", "php", "typescript", "javascript"}
 }
 
 // ValidateSDKName validates and sanitizes SDK name based on language

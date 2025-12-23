@@ -4,7 +4,7 @@ A powerful CLI tool written in Go that generates production-ready SDKs for multi
 
 ## Status
 
-✅ **v0.5.0** - Go, Python, and PHP SDK generation with automatic test generation and retry mechanism fully implemented
+✅ **v0.6.0** - Go, Python, PHP, and TypeScript/JavaScript SDK generation with automatic test generation and retry mechanism fully implemented
 
 > This project follows [Semantic Versioning 2.0.0](https://semver.org/). Current version is a stable release.
 
@@ -36,13 +36,20 @@ sdk-forge generate \
   --lang php \
   --name my-api-sdk \
   --output ./sdks
+
+# Generate a TypeScript/JavaScript SDK
+sdk-forge generate \
+  --schema examples/petstore.yaml \
+  --lang typescript \
+  --name my-api-sdk \
+  --output ./sdks
 ```
 
 ## Features
 
-- 🚀 **Multi-Language Support**: Generate SDKs for Go, Python, and PHP (JavaScript/TypeScript coming soon)
+- 🚀 **Multi-Language Support**: Generate SDKs for Go, Python, PHP, and TypeScript/JavaScript
 - 📦 **Template-Based Generation**: Clean, maintainable template system
-- 🔧 **Language Version Configuration**: Specify target language versions (Go 1.24/1.25, Python 3.11-3.14, PHP 8.0-8.3)
+- 🔧 **Language Version Configuration**: Specify target language versions (Go 1.24/1.25, Python 3.11-3.14, PHP 8.0-8.3, TypeScript 4.9-5.5)
 - 📌 **SDK Version Management**: Automatic version extraction from OpenAPI schema
 - 🎨 **Code Formatting**: Automatic formatting for generated code (gofmt, black/autopep8)
 - 🔐 **Authentication Support**: Full support for all OpenAPI authentication methods
@@ -66,8 +73,13 @@ sdk-forge generate \
 - PSR-4 autoloading support
 - Composer package management
 
-### 🔜 Coming Soon
-- JavaScript/TypeScript
+### ✅ TypeScript/JavaScript
+- Versions: 4.9, 5.0, 5.1, 5.2, 5.3, 5.4, 5.5 (Default: 5.0)
+- HTTP Libraries: `axios` (default), `fetch`, `node-fetch`, `ky`
+- Dual package exports (ESM/CommonJS)
+- Full TypeScript type safety
+- ESLint and Prettier configuration
+- Jest test framework integration
 
 ## Authentication
 
@@ -197,14 +209,31 @@ sdk-forge/
 │           └── interactive.go
 ├── internal/
 │   ├── generator/        # Code generation logic
-│   │   ├── go.go         # Go SDK generator
-│   │   ├── python.go     # Python SDK generator
-│   │   ├── common.go      # Common utilities for all languages
-│   │   ├── templates.go  # Template loader (go:embed)
-│   │   ├── versions.go   # Language version management
-│   │   └── templates/     # Template files
-│   │       ├── go/
-│   │       └── python/
+│   │   ├── go/           # Go SDK generator
+│   │   │   ├── go.go
+│   │   │   └── templates/
+│   │   ├── python/       # Python SDK generator
+│   │   │   ├── python.go
+│   │   │   └── templates/
+│   │   ├── php/          # PHP SDK generator
+│   │   │   ├── php.go
+│   │   │   └── templates/
+│   │   ├── typescript/   # TypeScript/JavaScript SDK generator
+│   │   │   ├── typescript.go
+│   │   │   ├── typescript_models.go
+│   │   │   ├── typescript_client.go
+│   │   │   ├── typescript_api.go
+│   │   │   ├── typescript_exceptions.go
+│   │   │   ├── typescript_helpers.go
+│   │   │   ├── typescript_test.go
+│   │   │   ├── typescript_testgen.go
+│   │   │   └── templates/
+│   │   ├── common/       # Common utilities for all languages
+│   │   │   ├── common.go
+│   │   │   ├── versions.go
+│   │   │   ├── templates.go
+│   │   │   └── ...
+│   │   └── templates.go  # Template loader (go:embed)
 │   ├── parser/           # OpenAPI schema parser
 │   └── validator/        # Validation logic
 ├── pkg/

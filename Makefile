@@ -16,7 +16,9 @@ GOBUILD=$(GOCMD) build
 GOTEST=$(GOCMD) test
 GOMOD=$(GOCMD) mod
 GOFMT=gofmt
+GOIMPORTS=goimports
 GOLINT=golangci-lint
+PARALLEL?=8
 
 # Colors for output
 RED=\033[0;31m
@@ -78,25 +80,50 @@ lint: ## Run linter (golangci-lint)
 		exit 1; \
 	fi
 
-fmt: ## Format Go code
+fmt: ## Format Go code (using goimports for import organization)
 	@echo "$(YELLOW)Formatting code...$(NC)"
-	@$(GOFMT) -s -w .
-	@echo "$(GREEN)✓ Formatting complete$(NC)"
-
-fmt-check: ## Check if code is formatted correctly
-	@echo "$(YELLOW)Checking code formatting...$(NC)"
-	@if [ $$($(GOFMT) -l . | wc -l) -ne 0 ]; then \
-		echo "$(RED)✗ Code is not formatted. Run 'make fmt' to fix.$(NC)"; \
-		$(GOFMT) -l .; \
-		exit 1; \
+	@GOPATH_BIN=$$($(GOCMD) env GOPATH)/bin; \
+	if ! command -v $(GOIMPORTS) > /dev/null 2>&1 && [ ! -f "$$GOPATH_BIN/$(GOIMPORTS)" ]; then \
+		echo "$(YELLOW)goimports not found. Installing...$(NC)"; \
+		$(GOCMD) install golang.org/x/tools/cmd/goimports@latest; \
+	fi; \
+	IMPORTS_CMD=$$(command -v $(GOIMPORTS) 2>/dev/null || echo "$$GOPATH_BIN/$(GOIMPORTS)"); \
+	if [ -f "$$IMPORTS_CMD" ]; then \
+		$$IMPORTS_CMD -w -local github.com/vubon/sdk-forge .; \
+		echo "$(GREEN)✓ Formatting with goimports complete$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠ goimports not available, falling back to gofmt...$(NC)"; \
+		$(GOFMT) -s -w .; \
+		echo "$(GREEN)✓ Formatting with gofmt complete$(NC)"; \
 	fi
-	@echo "$(GREEN)✓ Code is properly formatted$(NC)"
+
+fmt-check: ## Check if code is formatted correctly (using goimports)
+	@echo "$(YELLOW)Checking code formatting...$(NC)"
+	@GOPATH_BIN=$$($(GOCMD) env GOPATH)/bin; \
+	IMPORTS_CMD=$$(command -v $(GOIMPORTS) 2>/dev/null || echo "$$GOPATH_BIN/$(GOIMPORTS)"); \
+	if [ -f "$$IMPORTS_CMD" ]; then \
+		IMPORTS_OUTPUT=$$($$IMPORTS_CMD -l -local github.com/vubon/sdk-forge .); \
+		if [ -n "$$IMPORTS_OUTPUT" ]; then \
+			echo "$(RED)✗ Code is not formatted. Run 'make fmt' to fix.$(NC)"; \
+			echo "$$IMPORTS_OUTPUT"; \
+			exit 1; \
+		fi; \
+		echo "$(GREEN)✓ Code is properly formatted$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠ goimports not available, checking with gofmt...$(NC)"; \
+		if [ $$($(GOFMT) -l . | wc -l) -ne 0 ]; then \
+			echo "$(RED)✗ Code is not formatted. Run 'make fmt' to fix.$(NC)"; \
+			$(GOFMT) -l .; \
+			exit 1; \
+		fi; \
+		echo "$(GREEN)✓ Code is properly formatted$(NC)"; \
+	fi
 
 test: ## Run tests (cleans test outputs first)
 	@echo "$(YELLOW)Cleaning test outputs...$(NC)"
 	@rm -rf test-output test-sdks
-	@echo "$(YELLOW)Running tests...$(NC)"
-	$(GOTEST) -v -race -coverprofile=coverage.out ./...
+	@echo "$(YELLOW)Running tests (parallel: $(PARALLEL))...$(NC)"
+	$(GOTEST) -v -race -parallel $(PARALLEL) -coverprofile=coverage.out ./...
 	@echo "$(GREEN)✓ Tests complete$(NC)"
 
 test-coverage: test ## Run tests with coverage report
@@ -106,8 +133,8 @@ test-coverage: test ## Run tests with coverage report
 	@echo "$(YELLOW)Coverage:$$($(GOCMD) tool cover -func=coverage.out | grep total | awk '{print $$3}')$(NC)"
 
 test-short: ## Run tests in short mode
-	@echo "$(YELLOW)Running short tests...$(NC)"
-	$(GOTEST) -short -v ./...
+	@echo "$(YELLOW)Running short tests (parallel: $(PARALLEL))...$(NC)"
+	$(GOTEST) -short -v -parallel $(PARALLEL) ./...
 	@echo "$(GREEN)✓ Short tests complete$(NC)"
 
 run: build ## Build and run the binary

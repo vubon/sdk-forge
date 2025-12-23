@@ -56,6 +56,25 @@ func GetPHPAvailableVersions() []LanguageVersion {
 	}
 }
 
+// GetTypeScriptDefaultVersion returns the default TypeScript version for generated SDKs
+func GetTypeScriptDefaultVersion() LanguageVersion {
+	return LanguageVersion{Major: 5, Minor: 0}
+}
+
+// GetTypeScriptAvailableVersions returns all available TypeScript versions
+func GetTypeScriptAvailableVersions() []LanguageVersion {
+	return []LanguageVersion{
+		{Major: 4, Minor: 9},
+		{Major: 5, Minor: 0},
+		{Major: 5, Minor: 1},
+		{Major: 5, Minor: 2},
+		{Major: 5, Minor: 3},
+		{Major: 5, Minor: 4},
+		{Major: 5, Minor: 5},
+		{Major: 5, Minor: 6},
+	}
+}
+
 // ParseVersion parses a version string (e.g., "1.24", "3.11") into LanguageVersion
 func ParseVersion(versionStr string) (LanguageVersion, error) {
 	parts := strings.Split(versionStr, ".")
@@ -125,6 +144,21 @@ func ValidatePHPVersion(version LanguageVersion) error {
 	)
 }
 
+// ValidateTypeScriptVersion checks if the version is in the list of available TypeScript versions
+func ValidateTypeScriptVersion(version LanguageVersion) error {
+	available := GetTypeScriptAvailableVersions()
+	for _, v := range available {
+		if v.Major == version.Major && v.Minor == version.Minor {
+			return nil
+		}
+	}
+	return fmt.Errorf(
+		"unsupported TypeScript version: %s. Available versions: %v",
+		version.String(),
+		formatVersions(available),
+	)
+}
+
 // formatVersions formats a slice of versions as strings
 func formatVersions(versions []LanguageVersion) []string {
 	result := make([]string, len(versions))
@@ -175,4 +209,9 @@ func (v LanguageVersion) PHPUsesReadonlyProperties() bool {
 // GetPHPVersionString returns the PHP version string for composer.json
 func (v LanguageVersion) GetPHPVersionString() string {
 	return fmt.Sprintf("^%d.%d", v.Major, v.Minor)
+}
+
+// GetTypeScriptVersionString returns the TypeScript version string for package.json
+func (v LanguageVersion) GetTypeScriptVersionString() string {
+	return fmt.Sprintf("^%d.%d.0", v.Major, v.Minor)
 }

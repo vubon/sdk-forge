@@ -11,10 +11,12 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/spf13/cobra"
+
 	"github.com/vubon/sdk-forge/internal/generator/common"
 	gogen "github.com/vubon/sdk-forge/internal/generator/go"
 	"github.com/vubon/sdk-forge/internal/generator/php"
 	"github.com/vubon/sdk-forge/internal/generator/python"
+	"github.com/vubon/sdk-forge/internal/generator/typescript"
 	"github.com/vubon/sdk-forge/internal/parser"
 	"github.com/vubon/sdk-forge/internal/validator"
 	httplib "github.com/vubon/sdk-forge/pkg/languages/http"
@@ -40,18 +42,19 @@ Example:
 }
 
 var (
-	schemaPath    string
-	language      string
-	httpLib       string
-	sdkName       string
-	outputDir     string
-	ignoreMinor   bool
-	force         bool
-	goVersion     string
-	pythonVersion string
-	phpVersion    string
-	sdkVersion    string
-	skipTests     bool
+	schemaPath        string
+	language          string
+	httpLib           string
+	sdkName           string
+	outputDir         string
+	ignoreMinor       bool
+	force             bool
+	goVersion         string
+	pythonVersion     string
+	phpVersion        string
+	typescriptVersion string
+	sdkVersion        string
+	skipTests         bool
 )
 
 func init() {
@@ -70,6 +73,10 @@ func init() {
 		"Python version to use (e.g., 3.11, 3.12, 3.13, 3.14). Default: 3.11")
 	generateCmd.Flags().StringVar(&phpVersion, "php-version", "",
 		"PHP version to use (e.g., 8.0, 8.1, 8.2, 8.3). Default: 8.1")
+	generateCmd.Flags().StringVar(&typescriptVersion, "typescript-version", "",
+		"TypeScript version to use (e.g., 4.9, 5.0, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6). Default: 5.0")
+	generateCmd.Flags().StringVar(&typescriptVersion, "ts-version", "",
+		"TypeScript version (alias for --typescript-version)")
 	generateCmd.Flags().StringVar(&sdkVersion, "sdk-version", "",
 		"SDK version to use (e.g., 1.0.0, 2.0.0). "+
 			"If not provided, uses OpenAPI schema version (if available) or defaults to 1.0.0")
@@ -322,6 +329,7 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 	var goVer *common.LanguageVersion
 	var pythonVer *common.LanguageVersion
 	var phpVer *common.LanguageVersion
+	var tsVer *common.LanguageVersion
 
 	// Get SDK version from flag (if provided)
 	sdkVerStr, _ := cmd.Flags().GetString("sdk-version")
@@ -369,6 +377,24 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 		}
 	}
 
+	if lang == "javascript" || lang == "typescript" || lang == langAll {
+		tsVerStr, _ := cmd.Flags().GetString("typescript-version")
+		if tsVerStr == "" {
+			// Try alias flag
+			tsVerStr, _ = cmd.Flags().GetString("ts-version")
+		}
+		if tsVerStr != "" {
+			parsed, err := common.ParseVersion(tsVerStr)
+			if err != nil {
+				return fmt.Errorf("invalid TypeScript version: %w", err)
+			}
+			if err := common.ValidateTypeScriptVersion(parsed); err != nil {
+				return err
+			}
+			tsVer = &parsed
+		}
+	}
+
 	// Get skip-tests flag (inverted: if skipTests is true, generateTests is false)
 	skipTestsFlag, _ := cmd.Flags().GetBool("skip-tests")
 	generateTests := !skipTestsFlag
@@ -399,7 +425,7 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 	case "php":
 		return php.GeneratePHPSDK(outputPath, sdkName, httpLib, doc, phpVer, sdkVerStr, generateTests, retryConfig)
 	case "javascript", "typescript":
-		return fmt.Errorf("JavaScript/TypeScript SDK generation not yet implemented")
+		return typescript.GenerateTypeScriptSDK(outputPath, sdkName, httpLib, doc, tsVer, sdkVerStr, generateTests, retryConfig)
 	default:
 		return fmt.Errorf("unsupported language: %s", lang)
 	}

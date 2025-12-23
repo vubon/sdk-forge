@@ -1,0 +1,77 @@
+# {{.DisplayName}} SDK
+
+{{.Description}}
+
+Version: {{.SDKVersion}}
+
+## Installation
+
+```bash
+npm install {{.SDKName}}
+```
+
+## Usage
+
+```typescript
+import { {{.ClientClassName}} } from '{{.SDKName}}';
+
+const client = new {{.ClientClassName}}({
+  baseUrl: '{{.BaseURL}}',
+});
+
+// Use client methods...
+```
+
+## HTTP Library
+
+This SDK uses **{{.HTTPLib}}** for HTTP requests.
+
+{{- if .HasAuth}}
+## Authentication
+
+Configure authentication when creating the client:
+
+```typescript
+const client = new {{.ClientClassName}}({
+  baseUrl: '{{.BaseURL}}',
+  // Add authentication parameters
+});
+```
+{{- end}}
+
+{{- if .RetryEnabled}}
+## Retry Configuration
+
+This SDK supports automatic retry for failed requests. Configure retry behavior:
+
+```typescript
+const client = new {{.ClientClassName}}({
+  baseUrl: '{{.BaseURL}}',
+  retryConfig: {
+    enabled: true,
+    maxAttempts: 3,
+    strategy: 'exponential',
+    initialDelay: 1000,
+    maxDelay: 60000,
+  },
+});
+```
+{{- end}}
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Build
+npm run build
+
+# Run tests
+npm test
+```
+
+## License
+
+MIT
+

@@ -1,6 +1,6 @@
 # SDK Forge - User Manual
 
-**Version**: 0.5.0  
+**Version**: 0.6.0  
 **Last Updated**: December 2025
 
 A comprehensive guide to using SDK Forge to generate production-ready SDKs from OpenAPI schemas.
@@ -29,6 +29,7 @@ A comprehensive guide to using SDK Forge to generate production-ready SDKs from 
 
 - **Go 1.24+** (for building SDK Forge)
 - **Python 3.11+** (if generating Python SDKs)
+- **Node.js 18+** (if generating TypeScript/JavaScript SDKs)
 - **OpenAPI 3.0.x or 3.1.x** schema file
 
 ### Install from Source
@@ -105,7 +106,17 @@ sdk-forge generate \
   --output ./sdks
 ```
 
-**4. Generate SDKs for all languages**
+**4. Generate a TypeScript/JavaScript SDK**
+
+```bash
+sdk-forge generate \
+  --schema api.yaml \
+  --lang typescript \
+  --name my-api-sdk \
+  --output ./sdks
+```
+
+**5. Generate SDKs for all languages**
 
 ```bash
 sdk-forge generate \
@@ -130,7 +141,7 @@ sdk-forge generate [flags]
 | Flag | Short | Description | Example |
 |------|-------|-------------|---------|
 | `--schema` | `-s` | Path or URL to OpenAPI schema (YAML/JSON) | `--schema api.yaml` |
-| `--lang` | `-l` | Target language (`python`, `go`, `all`) | `--lang python` |
+| `--lang` | `-l` | Target language (`python`, `go`, `php`, `typescript`, `all`) | `--lang python` |
 | `--name` | `-n` | Name for the generated SDK | `--name my-sdk` |
 | `--output` | `-o` | Output directory for generated SDK | `--output ./sdks` |
 
@@ -141,6 +152,8 @@ sdk-forge generate [flags]
 | `--http-lib` | HTTP library to use | Language default | `--http-lib httpx` |
 | `--go-version` | Go version (1.24, 1.25) | 1.24 | `--go-version 1.25` |
 | `--python-version` | Python version (3.11-3.14) | 3.11 | `--python-version 3.14` |
+| `--php-version` | PHP version (8.0-8.3) | 8.1 | `--php-version 8.3` |
+| `--typescript-version` | TypeScript version (4.9-5.5) | 5.0 | `--typescript-version 5.5` |
 | `--sdk-version` | SDK version | OpenAPI schema or 1.0.0 | `--sdk-version 2.0.0` |
 | `--skip-tests` | Skip test generation | Tests generated | `--skip-tests` |
 | `--ignore-minor-issues` | Ignore minor validation issues | false | `--ignore-minor-issues` |
@@ -164,7 +177,7 @@ Path to your OpenAPI schema file or URL.
 
 Target programming language for SDK generation.
 
-- **Options**: `python`, `go`, `php`, `all`
+- **Options**: `python`, `go`, `php`, `typescript`, `all`
 - **Future**: `js`, `ts`, `ruby`
 - **Special**: `all` generates SDKs for all available languages
 
@@ -191,9 +204,12 @@ output/
 │   └── sdk-name/
 ├── go/
 │   └── sdk-name/
-└── php/
+├── php/
+│   └── sdk-name/
+│       └── PascalCaseName/
+└── typescript/
     └── sdk-name/
-        └── PascalCaseName/
+        └── sdk-name/
 ```
 
 #### `--http-lib`
@@ -211,6 +227,12 @@ HTTP library to use for the generated SDK.
 
 **PHP Options:**
 - `guzzle` (default)
+
+**TypeScript/JavaScript Options:**
+- `axios` (default)
+- `fetch`
+- `node-fetch`
+- `ky`
 
 #### `--go-version`
 
@@ -234,6 +256,13 @@ Target PHP version for the generated SDK.
 
 - **Options**: `8.0`, `8.1`, `8.2`, `8.3`
 - **Default**: `8.1`
+
+#### `--typescript-version`
+
+Target TypeScript version for the generated SDK.
+
+- **Options**: `4.9`, `5.0`, `5.1`, `5.2`, `5.3`, `5.4`, `5.5`
+- **Default**: `5.0`
 - Affects type hints and language features
 
 #### `--sdk-version`
@@ -326,6 +355,7 @@ $ sdk-forge generate --schema api.yaml
   ▸ python
     go
     php
+    typescript
     all
 
 ? Enter SDK name: my-api-sdk
@@ -335,6 +365,8 @@ $ sdk-forge generate --schema api.yaml
 ? Go version (1.24, 1.25) [1.24]: 
 
 ? Python version (3.11, 3.12, 3.13, 3.14) [3.11]: 
+
+? TypeScript version (4.9, 5.0, 5.1, 5.2, 5.3, 5.4, 5.5) [5.0]: 
 
 ? SDK version (leave empty to use OpenAPI schema version): 
 
@@ -477,6 +509,17 @@ For detailed, language-specific documentation, see the dedicated guides:
   - Advanced usage patterns
   - Troubleshooting
 
+- **[TypeScript/JavaScript SDK Guide](languages/typescript.md)** - Complete TypeScript/JavaScript SDK documentation
+  - Installation with npm/yarn
+  - Basic usage and examples (ESM/CommonJS)
+  - Authentication methods
+  - HTTP libraries (axios, fetch, node-fetch, ky)
+  - Retry mechanism
+  - Testing with Jest
+  - TypeScript type safety
+  - Advanced usage patterns
+  - Troubleshooting
+
 Each guide includes comprehensive examples, best practices, and troubleshooting tips specific to that language.
 
 ---
@@ -517,6 +560,14 @@ sdk-forge generate \
   --schema api.yaml \
   --lang php \
   --php-version 8.3 \
+  --name my-api \
+  --output ./sdks
+
+# TypeScript 5.5
+sdk-forge generate \
+  --schema api.yaml \
+  --lang typescript \
+  --typescript-version 5.5 \
   --name my-api \
   --output ./sdks
 ```

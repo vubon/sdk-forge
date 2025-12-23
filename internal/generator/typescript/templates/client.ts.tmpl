@@ -1,0 +1,75 @@
+import { ApiException } from './exceptions.js';
+{{- if .HTTPLibImport}}
+import {{.HTTPLibImportName}} from '{{.HTTPLibImport}}';
+{{- end}}
+
+export interface ClientConfig {
+  baseUrl?: string;
+{{.AuthFieldsForInterface}}
+{{- if .RetryEnabled}}
+  retryConfig?: RetryConfig;
+{{- end}}
+}
+
+{{- if .RetryEnabled}}
+export interface RetryConfig {
+  enabled?: boolean;
+  maxAttempts?: number;
+  strategy?: 'exponential' | 'linear' | 'fixed';
+  initialDelay?: number;
+  maxDelay?: number;
+  backoffMultiplier?: number;
+  retryableStatusCodes?: number[];
+  retryOnNetworkErrors?: boolean;
+}
+{{- end}}
+
+export class {{.ClientClassName}} {
+  private baseUrl: string;
+  private httpClient: {{.HTTPClientType}};
+{{- if .RetryEnabled}}
+{{.RetryFields}}
+{{- end}}
+{{.AuthFieldsForClass}}
+
+  constructor(config: ClientConfig = {}) {
+    this.baseUrl = (config.baseUrl || '{{.BaseURLDefault}}').replace(/\/$/, '');
+{{.HTTPClientInit}}
+{{.AuthSetup}}
+{{- if .RetryEnabled}}
+{{.RetryInit}}
+{{- end}}
+  }
+
+  async request<T>(options: {
+    method: string;
+    url: string;
+    params?: Record<string, any>;
+    headers?: Record<string, string>;
+    body?: any;
+  }): Promise<T> {
+    const url = `${this.baseUrl}${options.url}`;
+    {{- if .RetryEnabled}}
+    return this.requestWithRetry<T>(url, options);
+    {{- else}}
+    return this.executeRequest<T>(url, options);
+    {{- end}}
+  }
+
+  private async executeRequest<T>(url: string, options: {
+    method: string;
+    url: string;
+    params?: Record<string, any>;
+    headers?: Record<string, string>;
+    body?: any;
+  }): Promise<T> {
+    {{.RequestMethod}}
+  }
+
+{{- if .RetryEnabled}}
+{{.RetryHelper}}
+{{- end}}
+
+{{.AuthSetters}}
+}
+
