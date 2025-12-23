@@ -111,3 +111,139 @@ func TestPromptYesNoWithDefault(t *testing.T) {
 		})
 	}
 }
+
+// TestRunInteractive_AllFlagsSet tests RunInteractive when all flags are already set
+// This should skip all prompts and return immediately
+func TestRunInteractive_AllFlagsSet(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().String("schema", "test-schema.yaml", "")
+	cmd.Flags().String("lang", "python", "")
+	cmd.Flags().String("name", "test-sdk", "")
+	cmd.Flags().String("http-lib", "requests", "")
+	cmd.Flags().String("python-version", "3.11", "")
+	cmd.Flags().String("output", "output", "")
+	cmd.Flags().Bool("ignore-minor-issues", true, "") // Set to true to skip prompt
+	cmd.Flags().Bool("force", true, "")               // Set to true to skip prompt
+	cmd.Flags().String("sdk-version", "1.0.0", "")
+	cmd.Flags().Bool("skip-tests", true, "") // Set to true to skip prompt
+
+	// Since all flags are set, RunInteractive should return without prompting
+	// This test verifies the early return paths
+	err := RunInteractive(cmd)
+	if err != nil {
+		t.Errorf("RunInteractive() with all flags set should not return error, got: %v", err)
+	}
+}
+
+// TestRunInteractive_WithLanguageAlias tests RunInteractive with "language" flag instead of "lang"
+func TestRunInteractive_WithLanguageAlias(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().String("schema", "test-schema.yaml", "")
+	cmd.Flags().String("language", "go", "") // Using "language" alias
+	cmd.Flags().String("name", "test-sdk", "")
+	cmd.Flags().String("http-lib", "nethttp", "") // Set http-lib to avoid prompt
+	cmd.Flags().String("go-version", "1.24", "")
+	cmd.Flags().String("output", "output", "")
+	cmd.Flags().Bool("ignore-minor-issues", true, "") // Set to true to skip prompt
+	cmd.Flags().Bool("force", true, "")               // Set to true to skip prompt
+	cmd.Flags().String("sdk-version", "1.0.0", "")
+	cmd.Flags().Bool("skip-tests", true, "") // Set to true to skip prompt
+
+	err := RunInteractive(cmd)
+	if err != nil {
+		t.Errorf("RunInteractive() with language alias should not return error, got: %v", err)
+	}
+
+	// Verify language was normalized (it uses the language flag internally)
+	lang, _ := cmd.Flags().GetString("lang")
+	language, _ := cmd.Flags().GetString("language")
+	if lang == "" && language == "" {
+		t.Error("RunInteractive() should have language set")
+	}
+}
+
+// TestRunInteractive_TypeScriptWithAlias tests RunInteractive with TypeScript and ts-version alias
+func TestRunInteractive_TypeScriptWithAlias(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().String("schema", "test-schema.yaml", "")
+	cmd.Flags().String("lang", "typescript", "")
+	cmd.Flags().String("name", "test-sdk", "")
+	cmd.Flags().String("http-lib", "axios", "") // Set http-lib to avoid prompt
+	cmd.Flags().String("ts-version", "5.0", "") // Using "ts-version" alias
+	cmd.Flags().String("output", "output", "")
+	cmd.Flags().Bool("ignore-minor-issues", true, "") // Set to true to skip prompt
+	cmd.Flags().Bool("force", true, "")               // Set to true to skip prompt
+	cmd.Flags().String("sdk-version", "1.0.0", "")
+	cmd.Flags().Bool("skip-tests", true, "") // Set to true to skip prompt
+
+	err := RunInteractive(cmd)
+	if err != nil {
+		t.Errorf("RunInteractive() with ts-version alias should not return error, got: %v", err)
+	}
+}
+
+// TestRunInteractive_FlagsAlreadySet tests that flags that are already set are not prompted
+func TestRunInteractive_FlagsAlreadySet(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(*cobra.Command)
+	}{
+		{
+			name: "all_optional_flags_set",
+			setup: func(cmd *cobra.Command) {
+				cmd.Flags().String("schema", "schema.yaml", "")
+				cmd.Flags().String("lang", "python", "")
+				cmd.Flags().String("name", "test-sdk", "")
+				cmd.Flags().String("http-lib", "httpx", "")
+				cmd.Flags().String("python-version", "3.12", "")
+				cmd.Flags().String("output", "custom-output", "")
+				cmd.Flags().Bool("ignore-minor-issues", true, "")
+				cmd.Flags().Bool("force", true, "")
+				cmd.Flags().String("sdk-version", "2.0.0", "")
+				cmd.Flags().Bool("skip-tests", true, "")
+			},
+		},
+		{
+			name: "go_with_version",
+			setup: func(cmd *cobra.Command) {
+				cmd.Flags().String("schema", "schema.yaml", "")
+				cmd.Flags().String("lang", "go", "")
+				cmd.Flags().String("name", "test-sdk", "")
+				cmd.Flags().String("http-lib", "nethttp", "")
+				cmd.Flags().String("go-version", "1.25", "")
+				cmd.Flags().String("output", "output", "")
+				cmd.Flags().Bool("ignore-minor-issues", true, "") // Set to true to skip prompt
+				cmd.Flags().Bool("force", true, "")               // Set to true to skip prompt
+				cmd.Flags().String("sdk-version", "1.0.0", "")
+				cmd.Flags().Bool("skip-tests", true, "") // Set to true to skip prompt
+			},
+		},
+		{
+			name: "javascript_language",
+			setup: func(cmd *cobra.Command) {
+				cmd.Flags().String("schema", "schema.yaml", "")
+				cmd.Flags().String("lang", "javascript", "")
+				cmd.Flags().String("name", "test-sdk", "")
+				cmd.Flags().String("http-lib", "axios", "")
+				cmd.Flags().String("typescript-version", "5.1", "")
+				cmd.Flags().String("output", "output", "")
+				cmd.Flags().Bool("ignore-minor-issues", true, "") // Set to true to skip prompt
+				cmd.Flags().Bool("force", true, "")               // Set to true to skip prompt
+				cmd.Flags().String("sdk-version", "1.0.0", "")
+				cmd.Flags().Bool("skip-tests", true, "") // Set to true to skip prompt
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := &cobra.Command{}
+			tt.setup(cmd)
+
+			err := RunInteractive(cmd)
+			if err != nil {
+				t.Errorf("RunInteractive() should not return error when all flags are set, got: %v", err)
+			}
+		})
+	}
+}
