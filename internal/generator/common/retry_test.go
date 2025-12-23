@@ -113,6 +113,38 @@ func TestCalculateDelay_Fixed(t *testing.T) {
 	}
 }
 
+func TestCalculateDelay_NegativeAttempt(t *testing.T) {
+	config := RetryConfig{
+		Strategy:          RetryStrategyExponential,
+		InitialDelay:      time.Second,
+		MaxDelay:          60 * time.Second,
+		BackoffMultiplier: 2.0,
+	}
+
+	// Negative attempt should be treated as 0
+	delay := config.CalculateDelay(-1)
+	expected := time.Second // 1s * 2^0 = 1s
+	if delay != expected {
+		t.Errorf("Negative attempt: expected %v, got %v", expected, delay)
+	}
+}
+
+func TestCalculateDelay_UnknownStrategy(t *testing.T) {
+	config := RetryConfig{
+		Strategy:          RetryStrategy("unknown"),
+		InitialDelay:      time.Second,
+		MaxDelay:          60 * time.Second,
+		BackoffMultiplier: 2.0,
+	}
+
+	// Unknown strategy should default to exponential
+	delay := config.CalculateDelay(2)
+	expected := 4 * time.Second // 1s * 2^2 = 4s
+	if delay != expected {
+		t.Errorf("Unknown strategy: expected %v, got %v", expected, delay)
+	}
+}
+
 func TestIsRetryableStatusCode(t *testing.T) {
 	config := RetryConfig{
 		RetryableStatusCodes: []int{429, 500, 502, 503, 504},
@@ -224,6 +256,64 @@ func TestParseRetryConfigFromOpenAPI_InvalidExtension(t *testing.T) {
 	config := ParseRetryConfigFromOpenAPI(doc)
 	if config != nil {
 		t.Error("Expected nil config when extension is invalid")
+	}
+}
+
+func TestParseRetryConfigFromOpenAPI_NonOpenAPIDoc(t *testing.T) {
+	// Test with non-openapi3.T type
+	config := ParseRetryConfigFromOpenAPI("not an openapi doc")
+	if config != nil {
+		t.Error("Expected nil config when doc is not openapi3.T")
+	}
+}
+
+func TestParseRetryConfigFromOpenAPI_InvalidStrategy(t *testing.T) {
+	doc := &openapi3.T{
+		OpenAPI: "3.0.0",
+		Info: &openapi3.Info{
+			Title:   "Test API",
+			Version: "1.0.0",
+		},
+		Extensions: map[string]interface{}{
+			"x-sdk-forge-retry": map[string]interface{}{
+				"enabled":  true,
+				"strategy": "unknown", // Invalid strategy
+			},
+		},
+	}
+
+	config := ParseRetryConfigFromOpenAPI(doc)
+	if config == nil {
+		t.Fatal("Expected non-nil config")
+	}
+	// Invalid strategy should default to exponential
+	if config.Strategy != RetryStrategyExponential {
+		t.Errorf("Expected Strategy=exponential (default), got %s", config.Strategy)
+	}
+}
+
+func TestParseRetryConfigFromOpenAPI_InvalidStatusCode(t *testing.T) {
+	doc := &openapi3.T{
+		OpenAPI: "3.0.0",
+		Info: &openapi3.Info{
+			Title:   "Test API",
+			Version: "1.0.0",
+		},
+		Extensions: map[string]interface{}{
+			"x-sdk-forge-retry": map[string]interface{}{
+				"enabled":              true,
+				"retryableStatusCodes": []interface{}{429.0, "invalid", 500.0}, // Mixed types
+			},
+		},
+	}
+
+	config := ParseRetryConfigFromOpenAPI(doc)
+	if config == nil {
+		t.Fatal("Expected non-nil config")
+	}
+	// Invalid status codes should be skipped
+	if len(config.RetryableStatusCodes) != 2 {
+		t.Errorf("Expected 2 valid status codes, got %d", len(config.RetryableStatusCodes))
 	}
 }
 

@@ -1,6 +1,7 @@
 package common
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -265,6 +266,27 @@ func TestRenderTemplate(t *testing.T) {
 			data:        TemplateData{SDKName: "test"},
 			wantErr:     true,
 		},
+		{
+			name:        "template_with_multiple_functions",
+			tmplContent: "{{camelCase .SDKName}} {{snakeCase .SDKName}}",
+			data:        TemplateData{SDKName: "test-sdk"},
+			wantErr:     false,
+			contains:    "testSdk",
+		},
+		{
+			name:        "template_with_kebab_case",
+			tmplContent: "{{kebabCase .SDKName}}",
+			data:        TemplateData{SDKName: "testSdk"},
+			wantErr:     false,
+			contains:    "test-sdk",
+		},
+		{
+			name:        "template_with_capitalize",
+			tmplContent: "{{capitalize .SDKName}}",
+			data:        TemplateData{SDKName: "test"},
+			wantErr:     false,
+			contains:    "Test",
+		},
 	}
 
 	for _, tt := range tests {
@@ -435,5 +457,229 @@ func TestExtractOpenAPIData(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestToCamelCase(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"simple", "hello", "hello"},
+		{"two_words", "hello world", "helloWorld"},
+		{"snake_case", "hello_world", "helloWorld"},
+		{"kebab_case", "hello-world", "helloWorld"},
+		{"pascal_case", "HelloWorld", "helloWorld"},
+		{"mixed", "helloWorld", "helloWorld"},
+		{"with_numbers", "hello123world", "hello123world"},
+		{"empty", "", ""},
+		{"single_char", "a", "a"},
+		{"uppercase", "HELLO", "hELLO"}, // splitWords splits uppercase into individual letters
+		{"with_dots", "hello.world", "helloWorld"},
+		{"camelCase_boundary", "helloWorldTest", "helloWorldTest"},
+		{"multiple_uppercase", "XMLParser", "xMLParser"},
+		{"starts_with_number", "123test", "123test"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ToCamelCase(tt.input)
+			if result != tt.expected {
+				t.Errorf("ToCamelCase(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestToKebabCase(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"simple", "hello", "hello"},
+		{"two_words", "hello world", "hello-world"},
+		{"snake_case", "hello_world", "hello-world"},
+		{"pascal_case", "HelloWorld", "hello-world"},
+		{"camel_case", "helloWorld", "hello-world"},
+		{"with_numbers", "hello123world", "hello123world"},
+		{"empty", "", ""},
+		{"single_char", "a", "a"},
+		{"uppercase", "HELLO", "h-e-l-l-o"}, // splitWords splits uppercase into individual letters
+		{"with_dots", "hello.world", "hello-world"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ToKebabCase(tt.input)
+			if result != tt.expected {
+				t.Errorf("ToKebabCase(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestToTitleCase(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"simple", "hello", "Hello"},
+		{"two_words", "hello world", "Hello World"},
+		{"uppercase", "HELLO", "Hello"},
+		{"mixed", "hELLo", "Hello"},
+		{"empty", "", ""},
+		{"single_char", "a", "A"},
+		{"with_numbers", "hello123", "Hello123"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// toTitleCase is not exported, test via template
+			tmpl := "{{title .SDKName}}"
+			result, err := RenderTemplate(tmpl, TemplateData{SDKName: tt.input})
+			if err != nil {
+				t.Fatalf("RenderTemplate() error = %v", err)
+			}
+			// Remove newlines and trim
+			result = strings.TrimSpace(result)
+			if result != tt.expected {
+				t.Errorf("toTitleCase(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPluralize(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"ends_with_y", "city", "cities"},
+		{"ends_with_s", "class", "classes"},
+		{"ends_with_x", "box", "boxes"},
+		{"ends_with_z", "buzz", "buzzes"},
+		{"regular", "dog", "dogs"},
+		{"empty", "", "s"},
+		{"single_char", "a", "as"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// pluralize is not exported, test via template
+			tmpl := "{{plural .SDKName}}"
+			result, err := RenderTemplate(tmpl, TemplateData{SDKName: tt.input})
+			if err != nil {
+				t.Fatalf("RenderTemplate() error = %v", err)
+			}
+			result = strings.TrimSpace(result)
+			if result != tt.expected {
+				t.Errorf("pluralize(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSingularize(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"ends_with_ies", "cities", "city"},
+		{"ends_with_es", "classes", "class"},
+		{"ends_with_s", "dogs", "dog"},
+		{"no_s", "dog", "dog"},
+		{"empty", "", ""},
+		{"single_char", "a", "a"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// singularize is not exported, test via template
+			tmpl := "{{singular .SDKName}}"
+			result, err := RenderTemplate(tmpl, TemplateData{SDKName: tt.input})
+			if err != nil {
+				t.Fatalf("RenderTemplate() error = %v", err)
+			}
+			result = strings.TrimSpace(result)
+			if result != tt.expected {
+				t.Errorf("singularize(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCreateTestExtractedData(t *testing.T) {
+	data := CreateTestExtractedData()
+	if data == nil {
+		t.Fatal("CreateTestExtractedData() returned nil")
+	}
+	if data.BaseURL != "https://api.example.com/v1" {
+		t.Errorf("CreateTestExtractedData() BaseURL = %q, want %q", data.BaseURL, "https://api.example.com/v1")
+	}
+	if data.Title != "Test API" {
+		t.Errorf("CreateTestExtractedData() Title = %q, want %q", data.Title, "Test API")
+	}
+	if data.Version != "1.0.0" {
+		t.Errorf("CreateTestExtractedData() Version = %q, want %q", data.Version, "1.0.0")
+	}
+	if data.Operations == nil {
+		t.Error("CreateTestExtractedData() Operations should not be nil")
+	}
+	if data.Schemas == nil {
+		t.Error("CreateTestExtractedData() Schemas should not be nil")
+	}
+	if data.SecuritySchemes == nil {
+		t.Error("CreateTestExtractedData() SecuritySchemes should not be nil")
+	}
+}
+
+func TestCreateTestOpenAPIDoc(t *testing.T) {
+	doc := CreateTestOpenAPIDoc()
+	if doc == nil {
+		t.Fatal("CreateTestOpenAPIDoc() returned nil")
+	}
+	if doc.OpenAPI != "3.0.0" {
+		t.Errorf("CreateTestOpenAPIDoc() OpenAPI = %q, want %q", doc.OpenAPI, "3.0.0")
+	}
+	if doc.Info == nil {
+		t.Fatal("CreateTestOpenAPIDoc() Info should not be nil")
+	}
+	if doc.Info.Title != "Test API" {
+		t.Errorf("CreateTestOpenAPIDoc() Info.Title = %q, want %q", doc.Info.Title, "Test API")
+	}
+	if doc.Info.Version != "1.0.0" {
+		t.Errorf("CreateTestOpenAPIDoc() Info.Version = %q, want %q", doc.Info.Version, "1.0.0")
+	}
+	if len(doc.Servers) == 0 {
+		t.Error("CreateTestOpenAPIDoc() should have at least one server")
+	}
+	if doc.Servers[0].URL != "https://api.example.com/v1" {
+		t.Errorf("CreateTestOpenAPIDoc() Server.URL = %q, want %q", doc.Servers[0].URL, "https://api.example.com/v1")
+	}
+}
+
+func TestGetGoDefaultVersion(t *testing.T) {
+	version := GetGoDefaultVersion()
+	if version.Major != 1 || version.Minor != 24 {
+		t.Errorf("GetGoDefaultVersion() = %v, want {Major: 1, Minor: 24}", version)
+	}
+}
+
+func TestGetPythonDefaultVersion(t *testing.T) {
+	version := GetPythonDefaultVersion()
+	if version.Major != 3 || version.Minor != 11 {
+		t.Errorf("GetPythonDefaultVersion() = %v, want {Major: 3, Minor: 11}", version)
+	}
+}
+
+func TestGetPHPDefaultVersion(t *testing.T) {
+	version := GetPHPDefaultVersion()
+	if version.Major != 8 || version.Minor != 1 {
+		t.Errorf("GetPHPDefaultVersion() = %v, want {Major: 8, Minor: 1}", version)
 	}
 }
