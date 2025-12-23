@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/vubon/sdk-forge/internal/generator/common"
 
@@ -620,5 +621,92 @@ func TestGeneratePythonSDK_Phase3_Fixtures(t *testing.T) {
 	contentStr := string(content)
 	if !common.Contains(contentStr, "fixtures") || !common.Contains(contentStr, "list_users") {
 		t.Error("fixtures.py should contain fixture variables from examples")
+	}
+}
+
+func TestGeneratePythonSDK_WithRetryEnabled(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := common.TestSDKName
+	httpLib := "requests"
+
+	extractedData := common.CreateTestExtractedData()
+
+	// Create retry config with retry enabled
+	retryConfig := common.DefaultRetryConfig()
+	retryConfig.Enabled = true
+	retryConfig.MaxAttempts = 5
+	retryConfig.Strategy = common.RetryStrategyExponential
+	retryConfig.InitialDelay = 1 * time.Second
+	retryConfig.MaxDelay = 60 * time.Second
+	retryConfig.BackoffMultiplier = 2.0
+	retryConfig.RetryableStatusCodes = []int{429, 500, 502, 503, 504}
+	retryConfig.RetryOnNetworkErrors = true
+
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, retryConfig)
+	if err != nil {
+		t.Fatalf("GeneratePythonSDK() with retry enabled error = %v", err)
+	}
+
+	// Check that client.py contains retry configuration
+	clientPath := filepath.Join(tmpDir, "test_sdk", "client.py")
+	if _, err := os.Stat(clientPath); os.IsNotExist(err) {
+		t.Fatal("client.py should be created")
+	}
+
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(clientPath)
+	if err != nil {
+		t.Fatalf("Failed to read client.py: %v", err)
+	}
+
+	contentStr := string(content)
+
+	// Check for retry configuration
+	if !common.Contains(contentStr, "retry_enabled") {
+		t.Error("client.py should contain retry_enabled when retry is enabled")
+	}
+	if !common.Contains(contentStr, "retry_max_attempts") {
+		t.Error("client.py should contain retry_max_attempts when retry is enabled")
+	}
+	if !common.Contains(contentStr, "_calculate_retry_delay") {
+		t.Error("client.py should contain _calculate_retry_delay method when retry is enabled")
+	}
+	if !common.Contains(contentStr, "exponential") {
+		t.Error("client.py should contain retry strategy when retry is enabled")
+	}
+}
+
+func TestGeneratePythonSDK_WithRetryDisabled(t *testing.T) {
+	tmpDir := t.TempDir()
+	sdkName := common.TestSDKName
+	httpLib := "requests"
+
+	extractedData := common.CreateTestExtractedData()
+
+	// Use default retry config (disabled)
+	retryConfig := common.DefaultRetryConfig()
+
+	err := GeneratePythonSDK(tmpDir, sdkName, httpLib, extractedData, nil, "", true, retryConfig)
+	if err != nil {
+		t.Fatalf("GeneratePythonSDK() with retry disabled error = %v", err)
+	}
+
+	// Check that client.py does NOT contain retry configuration
+	clientPath := filepath.Join(tmpDir, "test_sdk", "client.py")
+	if _, err := os.Stat(clientPath); os.IsNotExist(err) {
+		t.Fatal("client.py should be created")
+	}
+
+	// #nosec G304 -- File path is from test, safe to read
+	content, err := os.ReadFile(clientPath)
+	if err != nil {
+		t.Fatalf("Failed to read client.py: %v", err)
+	}
+
+	contentStr := string(content)
+
+	// When retry is disabled, retry setup should not be present
+	if common.Contains(contentStr, "retry_enabled = True") {
+		t.Error("client.py should not contain retry_enabled=True when retry is disabled")
 	}
 }

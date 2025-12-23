@@ -48,6 +48,7 @@ clean: ## Clean build artifacts and test outputs
 	@rm -rf $(BUILD_DIR)
 	@rm -f $(BINARY_NAME)
 	@rm -rf test-output test-sdks output
+	@rm -f *.out coverage.html
 	@echo "$(GREEN)✓ Clean complete$(NC)"
 
 lint: ## Run linter (golangci-lint)
