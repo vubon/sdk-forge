@@ -5,6 +5,48 @@ All notable changes to SDK Forge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2025-12-23
+
+### Added
+- **TypeScript/JavaScript SDK Generation**: Full support for TypeScript/JavaScript SDK generation
+  - TypeScript versions: 4.9, 5.0, 5.1, 5.2, 5.3, 5.4, 5.5 (Default: 5.0)
+  - HTTP Libraries: axios (default), fetch, node-fetch, ky
+  - Dual package exports: ESM (ES Modules) and CommonJS support
+  - Full TypeScript type safety with comprehensive type definitions
+  - Complete authentication support (API Key, Bearer, Basic, OAuth2, OpenID Connect, Mutual TLS)
+  - Retry mechanism support with all strategies (exponential, linear, fixed)
+  - Automatic test generation with Jest and ts-jest
+  - Code quality tools: ESLint and Prettier configuration files
+  - TypeScript compiler configuration (tsconfig.json) with strict type checking
+  - Package.json generation with proper dependencies and scripts
+  - Comprehensive README and examples generation
+  - Manual integration test support with Prism mock server
+  - HTTP library compatibility testing for all supported clients
+- **TypeScript Version CLI Flag**: `--typescript-version` flag for specifying target TypeScript version
+- **TypeScript Interactive Mode**: Interactive prompts for TypeScript version selection
+- **TypeScript Language Validation**: Added typescript/javascript to supported languages
+- **TypeScript Documentation**: Complete TypeScript/JavaScript SDK guide in docs/languages/typescript.md
+- **TypeScript Manual Tests**: Full manual integration test suite for TypeScript SDKs
+- **TypeScript Retry Tests**: Dedicated retry mechanism test scripts for TypeScript
+- **TypeScript HTTP Library Tests**: Support for testing all HTTP client libraries in test-all-http-libs.sh
+
+### Fixed
+- **TypeScript ESM Module Resolution**: Fixed Node.js ESM module resolution by adding `.js` extensions to all imports
+- **TypeScript Jest Configuration**: Fixed Jest ESM compatibility by using jest.config.cjs and proper ts-jest configuration
+- **TypeScript Retry Mechanism**: Fixed infinite recursion in retry logic by introducing separate `executeRequest` method
+- **TypeScript Client Interface**: Fixed `private` modifier errors in TypeScript interfaces by separating interface and class field generation
+- **TypeScript Default Export**: Fixed default export pattern to use re-export syntax for proper module resolution
+- **TypeScript NetworkException**: Added `cause` property to NetworkException class for error chaining
+- **TypeScript RetryConfig Interface**: Added missing `backoffMultiplier` property to RetryConfig interface
+- **Manual Test Authentication**: Updated all manual integration tests to use Bearer token authentication for endpoints requiring it
+- **TypeScript Test Method Calls**: Fixed API method calls to use object parameter syntax (e.g., `getPetById({ id: 1 })`)
+
+### Changed
+- **Version**: Updated from 0.5.0 to 0.6.0
+- **README**: Updated to reflect TypeScript/JavaScript SDK support and current project structure
+- **Documentation**: Updated MANUAL.md with TypeScript examples, CLI flags, and language-specific guide links
+- **Project Structure**: Updated documentation to reflect new directory structure with language-specific generator folders
+
 ## [0.5.0] - 2025-12-22
 
 ### Added
@@ -154,6 +196,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **-rc.x**: Release candidates (stable, final testing)
 - **x.y.z**: Stable releases (production ready)
 
+[0.6.0]: https://github.com/vubon/sdk-forge/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/vubon/sdk-forge/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/vubon/sdk-forge/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/vubon/sdk-forge/compare/v0.3.0-alpha.2...v0.3.0
 [0.3.0-alpha.2]: https://github.com/vubon/sdk-forge/compare/v0.3.0-alpha.1...v0.3.0-alpha.2
 [0.3.0-alpha.1]: https://github.com/vubon/sdk-forge/compare/v0.2.0-alpha.1...v0.3.0-alpha.1
