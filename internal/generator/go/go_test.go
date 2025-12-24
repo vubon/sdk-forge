@@ -1566,7 +1566,6 @@ func TestGenerateGoClientFallback(t *testing.T) {
 	}
 }
 
-
 // TestGenerateGoAPIMethods_Comprehensive tests various API method generation scenarios
 func TestGenerateGoAPIMethods_Comprehensive(t *testing.T) {
 	clientClassName := "Client"
@@ -1603,13 +1602,13 @@ func TestGenerateGoAPIMethods_Comprehensive(t *testing.T) {
 					OperationID: "getUserPost",
 					Parameters: []common.Parameter{
 						{
-							Name: "userId",
-							In:   "path",
+							Name:   "userId",
+							In:     "path",
 							Schema: &common.Schema{Type: "string"},
 						},
 						{
-							Name: "postId",
-							In:   "path",
+							Name:   "postId",
+							In:     "path",
 							Schema: &common.Schema{Type: "integer"},
 						},
 					},
@@ -1629,13 +1628,13 @@ func TestGenerateGoAPIMethods_Comprehensive(t *testing.T) {
 					OperationID: "listUsers",
 					Parameters: []common.Parameter{
 						{
-							Name: "limit",
-							In:   "query",
+							Name:   "limit",
+							In:     "query",
 							Schema: &common.Schema{Type: "integer"},
 						},
 						{
-							Name: "active",
-							In:   "query",
+							Name:   "active",
+							In:     "query",
 							Schema: &common.Schema{Type: "boolean"},
 						},
 					},
@@ -1680,13 +1679,13 @@ func TestGenerateGoAPIMethods_Comprehensive(t *testing.T) {
 					OperationID: "getConfig",
 					Parameters: []common.Parameter{
 						{
-							Name: "flag",
-							In:   "path",
+							Name:   "flag",
+							In:     "path",
 							Schema: &common.Schema{Type: "boolean"},
 						},
 						{
-							Name: "threshold",
-							In:   "path",
+							Name:   "threshold",
+							In:     "path",
 							Schema: &common.Schema{Type: "number"},
 						},
 					},
