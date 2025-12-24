@@ -125,7 +125,7 @@ func RunInteractive(cmd *cobra.Command) error {
 		lang, _ = cmd.Flags().GetString("language")
 	}
 	if lang == "" {
-		prompt := "Enter target language (python/go/php/javascript/typescript/all): "
+		prompt := "Enter target language (python/go/php/javascript/typescript/ruby/all): "
 		if err := promptRequiredInput(reader, prompt, "lang", cmd); err != nil {
 			return err
 		}
@@ -252,6 +252,36 @@ func RunInteractive(cmd *cobra.Command) error {
 				}
 				if err := cmd.Flags().Set("typescript-version", input); err != nil {
 					return fmt.Errorf("failed to set typescript-version flag: %w", err)
+				}
+			}
+		}
+	case "ruby":
+		rubyVer, _ := cmd.Flags().GetString("ruby-version")
+		if rubyVer == "" {
+			// Try alias flag
+			rubyVer, _ = cmd.Flags().GetString("rb-version")
+		}
+		if rubyVer == "" {
+			availableVersions := common.GetRubyAvailableVersions()
+			defaultVersion := common.GetRubyDefaultVersion()
+			versionList := make([]string, len(availableVersions))
+			for i, v := range availableVersions {
+				versionList[i] = v.String()
+			}
+			prompt := fmt.Sprintf("Enter Ruby version (press Enter for default '%s', available: %v): ",
+				defaultVersion.String(), versionList)
+			input, err := promptInput(reader, prompt)
+			if err != nil {
+				return err
+			}
+			if input != "" {
+				// Validate the version
+				_, err := common.ValidateRubyVersion(input)
+				if err != nil {
+					return fmt.Errorf("invalid Ruby version format: %w", err)
+				}
+				if err := cmd.Flags().Set("ruby-version", input); err != nil {
+					return fmt.Errorf("failed to set ruby-version flag: %w", err)
 				}
 			}
 		}

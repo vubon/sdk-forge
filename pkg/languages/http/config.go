@@ -15,6 +15,7 @@ const (
 	langJSFull = "javascript"
 	langTS     = "ts"
 	langTSFull = "typescript"
+	langRuby   = "ruby"
 )
 
 // LibraryConfig represents configuration for an HTTP library
@@ -34,6 +35,7 @@ type Config struct {
 	Go     LanguageConfig
 	PHP    LanguageConfig
 	JS     LanguageConfig
+	Ruby   LanguageConfig
 }
 
 // GetConfig returns the HTTP library configuration for all languages
@@ -99,35 +101,29 @@ func GetConfig() *Config {
 				Default:     false,
 			},
 			"curl": {
-				Import:      "curl",
+				Import:      "",
 				Dependency:  "", // Built-in PHP extension
 				ClientClass: "curl",
 				Default:     false,
 			},
 		},
-		JS: LanguageConfig{
-			"axios": {
-				Import:      "axios",
-				Dependency:  "axios@^1.6.0",
-				ClientClass: "axios",
+		Ruby: LanguageConfig{
+			"faraday": {
+				Import:      "faraday",
+				Dependency:  "faraday:~> 2.0",
+				ClientClass: "Faraday::Connection",
 				Default:     true,
 			},
-			"fetch": {
-				Import:      "", // Built-in in modern JS
-				Dependency:  "", // No dependency needed
-				ClientClass: "fetch",
+			"net-http": {
+				Import:      "net/http",
+				Dependency:  "", // Standard library, no dependency needed
+				ClientClass: "Net::HTTP",
 				Default:     false,
 			},
-			"node-fetch": {
-				Import:      "node-fetch",
-				Dependency:  "node-fetch@^3.3.0",
-				ClientClass: "fetch",
-				Default:     false,
-			},
-			"ky": {
-				Import:      "ky",
-				Dependency:  "ky@^1.0.0",
-				ClientClass: "ky",
+			"httprb": {
+				Import:      "http",
+				Dependency:  "http:~> 5.0",
+				ClientClass: "HTTP::Client",
 				Default:     false,
 			},
 		},
@@ -163,6 +159,12 @@ func GetDefaultLibrary(language string) string {
 				return name
 			}
 		}
+	case langRuby:
+		for name, lib := range config.Ruby {
+			if lib.Default {
+				return name
+			}
+		}
 	}
 
 	return ""
@@ -184,6 +186,9 @@ func IsValidLibrary(language, httpLib string) bool {
 		return exists
 	case langJS, langJSFull, langTS, langTSFull:
 		_, exists := config.JS[httpLib]
+		return exists
+	case langRuby:
+		_, exists := config.Ruby[httpLib]
 		return exists
 	}
 
@@ -212,6 +217,10 @@ func GetValidLibraries(language string) []string {
 		for name := range config.JS {
 			libraries = append(libraries, name)
 		}
+	case langRuby:
+		for name := range config.Ruby {
+			libraries = append(libraries, name)
+		}
 	}
 
 	return libraries
@@ -231,6 +240,8 @@ func GetLibraryConfig(language, httpLib string) (*LibraryConfig, error) {
 		langConfig = config.PHP
 	case langJS, langJSFull, langTS, langTSFull:
 		langConfig = config.JS
+	case langRuby:
+		langConfig = config.Ruby
 	default:
 		return nil, fmt.Errorf("unsupported language: %s", language)
 	}

@@ -5,6 +5,26 @@ All notable changes to SDK Forge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Ruby SDK Generation**: Full support for Ruby SDK generation
+  - Ruby versions: 3.0, 3.1, 3.2, 3.3 (Default: 3.0)
+  - HTTP Libraries: faraday (default), net-http, httprb
+  - Gem structure with Bundler support
+  - Complete authentication support (API Key, Bearer, Basic, OAuth2, OpenID Connect)
+  - Retry mechanism support with all strategies (exponential, linear, fixed)
+  - Automatic test generation with RSpec and WebMock
+  - Code quality tools: RuboCop configuration, YARD documentation support
+  - Gemspec and Gemfile generation
+  - Comprehensive README and examples generation
+  - Full keyword arguments support
+  - JSON serialization/deserialization for models
+- **Ruby Version CLI Flag**: `--ruby-version` and `--rb-version` flags for specifying target Ruby version
+- **Ruby Interactive Mode**: Interactive prompts for Ruby version selection
+- **Ruby Language Validation**: Added ruby/rb to supported languages
+- **Ruby Documentation**: Complete Ruby SDK guide in docs/languages/ruby.md
+
 ## [0.6.1] - 2025-12-24
 
 ### Fixed
