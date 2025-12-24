@@ -18,7 +18,6 @@ GOMOD=$(GOCMD) mod
 GOFMT=gofmt
 GOIMPORTS=goimports
 GOLINT=golangci-lint
-PARALLEL?=8
 
 # Colors for output
 RED=\033[0;31m
@@ -124,7 +123,9 @@ test: ## Run tests (cleans test outputs first)
 	@echo "$(YELLOW)Cleaning test outputs...$(NC)"
 	@rm -rf test-output test-sdks
 	@echo "$(YELLOW)Running tests (parallel: $(PARALLEL))...$(NC)"
-	$(GOTEST) -v -race -parallel $(PARALLEL) -coverprofile=coverage.out ./...
+	@PARALLEL_FLAG=""; \
+	if [ -n "$(PARALLEL)" ]; then PARALLEL_FLAG="-parallel $(PARALLEL)"; fi; \
+	$(GOTEST) -v -race $$PARALLEL_FLAG -coverprofile=coverage.out ./...
 	@echo "$(GREEN)✓ Tests complete$(NC)"
 
 test-coverage: test ## Run tests with coverage report
@@ -135,7 +136,9 @@ test-coverage: test ## Run tests with coverage report
 
 test-short: ## Run tests in short mode
 	@echo "$(YELLOW)Running short tests (parallel: $(PARALLEL))...$(NC)"
-	$(GOTEST) -short -v -parallel $(PARALLEL) ./...
+	@PARALLEL_FLAG=""; \
+	if [ -n "$(PARALLEL)" ]; then PARALLEL_FLAG="-parallel $(PARALLEL)"; fi; \
+	$(GOTEST) -short -v $$PARALLEL_FLAG ./...
 	@echo "$(GREEN)✓ Short tests complete$(NC)"
 
 run: build ## Build and run the binary
