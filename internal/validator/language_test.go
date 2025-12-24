@@ -97,7 +97,7 @@ func TestValidateSDKName(t *testing.T) {
 
 func TestGetImplementedLanguages(t *testing.T) {
 	langs := GetImplementedLanguages()
-	expected := map[string]bool{"python": true, "go": true, "php": true, "typescript": true, "javascript": true}
+	expected := map[string]bool{"python": true, "go": true, "php": true, "typescript": true, "javascript": true, "ruby": true}
 	if len(langs) != len(expected) {
 		t.Errorf("GetImplementedLanguages() returned %d languages, want %d", len(langs), len(expected))
 	}

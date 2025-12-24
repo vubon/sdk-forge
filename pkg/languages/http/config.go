@@ -107,6 +107,32 @@ func GetConfig() *Config {
 				Default:     false,
 			},
 		},
+		JS: LanguageConfig{
+			"axios": {
+				Import:      "axios",
+				Dependency:  "axios:^1.6.0",
+				ClientClass: "AxiosInstance",
+				Default:     true,
+			},
+			"fetch": {
+				Import:      "",
+				Dependency:  "", // Built-in browser/Node.js API
+				ClientClass: "fetch",
+				Default:     false,
+			},
+			"node-fetch": {
+				Import:      "node-fetch",
+				Dependency:  "node-fetch:^3.3.0",
+				ClientClass: "fetch",
+				Default:     false,
+			},
+			"ky": {
+				Import:      "ky",
+				Dependency:  "ky:^1.1.0",
+				ClientClass: "ky",
+				Default:     false,
+			},
+		},
 		Ruby: LanguageConfig{
 			"faraday": {
 				Import:      "faraday",
