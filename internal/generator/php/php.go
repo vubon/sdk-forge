@@ -101,7 +101,7 @@ func generatePHPSDKFromExtracted(
 		HTTPLibImport:   libConfig.Import,
 		HTTPLibConfig:   libConfig,
 		OpenAPIDoc:      extractedData,
-		ClientClassName: common.GetClientClassName(sanitizedName),
+		ClientClassName: sanitizedName,
 		RetryConfig:     retryConfig,
 	}
 
