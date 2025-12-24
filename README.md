@@ -4,7 +4,7 @@ A powerful CLI tool written in Go that generates production-ready SDKs for multi
 
 ## Status
 
-✅ **v0.6.0** - Go, Python, PHP, and TypeScript/JavaScript SDK generation with automatic test generation and retry mechanism fully implemented
+- [x] **v0.6.1** - Go, Python, PHP, and TypeScript/JavaScript SDK generation with automatic test generation and retry mechanism fully implemented
 
 > This project follows [Semantic Versioning 2.0.0](https://semver.org/). Current version is a stable release.
 
@@ -201,51 +201,32 @@ For complete documentation, see the [User Manual](docs/MANUAL.md).
 
 ```
 sdk-forge/
-├── cmd/
-│   └── cli/              # CLI entry point
-│       ├── main.go
-│       └── commands/     # CLI commands
-│           ├── generate.go
-│           └── interactive.go
-├── internal/
-│   ├── generator/        # Code generation logic
-│   │   ├── go/           # Go SDK generator
-│   │   │   ├── go.go
-│   │   │   └── templates/
-│   │   ├── python/       # Python SDK generator
-│   │   │   ├── python.go
-│   │   │   └── templates/
-│   │   ├── php/          # PHP SDK generator
-│   │   │   ├── php.go
-│   │   │   └── templates/
-│   │   ├── typescript/   # TypeScript/JavaScript SDK generator
-│   │   │   ├── typescript.go
-│   │   │   ├── typescript_models.go
-│   │   │   ├── typescript_client.go
-│   │   │   ├── typescript_api.go
-│   │   │   ├── typescript_exceptions.go
-│   │   │   ├── typescript_helpers.go
-│   │   │   ├── typescript_test.go
-│   │   │   ├── typescript_testgen.go
-│   │   │   └── templates/
-│   │   ├── common/       # Common utilities for all languages
-│   │   │   ├── common.go
-│   │   │   ├── versions.go
-│   │   │   ├── templates.go
-│   │   │   └── ...
-│   │   └── templates.go  # Template loader (go:embed)
-│   ├── parser/           # OpenAPI schema parser
-│   └── validator/        # Validation logic
-├── pkg/
-│   └── languages/
-│       └── http/         # HTTP library configuration
-├── docs/                 # Documentation
-│   ├── README.md         # Usage guide
-│   └── MANUAL.md         # User manual
-├── examples/             # Example OpenAPI schemas
-├── VERSION               # Semantic version (SemVer 2.0.0)
-├── Makefile              # Development tasks
-└── generate-sdk.sh       # Helper script for testing
+├── cmd/                 # CLI entry point
+│   └── cli/
+│       ├── main.go      # program entry
+│       └── commands/...  # generate, interactive, etc.
+├── internal/            # core implementation
+│   ├── generator/       # language generators and shared utilities
+│   │   ├── common/      # shared utilities and helpers
+│   │   ├── go/          # Go SDK generator
+│   │   │   └── templates/...
+│   │   ├── php/         # PHP SDK generator
+│   │   │   └── templates/...
+│   │   ├── python/      # Python SDK generator
+│   │   │   └── templates/...
+│   │   ├── typescript/  # TypeScript SDK generator
+│   │   │   └── templates/...
+│   │   ├── integration_test.go
+│   │   ├── template_test.go
+│   │   └── templates.go
+│   ├── parser/...
+│   └── validator/...
+├── pkg/...
+├── docs/...
+├── examples/...
+├── VERSION
+├── Makefile
+└── generate-sdk.sh
 ```
 
 ## Development
@@ -325,7 +306,7 @@ make clean
 
 SDK Forge follows [Semantic Versioning 2.0.0](https://semver.org/) (SemVer). The version is managed in the `VERSION` file and automatically injected during build.
 
-**Current Version**: `0.5.0`
+**Current Version**: `0.6.1`
 
 **Version Format**: `MAJOR.MINOR.PATCH-PRERELEASE`
 - **0.x.x**: Initial development (API may change)

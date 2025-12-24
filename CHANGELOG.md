@@ -5,6 +5,29 @@ All notable changes to SDK Forge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2025-12-24
+
+### Fixed
+- **PHP SDK Client Naming**: Align client class filenames with PSR-4 expectations and updated unit tests so generated files (e.g., `TestSdk.php`) are consistently produced and verified.
+- **CI/Test Stability**: Prevent `go test` from receiving empty `-parallel` flags in `make test`/`make test-short`, eliminating tar/cache restore failures triggered by invalid flag usage in CI runners.
+
+### Testing
+- Test run summary (generated with `go test ./... -coverprofile=coverage.out`):
+  - Total coverage (statements): **86.2%**
+  - Per-package representative coverage:
+    - `cmd/cli`: 27.3%
+    - `cmd/cli/commands`: 68.9%
+    - `internal/generator`: 100.0%
+      - `internal/generator/php`: 92.4%
+      - `internal/generator/go`: 85.8%
+      - `internal/generator/python`: 78.5%
+      - `internal/generator/typescript`: 88.9%
+    - `internal/parser`: 95.9%
+    - `internal/validator`: 100.0%
+    - `pkg/languages/http`: 96.8%
+
+- The PHP generator suite passes end-to-end and maintains high coverage; overall project coverage is **86.2%** (statements). Consider adding targeted tests for `cmd/cli` and `internal/generator/python` to raise total coverage toward the 98% target.
+
 ## [0.6.0] - 2025-12-23
 
 ### Added
@@ -191,6 +214,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **-rc.x**: Release candidates (stable, final testing)
 - **x.y.z**: Stable releases (production ready)
 
+[0.6.1]: https://github.com/vubon/sdk-forge/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/vubon/sdk-forge/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/vubon/sdk-forge/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/vubon/sdk-forge/compare/v0.3.0...v0.4.0

@@ -388,3 +388,32 @@ func buildTestBinary(t *testing.T) string {
 
 	return binaryPath
 }
+
+// TestGetVersion tests the getVersion function
+func TestGetVersion(t *testing.T) {
+	// Test with dev version
+	originalVersion := version
+	version = "dev"
+	result := getVersion()
+	if !strings.Contains(result, "dev") {
+		t.Errorf("getVersion() with dev should contain 'dev', got: %s", result)
+	}
+
+	// Test with actual version
+	version = "1.0.0"
+	buildDate = "2024-01-01"
+	gitCommit = "abc123"
+	result = getVersion()
+	if !strings.Contains(result, "1.0.0") {
+		t.Errorf("getVersion() should contain version, got: %s", result)
+	}
+	if !strings.Contains(result, "abc123") {
+		t.Errorf("getVersion() should contain git commit, got: %s", result)
+	}
+	if !strings.Contains(result, "2024-01-01") {
+		t.Errorf("getVersion() should contain build date, got: %s", result)
+	}
+
+	// Restore original
+	version = originalVersion
+}

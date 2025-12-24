@@ -101,7 +101,7 @@ func generatePHPSDKFromExtracted(
 		HTTPLibImport:   libConfig.Import,
 		HTTPLibConfig:   libConfig,
 		OpenAPIDoc:      extractedData,
-		ClientClassName: common.GetClientClassName(sanitizedName),
+		ClientClassName: sanitizedName,
 		RetryConfig:     retryConfig,
 	}
 
@@ -666,7 +666,7 @@ func generatePHPExamples(data common.TemplateData) string {
 	return examples.String()
 }
 
-// generatePHPTests is now implemented in php_tests.go
+// generatePHPTests is now implemented in php_testgen.go
 
 // generatePHPQualityConfigs generates code quality configuration files
 func generatePHPQualityConfigs(packageDir string) error {
