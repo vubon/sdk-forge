@@ -53,6 +53,7 @@ func GetImplementedLanguages() []string {
 
 // ValidateSDKName validates and sanitizes SDK name based on language
 func ValidateSDKName(name, language string) (string, error) {
+	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", fmt.Errorf("SDK name cannot be empty")
 	}
@@ -61,9 +62,11 @@ func ValidateSDKName(name, language string) (string, error) {
 	_ = NormalizeLanguage(language)
 
 	// Basic validation - alphanumeric, hyphens, underscores
-	// More specific validation per language will be done during generation
-	if len(name) == 0 {
-		return "", fmt.Errorf("SDK name cannot be empty")
+	for _, c := range name {
+		valid := (c == '-') || (c == '_') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+		if !valid {
+			return "", fmt.Errorf("SDK name contains invalid character: %q", c)
+		}
 	}
 
 	return name, nil
