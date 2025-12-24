@@ -177,9 +177,10 @@ func generateRubyClient(data common.TemplateData, _ /* version */ common.Languag
 					buf.WriteString(fmt.Sprintf("      headers['%s'] = @api_key if @api_key\n", scheme.Name))
 				}
 			case "http":
-				if scheme.Scheme == "bearer" {
+				switch scheme.Scheme {
+				case "bearer":
 					buf.WriteString("      headers['Authorization'] = \"Bearer #{@bearer_token}\" if @bearer_token\n")
-				} else if scheme.Scheme == "basic" {
+				case "basic":
 					buf.WriteString("      if @username && @password\n")
 					buf.WriteString("        credentials = Base64.strict_encode64(\"#{@username}:#{@password}\")\n")
 					buf.WriteString("        headers['Authorization'] = \"Basic #{credentials}\"\n")

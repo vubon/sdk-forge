@@ -82,9 +82,10 @@ func generateRubyAPIMethod(op common.APIOperation, _ /* data */ common.TemplateD
 	var optionalParams []string
 
 	for _, param := range op.Parameters {
-		if param.In == "path" {
+		switch param.In {
+		case "path":
 			requiredParams = append(requiredParams, fmt.Sprintf("%s:", common.ToSnakeCase(param.Name)))
-		} else if param.In == "query" {
+		case "query":
 			if param.Required {
 				requiredParams = append(requiredParams, fmt.Sprintf("%s:", common.ToSnakeCase(param.Name)))
 			} else {

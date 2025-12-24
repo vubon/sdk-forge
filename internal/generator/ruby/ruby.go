@@ -14,20 +14,6 @@ import (
 	httplib "github.com/vubon/sdk-forge/pkg/languages/http"
 )
 
-//go:embed templates/gemspec.tmpl
-var rubyGemspecTemplate string
-
-//go:embed templates/README.md.tmpl
-var rubyReadmeTemplate string
-
-func getRubyGemspecTemplateContent() string {
-	return rubyGemspecTemplate
-}
-
-func getRubyReadmeTemplateContent() string {
-	return rubyReadmeTemplate
-}
-
 // GenerateRubySDK generates a Ruby SDK
 // If version is nil, uses the default Ruby version
 // If sdkVersion is empty, extracts from OpenAPI schema or defaults to "1.0.0"
@@ -266,20 +252,20 @@ func generateRubyGemspec(sdkName, sdkVersion, httpLib string, version common.Lan
 	description = strings.ReplaceAll(description, "\n", " ")
 
 	var buf strings.Builder
-	buf.WriteString(fmt.Sprintf("# frozen_string_literal: true\n\n"))
+	buf.WriteString("# frozen_string_literal: true\n\n")
 	buf.WriteString(fmt.Sprintf("require_relative 'lib/%s/version'\n\n", sanitizedName))
-	buf.WriteString(fmt.Sprintf("Gem::Specification.new do |spec|\n"))
+	buf.WriteString("Gem::Specification.new do |spec|\n")
 	buf.WriteString(fmt.Sprintf("  spec.name          = %q\n", sanitizedName))
 	buf.WriteString(fmt.Sprintf("  spec.version       = %s::VERSION\n", moduleName))
-	buf.WriteString(fmt.Sprintf("  spec.authors       = ['Auto-generated']\n"))
-	buf.WriteString(fmt.Sprintf("  spec.email         = ['noreply@example.com']\n\n"))
+	buf.WriteString("  spec.authors       = ['Auto-generated']\n")
+	buf.WriteString("  spec.email         = ['noreply@example.com']\n\n")
 	buf.WriteString(fmt.Sprintf("  spec.summary       = %q\n", description))
 	buf.WriteString(fmt.Sprintf("  spec.description   = %q\n", description))
 	buf.WriteString(fmt.Sprintf("  spec.homepage      = 'https://github.com/example/%s'\n", sanitizedName))
-	buf.WriteString(fmt.Sprintf("  spec.license       = 'MIT'\n\n"))
+	buf.WriteString("  spec.license       = 'MIT'\n\n")
 	buf.WriteString(fmt.Sprintf("  spec.required_ruby_version = '>= %s'\n\n", version.GetRubyVersionString()))
-	buf.WriteString(fmt.Sprintf("  spec.files = Dir['lib/**/*.rb', 'README.md', 'LICENSE']\n"))
-	buf.WriteString(fmt.Sprintf("  spec.require_paths = ['lib']\n\n"))
+	buf.WriteString("  spec.files = Dir['lib/**/*.rb', 'README.md', 'LICENSE']\n")
+	buf.WriteString("  spec.require_paths = ['lib']\n\n")
 
 	// Add HTTP library dependency
 	if libConfig.Dependency != "" {
@@ -291,10 +277,10 @@ func generateRubyGemspec(sdkName, sdkVersion, httpLib string, version common.Lan
 		}
 	}
 
-	buf.WriteString(fmt.Sprintf("\n  spec.add_development_dependency 'rspec', '~> 3.0'\n"))
-	buf.WriteString(fmt.Sprintf("  spec.add_development_dependency 'rubocop', '~> 1.0'\n"))
-	buf.WriteString(fmt.Sprintf("  spec.add_development_dependency 'yard', '~> 0.9'\n"))
-	buf.WriteString(fmt.Sprintf("end\n"))
+	buf.WriteString("\n  spec.add_development_dependency 'rspec', '~> 3.0'\n")
+	buf.WriteString("  spec.add_development_dependency 'rubocop', '~> 1.0'\n")
+	buf.WriteString("  spec.add_development_dependency 'yard', '~> 0.9'\n")
+	buf.WriteString("end\n")
 
 	return buf.String(), nil
 }

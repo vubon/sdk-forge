@@ -115,7 +115,7 @@ func generateRubyModel(name string, schema *common.Schema, sanitizedSDKName stri
 		buf.WriteString(fmt.Sprintf("      # @return [%s]\n", className))
 		buf.WriteString("      def self.from_hash(hash)\n")
 		buf.WriteString("        return nil if hash.nil?\n\n")
-		buf.WriteString(fmt.Sprintf("        new(\n"))
+		buf.WriteString("        new(\n")
 
 		var fromHashParams []string
 		for propName := range schema.Properties {
