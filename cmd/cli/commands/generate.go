@@ -16,6 +16,7 @@ import (
 	gogen "github.com/vubon/sdk-forge/internal/generator/go"
 	"github.com/vubon/sdk-forge/internal/generator/php"
 	"github.com/vubon/sdk-forge/internal/generator/python"
+	"github.com/vubon/sdk-forge/internal/generator/ruby"
 	"github.com/vubon/sdk-forge/internal/generator/typescript"
 	"github.com/vubon/sdk-forge/internal/parser"
 	"github.com/vubon/sdk-forge/internal/validator"
@@ -53,6 +54,7 @@ var (
 	pythonVersion     string
 	phpVersion        string
 	typescriptVersion string
+	rubyVersion       string
 	sdkVersion        string
 	skipTests         bool
 )
@@ -77,6 +79,10 @@ func init() {
 		"TypeScript version to use (e.g., 4.9, 5.0, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6). Default: 5.0")
 	generateCmd.Flags().StringVar(&typescriptVersion, "ts-version", "",
 		"TypeScript version (alias for --typescript-version)")
+	generateCmd.Flags().StringVar(&rubyVersion, "ruby-version", "",
+		"Ruby version to use (e.g., 3.0, 3.1, 3.2, 3.3). Default: 3.0")
+	generateCmd.Flags().StringVar(&rubyVersion, "rb-version", "",
+		"Ruby version (alias for --ruby-version)")
 	generateCmd.Flags().StringVar(&sdkVersion, "sdk-version", "",
 		"SDK version to use (e.g., 1.0.0, 2.0.0). "+
 			"If not provided, uses OpenAPI schema version (if available) or defaults to 1.0.0")
@@ -395,6 +401,22 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 		}
 	}
 
+	var rubyVer *common.LanguageVersion
+	if lang == "ruby" || lang == langAll {
+		rubyVerStr, _ := cmd.Flags().GetString("ruby-version")
+		if rubyVerStr == "" {
+			// Try alias flag
+			rubyVerStr, _ = cmd.Flags().GetString("rb-version")
+		}
+		if rubyVerStr != "" {
+			parsed, err := common.ValidateRubyVersion(rubyVerStr)
+			if err != nil {
+				return fmt.Errorf("invalid Ruby version: %w", err)
+			}
+			rubyVer = &parsed
+		}
+	}
+
 	// Get skip-tests flag (inverted: if skipTests is true, generateTests is false)
 	skipTestsFlag, _ := cmd.Flags().GetBool("skip-tests")
 	generateTests := !skipTestsFlag
@@ -426,6 +448,8 @@ func generateSDKForLanguage(lang, outputPath, sdkName, httpLib string, doc inter
 		return php.GeneratePHPSDK(outputPath, sdkName, httpLib, doc, phpVer, sdkVerStr, generateTests, retryConfig)
 	case "javascript", "typescript":
 		return typescript.GenerateTypeScriptSDK(outputPath, sdkName, httpLib, doc, tsVer, sdkVerStr, generateTests, retryConfig)
+	case "ruby":
+		return ruby.GenerateRubySDK(outputPath, sdkName, httpLib, doc, rubyVer, sdkVerStr, generateTests, retryConfig)
 	default:
 		return fmt.Errorf("unsupported language: %s", lang)
 	}

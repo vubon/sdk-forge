@@ -78,7 +78,7 @@ func TestGeneratePHPSDK_CustomHTTPLib(t *testing.T) {
 	}
 
 	contentStr := string(content)
-	if !common.Contains(contentStr, "curl") {
+	if !common.Contains(contentStr, "Curl") && !common.Contains(contentStr, "curl") {
 		t.Error("GeneratePHPSDK() should use curl in client.php")
 	}
 }

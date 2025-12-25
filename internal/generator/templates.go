@@ -39,6 +39,21 @@ var phpComposerTemplate string
 //go:embed php/templates/README.md.tmpl
 var phpReadmeTemplate string
 
+//go:embed ruby/templates/client.rb.tmpl
+var rubyClientTemplate string
+
+//go:embed ruby/templates/gemspec.tmpl
+var rubyGemspecTemplate string
+
+//go:embed ruby/templates/README.md.tmpl
+var rubyReadmeTemplate string
+
+//go:embed ruby/templates/models/model.rb.tmpl
+var rubyModelTemplate string
+
+//go:embed ruby/templates/api/api_method.rb.tmpl
+var rubyApiMethodTemplate string
+
 // LoadTemplate loads and parses a template string with custom functions
 func LoadTemplate(tmplContent string) (*template.Template, error) {
 	tmpl, err := template.New("sdk").Funcs(common.FuncMap()).Parse(tmplContent)
@@ -96,4 +111,29 @@ func GetPHPComposerTemplate() string {
 // GetPHPReadmeTemplate returns the PHP README template
 func GetPHPReadmeTemplate() string {
 	return phpReadmeTemplate
+}
+
+// GetRubyClientTemplate returns the Ruby client template
+func GetRubyClientTemplate() string {
+	return rubyClientTemplate
+}
+
+// GetRubyGemspecTemplate returns the Ruby gemspec template
+func GetRubyGemspecTemplate() string {
+	return rubyGemspecTemplate
+}
+
+// GetRubyReadmeTemplate returns the Ruby README template
+func GetRubyReadmeTemplate() string {
+	return rubyReadmeTemplate
+}
+
+// GetRubyModelTemplate returns the Ruby model template
+func GetRubyModelTemplate() string {
+	return rubyModelTemplate
+}
+
+// GetRubyApiMethodTemplate returns the Ruby API method template
+func GetRubyApiMethodTemplate() string {
+	return rubyApiMethodTemplate
 }

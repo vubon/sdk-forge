@@ -1,0 +1,88 @@
+# {{.DisplayName}}
+
+Auto-generated Ruby SDK from OpenAPI schema.
+
+## Installation
+
+Add this line to your application's Gemfile:
+
+```ruby
+gem '{{.SDKName}}'
+```
+
+And then execute:
+
+```bash
+bundle install
+```
+
+Or install it yourself as:
+
+```bash
+gem install {{.SDKName}}
+```
+
+## Usage
+
+```ruby
+require '{{.SDKName}}'
+
+# Initialize the client
+client = {{.ModuleName}}::{{.ClientClassName}}.new(base_url: '{{.BaseURL}}')
+
+{{if .HasAuth}}
+# With authentication
+client = {{.ModuleName}}::{{.ClientClassName}}.new(
+  base_url: '{{.BaseURL}}',
+  {{.AuthExample}}
+)
+{{end}}
+
+# Make API calls
+{{if .HasOperations}}
+{{.UsageExample}}
+{{end}}
+```
+
+## Features
+
+- ✅ Auto-generated from OpenAPI schema
+- ✅ Type-safe Ruby classes
+- ✅ Full authentication support
+{{if .RetryEnabled}}
+- ✅ Automatic retry mechanism with {{.RetryStrategy}} backoff
+{{end}}
+- ✅ Comprehensive error handling
+- ✅ YARD documentation
+- ✅ RSpec tests included
+
+## Development
+
+After checking out the repo, run `bundle install` to install dependencies.
+
+Run tests:
+
+```bash
+bundle exec rspec
+```
+
+Run RuboCop:
+
+```bash
+bundle exec rubocop
+```
+
+Generate documentation:
+
+```bash
+bundle exec yard doc
+```
+
+## Version
+
+Current version: {{.SDKVersion}}
+
+## License
+
+The gem is available as open source under the terms of the MIT License.
+

@@ -75,6 +75,21 @@ func GetTypeScriptAvailableVersions() []LanguageVersion {
 	}
 }
 
+// GetRubyDefaultVersion returns the default Ruby version for generated SDKs
+func GetRubyDefaultVersion() LanguageVersion {
+	return LanguageVersion{Major: 3, Minor: 0}
+}
+
+// GetRubyAvailableVersions returns all available Ruby versions
+func GetRubyAvailableVersions() []LanguageVersion {
+	return []LanguageVersion{
+		{Major: 3, Minor: 0},
+		{Major: 3, Minor: 1},
+		{Major: 3, Minor: 2},
+		{Major: 3, Minor: 3},
+	}
+}
+
 // ParseVersion parses a version string (e.g., "1.24", "3.11") into LanguageVersion
 func ParseVersion(versionStr string) (LanguageVersion, error) {
 	parts := strings.Split(versionStr, ".")
@@ -159,6 +174,36 @@ func ValidateTypeScriptVersion(version LanguageVersion) error {
 	)
 }
 
+// ValidateRubyVersion validates a Ruby version string
+func ValidateRubyVersion(version string) (LanguageVersion, error) {
+	parts := strings.Split(version, ".")
+	if len(parts) != 2 {
+		return LanguageVersion{}, fmt.Errorf("invalid version format: %s (expected format: X.Y)", version)
+	}
+
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return LanguageVersion{}, fmt.Errorf("invalid major version: %s", parts[0])
+	}
+
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return LanguageVersion{}, fmt.Errorf("invalid minor version: %s", parts[1])
+	}
+
+	v := LanguageVersion{Major: major, Minor: minor}
+
+	// Check if version is in available versions
+	available := GetRubyAvailableVersions()
+	for _, av := range available {
+		if v.Major == av.Major && v.Minor == av.Minor {
+			return v, nil
+		}
+	}
+
+	return LanguageVersion{}, fmt.Errorf("unsupported Ruby version: %s (available: 3.0, 3.1, 3.2, 3.3)", version)
+}
+
 // formatVersions formats a slice of versions as strings
 func formatVersions(versions []LanguageVersion) []string {
 	result := make([]string, len(versions))
@@ -214,4 +259,9 @@ func (v LanguageVersion) GetPHPVersionString() string {
 // GetTypeScriptVersionString returns the TypeScript version string for package.json
 func (v LanguageVersion) GetTypeScriptVersionString() string {
 	return fmt.Sprintf("^%d.%d.0", v.Major, v.Minor)
+}
+
+// GetRubyVersionString returns the Ruby version as a string (e.g., "3.0")
+func (v LanguageVersion) GetRubyVersionString() string {
+	return fmt.Sprintf("%d.%d", v.Major, v.Minor)
 }

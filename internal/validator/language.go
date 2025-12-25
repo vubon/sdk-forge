@@ -18,6 +18,7 @@ func NormalizeLanguage(lang string) string {
 		"ts":         "typescript",
 		"javascript": "javascript",
 		"typescript": "typescript",
+		"rb":         "ruby",
 	}
 
 	if normalized, exists := aliases[lang]; exists {
@@ -36,7 +37,7 @@ func ValidateLanguage(language string) error {
 		return nil
 	}
 
-	supported := []string{"python", "go", "php", "javascript", "typescript"}
+	supported := []string{"python", "go", "php", "javascript", "typescript", "ruby"}
 	for _, lang := range supported {
 		if normalized == lang {
 			return nil
@@ -48,7 +49,7 @@ func ValidateLanguage(language string) error {
 
 // GetImplementedLanguages returns a list of languages that are currently implemented
 func GetImplementedLanguages() []string {
-	return []string{"python", "go", "php", "typescript", "javascript"}
+	return []string{"python", "go", "php", "typescript", "javascript", "ruby"}
 }
 
 // ValidateSDKName validates and sanitizes SDK name based on language

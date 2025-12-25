@@ -625,7 +625,7 @@ func TestGenerateSDKForLanguage_UnsupportedLanguage(t *testing.T) {
 	doc := createTestOpenAPIDoc()
 	cmd := GetGenerateCmd()
 
-	err := generateSDKForLanguage("ruby", filepath.Join(tmpDir, "test-sdk"), "test-sdk", "", doc, cmd)
+	err := generateSDKForLanguage("rust", filepath.Join(tmpDir, "test-sdk"), "test-sdk", "", doc, cmd)
 	if err == nil {
 		t.Error("expected error for unsupported language")
 	}
