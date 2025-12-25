@@ -14,6 +14,12 @@ import (
 	httplib "github.com/vubon/sdk-forge/pkg/languages/http"
 )
 
+//go:embed templates/.rubocop.yml.tmpl
+var rubocopTemplate string
+
+//go:embed templates/.yardopts.tmpl
+var yardoptsTemplate string
+
 // GenerateRubySDK generates a Ruby SDK
 // If version is nil, uses the default Ruby version
 // If sdkVersion is empty, extracts from OpenAPI schema or defaults to "1.0.0"
@@ -68,7 +74,7 @@ func generateRubySDKFromExtracted(
 
 	// Sanitize SDK name for Ruby (snake_case for directory and module)
 	sanitizedName := common.ToSnakeCase(sdkName)
-	packageDir := filepath.Join(outputPath, sanitizedName)
+	packageDir := outputPath // Use outputPath directly as the CLI already handles the structure
 
 	// Create package directory
 	if err := os.MkdirAll(packageDir, 0750); err != nil {
@@ -103,7 +109,7 @@ func generateRubySDKFromExtracted(
 	}
 
 	// Generate gemspec file
-	gemspecContent, err := generateRubyGemspec(sdkName, finalSDKVersion, httpLib, version, libConfig, extractedData)
+	gemspecContent, err := generateRubyGemspec(sdkName, finalSDKVersion, version, libConfig, extractedData)
 	if err != nil {
 		return fmt.Errorf("failed to generate gemspec: %w", err)
 	}
@@ -114,7 +120,7 @@ func generateRubySDKFromExtracted(
 	}
 
 	// Generate Gemfile
-	gemfileContent := generateRubyGemfile(sanitizedName)
+	gemfileContent := generateRubyGemfile()
 	gemfilePath := filepath.Join(packageDir, "Gemfile")
 	// #nosec G306 -- 0644 is appropriate for Gemfile
 	if err := os.WriteFile(gemfilePath, []byte(gemfileContent), 0644); err != nil {
@@ -238,8 +244,7 @@ func generateRubySDKFromExtracted(
 }
 
 // generateRubyGemspec generates the gemspec file
-func generateRubyGemspec(sdkName, sdkVersion, httpLib string, version common.LanguageVersion, libConfig *httplib.LibraryConfig, extractedData *common.ExtractedData) (string, error) {
-	moduleName := common.ToPascalCase(sdkName)
+func generateRubyGemspec(sdkName, sdkVersion string, version common.LanguageVersion, libConfig *httplib.LibraryConfig, extractedData *common.ExtractedData) (string, error) {
 	sanitizedName := common.ToSnakeCase(sdkName)
 
 	description := "Auto-generated Ruby SDK from OpenAPI schema"
@@ -256,7 +261,7 @@ func generateRubyGemspec(sdkName, sdkVersion, httpLib string, version common.Lan
 	buf.WriteString(fmt.Sprintf("require_relative 'lib/%s/version'\n\n", sanitizedName))
 	buf.WriteString("Gem::Specification.new do |spec|\n")
 	buf.WriteString(fmt.Sprintf("  spec.name          = %q\n", sanitizedName))
-	buf.WriteString(fmt.Sprintf("  spec.version       = %s::VERSION\n", moduleName))
+	buf.WriteString(fmt.Sprintf("  spec.version       = '%s'\n", sdkVersion))
 	buf.WriteString("  spec.authors       = ['Auto-generated']\n")
 	buf.WriteString("  spec.email         = ['noreply@example.com']\n\n")
 	buf.WriteString(fmt.Sprintf("  spec.summary       = %q\n", description))
@@ -277,16 +282,20 @@ func generateRubyGemspec(sdkName, sdkVersion, httpLib string, version common.Lan
 		}
 	}
 
+	// Add base64 dependency for Ruby 3.4+ compatibility
+	buf.WriteString("  spec.add_dependency 'base64', '~> 0.1'\n")
+
 	buf.WriteString("\n  spec.add_development_dependency 'rspec', '~> 3.0'\n")
 	buf.WriteString("  spec.add_development_dependency 'rubocop', '~> 1.0'\n")
 	buf.WriteString("  spec.add_development_dependency 'yard', '~> 0.9'\n")
+	buf.WriteString("  spec.add_development_dependency 'webmock', '~> 3.18'\n")
 	buf.WriteString("end\n")
 
 	return buf.String(), nil
 }
 
 // generateRubyGemfile generates the Gemfile
-func generateRubyGemfile(sanitizedName string) string {
+func generateRubyGemfile() string {
 	var buf strings.Builder
 	buf.WriteString("# frozen_string_literal: true\n\n")
 	buf.WriteString("source 'https://rubygems.org'\n\n")
@@ -369,44 +378,16 @@ func generateRubyException(sanitizedName string) string {
 // generateRubyQualityConfigs generates code quality configuration files
 func generateRubyQualityConfigs(packageDir string) error {
 	// Generate .rubocop.yml
-	rubocopContent := `# RuboCop configuration for generated SDK
-
-AllCops:
-  TargetRubyVersion: 3.0
-  NewCops: enable
-  Exclude:
-    - 'vendor/**/*'
-    - 'spec/**/*'
-
-Style/Documentation:
-  Enabled: false
-
-Metrics/MethodLength:
-  Max: 50
-
-Metrics/ClassLength:
-  Max: 300
-
-Layout/LineLength:
-  Max: 120
-`
 	rubocopPath := filepath.Join(packageDir, ".rubocop.yml")
 	// #nosec G306 -- 0644 is appropriate for config files
-	if err := os.WriteFile(rubocopPath, []byte(rubocopContent), 0644); err != nil {
+	if err := os.WriteFile(rubocopPath, []byte(rubocopTemplate), 0644); err != nil {
 		return fmt.Errorf("failed to write .rubocop.yml: %w", err)
 	}
 
 	// Generate .yardopts
-	yardoptsContent := `--markup markdown
---no-private
-lib/**/*.rb
--
-README.md
-CHANGELOG.md
-`
 	yardoptsPath := filepath.Join(packageDir, ".yardopts")
 	// #nosec G306 -- 0644 is appropriate for config files
-	if err := os.WriteFile(yardoptsPath, []byte(yardoptsContent), 0644); err != nil {
+	if err := os.WriteFile(yardoptsPath, []byte(yardoptsTemplate), 0644); err != nil {
 		return fmt.Errorf("failed to write .yardopts: %w", err)
 	}
 
@@ -438,7 +419,7 @@ func generateRubyReadme(data common.TemplateData, sdkVersion string) (string, er
 	return buf.String(), nil
 }
 
-// generateRubyExample generates basic usage example (placeholder for now)
+// generateRubyExample generates basic usage example
 func generateRubyExample(data common.TemplateData, sanitizedName string) string {
 	moduleName := common.ToPascalCase(sanitizedName)
 
@@ -447,9 +428,63 @@ func generateRubyExample(data common.TemplateData, sanitizedName string) string 
 	buf.WriteString(fmt.Sprintf("require '%s'\n\n", sanitizedName))
 	buf.WriteString("# Initialize the client\n")
 	buf.WriteString(fmt.Sprintf("client = %s::Client.new(base_url: 'https://api.example.com')\n\n", moduleName))
-	buf.WriteString("# Example API call\n")
-	buf.WriteString("# response = client.some_method\n")
-	buf.WriteString("# puts response\n")
+
+	// Add authentication example if there are security schemes
+	extractedData, ok := data.OpenAPIDoc.(*common.ExtractedData)
+	if ok && extractedData != nil && len(extractedData.SecuritySchemes) > 0 {
+		buf.WriteString("# Configure authentication\n")
+		for _, scheme := range extractedData.SecuritySchemes {
+			switch scheme.Type {
+			case "apiKey":
+				buf.WriteString("client.api_key = 'your-api-key'\n")
+			case "http":
+				switch scheme.Scheme {
+				case "bearer":
+					buf.WriteString("client.bearer_token = 'your-bearer-token'\n")
+				case "basic":
+					buf.WriteString("client.username = 'your-username'\n")
+					buf.WriteString("client.password = 'your-password'\n")
+				}
+			}
+			break // Just show example for first scheme
+		}
+		buf.WriteString("\n")
+	}
+
+	// Add example API calls if operations exist
+	if ok && extractedData != nil && len(extractedData.Operations) > 0 {
+		buf.WriteString("# Example API calls\n")
+
+		// Group operations and show an example from the first group
+		operationsByTag := common.GroupOperationsByTag(extractedData.Operations)
+		for tag, operations := range operationsByTag {
+			if len(operations) > 0 {
+				op := operations[0]
+				apiClassName := common.ToPascalCase(tag) + "Api"
+				methodName := common.ToSnakeCase(op.OperationID)
+
+				buf.WriteString(fmt.Sprintf("# %s\n", op.Summary))
+				if len(op.Parameters) > 0 {
+					buf.WriteString(fmt.Sprintf("response = %s::API::%s.%s(client", moduleName, apiClassName, methodName))
+					for _, param := range op.Parameters {
+						if param.Required {
+							buf.WriteString(fmt.Sprintf(", %s: 'value'", common.ToSnakeCase(param.Name)))
+						}
+					}
+					buf.WriteString(")\n")
+				} else {
+					buf.WriteString(fmt.Sprintf("response = %s::API::%s.%s(client)\n", moduleName, apiClassName, methodName))
+				}
+				buf.WriteString("puts response\n")
+				break // Just show one example
+			}
+			break
+		}
+	} else {
+		buf.WriteString("# Example API call\n")
+		buf.WriteString("# response = YourModule::API::YourApi.your_method(client)\n")
+		buf.WriteString("# puts response\n")
+	}
 
 	return buf.String()
 }

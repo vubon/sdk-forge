@@ -43,9 +43,16 @@ func generateRubyAPIMethod(op common.APIOperation, _ /* data */ common.TemplateD
 	var buf strings.Builder
 
 	// Method documentation
-	buf.WriteString(fmt.Sprintf("\n      # %s\n", op.Summary))
+	// Method documentation
+	if op.Summary != "" {
+		for _, line := range strings.Split(op.Summary, "\n") {
+			buf.WriteString(fmt.Sprintf("      # %s\n", line))
+		}
+	}
 	if op.Description != "" {
-		buf.WriteString(fmt.Sprintf("      # %s\n", op.Description))
+		for _, line := range strings.Split(op.Description, "\n") {
+			buf.WriteString(fmt.Sprintf("      # %s\n", line))
+		}
 	}
 	buf.WriteString("      #\n")
 	buf.WriteString("      # @param client [Client] The API client instance\n")

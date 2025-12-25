@@ -11,7 +11,7 @@ import (
 func generateRubyClient(data common.TemplateData, _ /* version */ common.LanguageVersion) (string, error) {
 	sanitizedName := data.SDKName
 	moduleName := common.ToPascalCase(sanitizedName)
-	clientClassName := common.GetClientClassName(data.SDKName)
+	clientClassName := "Client" // Ruby convention: use "Client" as the class name
 
 	extractedData, ok := data.OpenAPIDoc.(*common.ExtractedData)
 	if !ok {
@@ -187,7 +187,6 @@ func generateRubyClient(data common.TemplateData, _ /* version */ common.Languag
 					buf.WriteString("      end\n")
 				}
 			}
-			break // Only first scheme for now
 		}
 	} else {
 		buf.WriteString("      headers['Authorization'] = \"Bearer #{@bearer_token}\" if @bearer_token\n")

@@ -100,7 +100,7 @@ func generateRubySpecHelper(sanitizedName string) string {
 // generateRubyClientSpec generates client_spec.rb
 func generateRubyClientSpec(data common.TemplateData, sanitizedName string) string {
 	moduleName := common.ToPascalCase(sanitizedName)
-	clientClassName := common.GetClientClassName(data.SDKName)
+	clientClassName := "Client" // Ruby convention: use "Client" as the class name
 
 	var buf strings.Builder
 

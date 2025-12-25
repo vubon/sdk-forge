@@ -1,0 +1,21 @@
+# RuboCop configuration for generated SDK
+
+AllCops:
+  TargetRubyVersion: 3.0
+  NewCops: enable
+  Exclude:
+    - 'vendor/**/*'
+    - 'spec/**/*'
+
+Style/Documentation:
+  Enabled: false
+
+Metrics/MethodLength:
+  Max: 50
+
+Metrics/ClassLength:
+  Max: 300
+
+Layout/LineLength:
+  Max: 120
+

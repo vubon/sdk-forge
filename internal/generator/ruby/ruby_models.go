@@ -28,8 +28,11 @@ func generateRubyModel(name string, schema *common.Schema, sanitizedSDKName stri
 	buf.WriteString(fmt.Sprintf("    # %s model\n", className))
 
 	// Add description if available
+	// Add description if available
 	if schema.Description != "" {
-		buf.WriteString(fmt.Sprintf("    # %s\n", schema.Description))
+		for _, line := range strings.Split(schema.Description, "\n") {
+			buf.WriteString(fmt.Sprintf("    # %s\n", line))
+		}
 	}
 
 	buf.WriteString(fmt.Sprintf("    class %s\n", className))
