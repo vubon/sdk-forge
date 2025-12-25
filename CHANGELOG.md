@@ -5,7 +5,7 @@ All notable changes to SDK Forge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.0] - 2025-12-25
 
 ### Added
 - **Ruby SDK Generation**: Full support for Ruby SDK generation
@@ -234,6 +234,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **-rc.x**: Release candidates (stable, final testing)
 - **x.y.z**: Stable releases (production ready)
 
+[0.7.0]: https://github.com/vubon/sdk-forge/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/vubon/sdk-forge/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/vubon/sdk-forge/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/vubon/sdk-forge/compare/v0.4.0...v0.5.0
